@@ -74,4 +74,12 @@ describe('formatDueDate', () => {
   it('falls back to a short date otherwise', () => {
     expect(formatDueDate('2026-10-05', YEREVAN, new Date('2026-09-20T10:00:00Z'))).toBe('5 Oct');
   });
+
+  it('says Yesterday for the previous day in the zone', () => {
+    expect(formatDueDate('2026-09-19', YEREVAN, new Date('2026-09-20T10:00:00Z'))).toBe('Yesterday');
+  });
+
+  it('appends the year for a date in a different year', () => {
+    expect(formatDueDate('2027-10-05', YEREVAN, new Date('2026-09-20T10:00:00Z'))).toBe('5 Oct 2027');
+  });
 });
