@@ -174,7 +174,8 @@ Files split by responsibility, not layer: a feature's queries, actions, and Zod 
 Produces a repo where `yarn test` runs and connects to a real Postgres. Everything later depends on this.
 
 **Files:**
-- Create: `package.json`, `tsconfig.json`, `next.config.ts`, `docker-compose.yml`, `.env.example`, `.env.local`, `vitest.config.ts`, `tests/setup/db.ts`, `tests/unit/smoke.test.ts`
+- Create: `package.json`, `tsconfig.json`, `next.config.ts`, `docker-compose.yml`, `.env.example`, `.env.local`, `vitest.config.ts`, `tests/unit/smoke.test.ts`
+  (`tests/setup/db.ts` is NOT created here — it needs the schema and is specified in Task 5 Step 9.)
 - Create: `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/globals.css`
 
 **Interfaces:**
@@ -255,7 +256,7 @@ services:
       POSTGRES_DB: taskeeper
       TZ: UTC
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - taskeeper-pgdata:/var/lib/postgresql/data
       - ./scripts/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
