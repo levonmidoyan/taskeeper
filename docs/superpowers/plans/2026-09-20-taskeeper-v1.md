@@ -578,12 +578,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 import { Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // Post-hydration detection. useSyncExternalStore rather than a
+  // useState/useEffect pair: the latter is a synchronous setState in an effect,
+  // which eslint-config-next flags, and suppressing it would seed a pattern every
+  // later client component copies.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const isDark = resolvedTheme === 'dark';
 
