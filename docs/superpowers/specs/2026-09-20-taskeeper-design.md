@@ -6,7 +6,7 @@
 
 ## 1. Purpose
 
-Taskeeper is a self-hosted-on-Vercel task manager for small teams. It borrows Notion's
+Taskeeper is a task manager for small teams, deployable to Vercel or any Node host (§7). It borrows Notion's
 workspace/project structure and clean surface, but not its block engine. Tasks are
 first-class rows in Postgres, not nested blocks, which keeps queries simple and the
 board fast.
@@ -16,7 +16,8 @@ board fast.
 - A new user can sign up, land in a workspace, and create their first task in under 60 seconds.
 - A workspace owner can invite a teammate by email; the teammate accepts and sees the same projects.
 - Dragging a card on the board persists immediately and never shows a stale column after reload.
-- The app runs on Vercel's free tier and Neon's free tier with no connection-limit errors.
+- The app runs on a managed serverless host and on a single self-hosted Node server from
+  the same build, with no connection-limit errors under either.
 
 ### Explicit non-goals for v1
 
@@ -166,8 +167,8 @@ timestamp would make a task due on the 21st display as the 20th for anyone readi
 different zone.
 
 The consequence is that "today", "overdue", and "due this week" cannot be computed from
-the server's clock. Vercel functions run in UTC, so between 20:00 and 24:00 UTC the server
-is already on the next day in Yerevan. Every such comparison goes through a single helper:
+the server's clock. The runtime clock is UTC (§7), so between 20:00 and 24:00 UTC the
+server is already on the next day in Yerevan. Every such comparison goes through a single helper:
 
 ```ts
 // lib/dates.ts
