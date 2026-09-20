@@ -4,7 +4,7 @@ import { createUser, createWorkspace } from '../setup/factories';
 import { listMyWorkspaces } from '@/server/workspaces/queries';
 import { createWorkspaceForUser } from '@/server/workspaces/service';
 import { slugify } from '@/lib/slug';
-import { member, workspaceSettings } from '@/db';
+import { member, organization, workspaceSettings } from '@/db';
 import { eq } from 'drizzle-orm';
 
 beforeEach(resetDb);
@@ -56,6 +56,33 @@ describe('createWorkspaceForUser', () => {
 
     expect(second.slug).not.toBe('acme');
     expect(second.slug.startsWith('acme-')).toBe(true);
+    // The disambiguation suffix must stay inside slugify's own alphabet: no
+    // underscore, no leading/trailing/doubled hyphen, lowercase only. nanoid's
+    // default alphabet includes '_' and '-', which would otherwise leak through.
+    expect(second.slug).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+  });
+
+  it('never lands on a slug that collides with a reserved top-level route', async () => {
+    const ada = await createUser('ada-reserved@example.com');
+
+    const created = await createWorkspaceForUser(ada.id, 'New Workspace');
+
+    expect(created.slug).not.toBe('new-workspace');
+
+    // The stored slug must actually be the one usable to reach the workspace.
+    const [row] = await db
+      .select({ id: organization.id }).from(organization).where(eq(organization.slug, created.slug));
+    expect(row.id).toBe(created.id);
+  });
+
+  it('disambiguates every reserved top-level segment that exists in src/app today', async () => {
+    const ada = await createUser('ada-reserved2@example.com');
+
+    const reserved = ['New Workspace', 'Sign In', 'Sign Up', 'Api'];
+    for (const name of reserved) {
+      const created = await createWorkspaceForUser(ada.id, name);
+      expect(created.slug).not.toBe(slugify(name));
+    }
   });
 });
 
