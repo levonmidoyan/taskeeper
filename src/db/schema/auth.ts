@@ -1,4 +1,4 @@
-import { boolean, pgTable, text, timestamp, index } from 'drizzle-orm/pg-core';
+import { boolean, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -65,7 +65,11 @@ export const member = pgTable(
     role: text('role').notNull().default('member'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('member_org_user_idx').on(t.organizationId, t.userId)],
+  // Unique, not just indexed: a user must resolve to exactly one role per
+  // workspace. A non-unique index would let a duplicate membership row make
+  // resolveWorkspace's role pick non-deterministic — an intra-workspace
+  // privilege-escalation risk if the wrong row wins.
+  (t) => [uniqueIndex('member_org_user_idx').on(t.organizationId, t.userId)],
 );
 
 export const invitation = pgTable('invitation', {

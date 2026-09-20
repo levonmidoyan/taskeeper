@@ -38,6 +38,28 @@ describe('resolveWorkspace', () => {
     expect(await resolveWorkspace(bob.id, 'acme-private')).toBeNull();
   });
 
+  it('returns null for a member of a different workspace, not just a total stranger', async () => {
+    // The realistic attack shape: bob is a legitimate member of his own
+    // workspace and tries acme's slug, not an account with zero memberships.
+    const ada = await createUser('ada-cross@example.com');
+    const bob = await createUser('bob-cross@example.com');
+    await createWorkspace(ada.id, 'Acme', 'acme-cross');
+    await createWorkspace(bob.id, 'Bob Co', 'bobco-cross');
+
+    expect(await resolveWorkspace(bob.id, 'acme-cross')).toBeNull();
+  });
+
+  it('rejects a duplicate membership row for the same user in the same workspace', async () => {
+    // member_org_user_idx is a UNIQUE index precisely so resolveWorkspace's role
+    // pick can never be non-deterministic between two rows for the same pair.
+    const ada = await createUser('ada-dup@example.com');
+    const bob = await createUser('bob-dup@example.com');
+    const acme = await createWorkspace(ada.id, 'Acme', 'acme-dup');
+    await joinWorkspace(bob.id, acme.id, 'member');
+
+    await expect(joinWorkspace(bob.id, acme.id, 'admin')).rejects.toThrow();
+  });
+
   it('returns null for a slug that does not exist', async () => {
     const ada = await createUser('ada3@example.com');
     expect(await resolveWorkspace(ada.id, 'no-such-workspace')).toBeNull();
