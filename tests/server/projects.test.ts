@@ -3,8 +3,11 @@ import { eq } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
 import { getProject, listProjects } from '@/server/projects/queries';
-import { archiveProject, createProject, deleteProject } from '@/server/projects/service';
+import {
+  archiveProject, createProject, deleteProject, renameProject,
+} from '@/server/projects/service';
 import { task, taskStatus } from '@/db';
+import { ForbiddenError } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
 
 beforeEach(resetDb);
@@ -80,6 +83,76 @@ describe('listProjects', () => {
     await archiveProject(ctx, { projectId: created.data.id });
     expect(await listProjects(ctx)).toHaveLength(0);
   });
+
+  it('counts only open tasks, excluding completed and archived ones', async () => {
+    const ctx = await ctxFor('count1@example.com', 'count-ws');
+    const created = await createProject(ctx, { name: 'Board' });
+    if (!created.ok) throw new Error('setup failed');
+    const detail = await getProject(ctx, created.data.id);
+    const statusId = detail!.statuses[0].id;
+
+    await db.insert(task).values([
+      {
+        id: 'open-task', workspaceId: ctx.workspaceId, projectId: created.data.id,
+        title: 'Open', statusId, position: 'a0', createdBy: ctx.userId,
+      },
+      {
+        id: 'done-task', workspaceId: ctx.workspaceId, projectId: created.data.id,
+        title: 'Done', statusId, position: 'a1', createdBy: ctx.userId,
+        completedAt: new Date(),
+      },
+      {
+        id: 'archived-task', workspaceId: ctx.workspaceId, projectId: created.data.id,
+        title: 'Archived', statusId, position: 'a2', createdBy: ctx.userId,
+        archivedAt: new Date(),
+      },
+    ]);
+
+    const projects = await listProjects(ctx);
+    expect(projects.find((p) => p.id === created.data.id)!.openTaskCount).toBe(1);
+  });
+});
+
+describe('renameProject', () => {
+  it('renames a project owned by this workspace', async () => {
+    const ctx = await ctxFor('rename1@example.com', 'rename-ws1');
+    const created = await createProject(ctx, { name: 'Old Name' });
+    if (!created.ok) throw new Error('setup failed');
+
+    const result = await renameProject(ctx, { projectId: created.data.id, name: 'New Name' });
+    expect(result.ok).toBe(true);
+
+    const detail = await getProject(ctx, created.data.id);
+    expect(detail!.name).toBe('New Name');
+  });
+
+  it('refuses to rename a project in another workspace', async () => {
+    const a = await ctxFor('rename-a@example.com', 'rename-ws-a');
+    const b = await ctxFor('rename-b@example.com', 'rename-ws-b');
+    const created = await createProject(b, { name: 'Private' });
+    if (!created.ok) throw new Error('setup failed');
+
+    const result = await renameProject(a, { projectId: created.data.id, name: 'Hijacked' });
+    expect(result.ok).toBe(false);
+
+    const detail = await getProject(b, created.data.id);
+    expect(detail!.name).toBe('Private');
+  });
+});
+
+describe('archiveProject', () => {
+  it('refuses to archive a project in another workspace', async () => {
+    const a = await ctxFor('archive-a@example.com', 'archive-ws-a');
+    const b = await ctxFor('archive-b@example.com', 'archive-ws-b');
+    const created = await createProject(b, { name: 'Private' });
+    if (!created.ok) throw new Error('setup failed');
+
+    const result = await archiveProject(a, { projectId: created.data.id });
+    expect(result.ok).toBe(false);
+
+    const listedForB = await listProjects(b);
+    expect(listedForB.map((p) => p.id)).toContain(created.data.id);
+  });
 });
 
 describe('getProject', () => {
@@ -101,9 +174,14 @@ describe('deleteProject', () => {
     const created = await createProject(ctx, { name: 'Website' });
     if (!created.ok) throw new Error('setup failed');
 
+    // Services throw, actions convert: deleteProject is a plain ctx-taking
+    // function, and requireRole's ForbiddenError is expected to propagate
+    // uncaught here. withAction (in actions.ts) is what turns it into a
+    // Result on the public path.
     const asMember = { ...ctx, role: 'member' as const };
-    const result = await deleteProject(asMember, { projectId: created.data.id });
-    expect(result.ok).toBe(false);
+    await expect(
+      deleteProject(asMember, { projectId: created.data.id }),
+    ).rejects.toThrow(ForbiddenError);
   });
 
   it('deletes tasks then statuses then the project without tripping RESTRICT', async () => {

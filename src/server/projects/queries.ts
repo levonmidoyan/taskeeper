@@ -38,7 +38,16 @@ export async function listProjects(ctx: WorkspaceContext): Promise<ProjectSummar
     .from(project)
     .leftJoin(
       task,
-      and(eq(task.projectId, project.id), isNull(task.archivedAt), isNull(task.completedAt)),
+      and(
+        eq(task.projectId, project.id),
+        // task.workspace_id has its own independent FK to organization, with no
+        // composite FK tying it to the project's workspace_id — so this join
+        // must filter it explicitly, or a task whose workspace_id disagrees with
+        // its project's would count into the wrong tenant's openTaskCount.
+        eq(task.workspaceId, ctx.workspaceId),
+        isNull(task.archivedAt),
+        isNull(task.completedAt),
+      ),
     )
     .where(and(eq(project.workspaceId, ctx.workspaceId), isNull(project.archivedAt)))
     .groupBy(project.id)
