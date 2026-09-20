@@ -708,6 +708,12 @@ describe('formatInZone', () => {
   it('renders an instant in the workspace zone, not UTC', () => {
     expect(formatInZone(new Date('2026-09-20T21:30:00Z'), YEREVAN)).toBe('21 Sep 2026, 01:30');
   });
+
+  it('uses a three-letter month for September, not a four-letter one', () => {
+    // Guards against a locale whose September abbreviation is "Sept", which
+    // would make date columns ragged.
+    expect(formatInZone(new Date('2026-09-05T10:00:00Z'), YEREVAN)).toBe('05 Sep 2026, 14:00');
+  });
 });
 
 describe('formatDueDate', () => {
@@ -761,14 +767,18 @@ export function isOverdue(dueDate: string, tz: string, now: Date = new Date()): 
 
 /** Renders an instant (created_at, completed_at) in the workspace zone. */
 export function formatInZone(instant: Date, tz: string): string {
-  const parts = new Intl.DateTimeFormat('en-GB', {
+  // en-US for a consistently three-letter month: en-GB renders September as
+  // "Sept", ragged against every other month in a table column. Order is
+  // assembled below rather than taken from the locale. hourCycle 'h23' rather
+  // than hour12:false, which can yield hour "24" at midnight on some ICU builds.
+  const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: tz,
     day: '2-digit',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
+    hourCycle: 'h23',
   }).formatToParts(instant);
 
   const get = (type: Intl.DateTimeFormatPartTypes) =>
@@ -796,12 +806,20 @@ export function formatDueDate(dueDate: string, tz: string, now: Date = new Date(
   const asInstant = new Date(Date.UTC(y, m - 1, d, 12));
   const sameYear = dueDate.slice(0, 4) === today.slice(0, 4);
 
-  return new Intl.DateTimeFormat('en-GB', {
+  const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'UTC',
     day: 'numeric',
     month: 'short',
     ...(sameYear ? {} : { year: 'numeric' }),
-  }).format(asInstant);
+  }).formatToParts(asInstant);
+
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? '';
+
+  // Day-month order is ours, not the locale's.
+  return sameYear
+    ? `${get('day')} ${get('month')}`
+    : `${get('day')} ${get('month')} ${get('year')}`;
 }
 ```
 
@@ -811,7 +829,7 @@ export function formatDueDate(dueDate: string, tz: string, now: Date = new Date(
 yarn vitest run tests/unit/dates.test.ts
 ```
 
-Expected: PASS, 11 tests.
+Expected: PASS, 13 tests.
 
 - [ ] **Step 5: Commit**
 
