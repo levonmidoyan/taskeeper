@@ -21,7 +21,13 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
-      aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+      aria-label={
+        mounted
+          ? isDark
+            ? 'Switch to light theme'
+            : 'Switch to dark theme'
+          : 'Toggle theme'
+      }
       className="inline-flex size-11 items-center justify-center rounded-[var(--radius-button)] text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
     >
       {/* Render a stable icon until mounted, so server and client markup match. */}
