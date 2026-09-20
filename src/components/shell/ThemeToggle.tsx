@@ -2,14 +2,18 @@
 
 import { Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  // Required to avoid a server/client markup mismatch: `resolvedTheme` is only known after mount.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => setMounted(true), []);
+  // Mount detection without a synchronous setState-in-effect: the server snapshot is
+  // always `false`, the client snapshot is always `true`, so this flips to `true` on
+  // the client after hydration without triggering a cascading render.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const isDark = resolvedTheme === 'dark';
 
