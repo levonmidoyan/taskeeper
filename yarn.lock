@@ -4506,7 +4506,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"class-variance-authority@npm:^0.7.1":
+"class-variance-authority@npm:0.7.1":
   version: 0.7.1
   resolution: "class-variance-authority@npm:0.7.1"
   dependencies:
@@ -4545,21 +4545,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"cn@npm:0.3.0":
+  version: 0.3.0
+  resolution: "cn@npm:0.3.0"
+  bin:
+    cn: bin/cn.mjs
+  checksum: 10c0/dbdfb8b5ff7873dd8a094352191a008dbe7adc9bda6ac2c5d9b017b62a98b5201ca7a9bfaaaf0a6e1c6c48925ca9df62028b0225426f5154d9f7f8946ed5390d
+  languageName: node
+  linkType: hard
+
 "cn@npm:^0.2.4":
   version: 0.2.6
   resolution: "cn@npm:0.2.6"
   bin:
     cn: bin/cn.mjs
   checksum: 10c0/7d5744771e897061e210d5aa49563d254518e7e032ec372991d8e1ebb1d61057b4ec538810de31ac267153e610c141ec54b0befd006c0220e772a652824b9830
-  languageName: node
-  linkType: hard
-
-"cn@npm:^0.3.0":
-  version: 0.3.0
-  resolution: "cn@npm:0.3.0"
-  bin:
-    cn: bin/cn.mjs
-  checksum: 10c0/dbdfb8b5ff7873dd8a094352191a008dbe7adc9bda6ac2c5d9b017b62a98b5201ca7a9bfaaaf0a6e1c6c48925ca9df62028b0225426f5154d9f7f8946ed5390d
   languageName: node
   linkType: hard
 
@@ -8477,7 +8477,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"radix-ui@npm:^1.6.7":
+"radix-ui@npm:1.6.7":
   version: 1.6.7
   resolution: "radix-ui@npm:1.6.7"
   dependencies:
@@ -9021,7 +9021,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"shadcn@npm:^4.21.0":
+"shadcn@npm:4.21.0":
   version: 4.21.0
   resolution: "shadcn@npm:4.21.0"
   dependencies:
@@ -9263,7 +9263,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sonner@npm:^2.0.8":
+"sonner@npm:2.0.8":
   version: 2.0.8
   resolution: "sonner@npm:2.0.8"
   peerDependencies:
@@ -9597,8 +9597,8 @@ __metadata:
     "@types/react": "npm:^19"
     "@types/react-dom": "npm:^19"
     better-auth: "npm:1.7.5"
-    class-variance-authority: "npm:^0.7.1"
-    cn: "npm:^0.3.0"
+    class-variance-authority: "npm:0.7.1"
+    cn: "npm:0.3.0"
     dotenv: "npm:17.2.3"
     drizzle-kit: "npm:0.31.10"
     drizzle-orm: "npm:0.45.2"
@@ -9610,15 +9610,15 @@ __metadata:
     next: "npm:16.3.5"
     next-themes: "npm:0.4.6"
     pg: "npm:8.23.0"
-    radix-ui: "npm:^1.6.7"
+    radix-ui: "npm:1.6.7"
     react: "npm:19.3.0"
     react-dom: "npm:19.3.0"
     resend: "npm:6.2.0"
-    shadcn: "npm:^4.21.0"
-    sonner: "npm:^2.0.8"
+    shadcn: "npm:4.21.0"
+    sonner: "npm:2.0.8"
     tailwindcss: "npm:^4"
     tsx: "npm:4.20.6"
-    tw-animate-css: "npm:^1.4.0"
+    tw-animate-css: "npm:1.4.0"
     typescript: "npm:^5"
     vitest: "npm:4.1.0"
     zod: "npm:4.6.5"
@@ -9759,7 +9759,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tw-animate-css@npm:^1.4.0":
+"tw-animate-css@npm:1.4.0":
   version: 1.4.0
   resolution: "tw-animate-css@npm:1.4.0"
   checksum: 10c0/6cfbc19ccc73883ec80ef1f9147f43e736cb01ee99c8172968b37eb81b720523d30e38b1a96aef92db3c586d864204db5510b51744ddacbbf0ad8e3c7fb56ec7
