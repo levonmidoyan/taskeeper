@@ -34,6 +34,83 @@ Every task's requirements implicitly include this section.
 - **TDD is mandatory.** Write the failing test, watch it fail, implement, watch it pass, commit. A step that says "run it to verify it fails" is not optional — a test that has never failed has not been shown to test anything.
 - **Commit at the end of every task**, with a Conventional Commits message. Never add `Co-Authored-By` trailers.
 
+---
+
+## Amendment A — server module split (pre-flight ruling, binding)
+
+**This section overrides any `'use server'` placement or file path shown in a task
+body below.** Two defects were found in this plan before execution began.
+
+### A1. `slugify` must not live in a `'use server'` module
+
+Task 8 defines `slugify()` — a synchronous function — inside
+`src/server/workspaces/actions.ts`, which carries `'use server'`. Next.js allows
+only async exports from such a module, so this fails at build, and Task 9 imports
+it from there.
+
+**Do this instead:** `slugify` lives in `src/lib/slug.ts`, a plain module with no
+directive. Tasks 8 and 9 and the Task 8 test import it from `@/lib/slug`.
+
+### A2. Context-taking functions must not be Server Actions
+
+As written, every `actions.ts` carries `'use server'` at the top *and* exports the
+context-taking core functions (`createProject(ctx, input)`, `updateTask(ctx, input)`,
+`inviteMember(ctx, input)`, and so on). Every export of a `'use server'` module is a
+public HTTP endpoint. A client could therefore call these directly with a forged
+context — `{ workspaceId: <any workspace>, role: 'owner' }` — and the function would
+trust it, because spec §4 makes the context the sole carrier of tenancy. That is a
+complete bypass of the boundary Task 7 exists to build, available to anyone holding
+any session.
+
+**Do this instead.** Every feature under `src/server/` is two files:
+
+| file | directive | contains | imported by |
+|---|---|---|---|
+| `service.ts` | none | the context-taking functions, exactly as the task body writes them | server components, other services, tests |
+| `actions.ts` | `'use server'` | **only** the slug-taking wrappers | client components only |
+
+A wrapper is the whole of what `actions.ts` holds:
+
+```ts
+'use server';
+
+import { requireWorkspace } from '@/lib/session';
+import { withAction, type Result } from '@/lib/result';
+import { createProject } from './service';
+
+export async function createProjectAction(
+  workspaceSlug: string,
+  input: { name: string },
+): Promise<Result<{ id: string }>> {
+  return withAction(async () => createProject(await requireWorkspace(workspaceSlug), input));
+}
+```
+
+Applies to `workspaces`, `projects`, `tasks`, `labels`, `members`, and `settings`.
+
+Specific consequences:
+
+- Task 8: `createWorkspaceForUser(userId, name)` goes in
+  `src/server/workspaces/service.ts`. Only `createWorkspaceAction` stays in
+  `actions.ts` — it derives the user from the session itself, which is allowed.
+- Task 15: `acceptInvitation(userId, userEmail, invitationId)` goes in
+  `src/server/members/service.ts`. As an action it would let any caller redeem an
+  invitation as another user.
+- Every test file imports the context-taking functions from `./service`, not
+  `./actions`. The import lines in the task bodies change accordingly; nothing else
+  about the tests changes.
+- `queries.ts` files are unaffected — they never carried `'use server'`.
+
+### Added Global Constraint
+
+- **A `'use server'` module may export only functions that derive the caller's
+  identity server-side** — that is, functions whose first parameter is a workspace
+  slug, or which read the session themselves. A `'use server'` export taking a
+  `WorkspaceContext`, a `userId`, or a `workspaceId` from its caller is a review
+  rejection: it is a public endpoint trusting client-supplied authorization.
+
+---
+
 ## File Structure
 
 ```
