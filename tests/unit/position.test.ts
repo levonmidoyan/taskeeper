@@ -41,13 +41,20 @@ describe('positionBetween', () => {
       lo = mid;
     }
   });
+
+  it('inserts correctly between keys produced by positionsForCount', () => {
+    const [a, b, c] = positionsForCount(3);
+    const mid = positionBetween(a, b);
+    expect(a < mid && mid < b).toBe(true);
+    expect([a, mid, b, c].every((k, i, arr) => i === 0 || arr[i - 1] < k)).toBe(true);
+  });
 });
 
 describe('positionsForCount', () => {
   it('returns n ascending keys', () => {
     const keys = positionsForCount(3);
     expect(keys).toHaveLength(3);
-    expect([...keys].sort()).toEqual(keys);
+    expect(keys.every((k, i) => i === 0 || keys[i - 1] < k)).toBe(true);
   });
 
   it('returns an empty array for zero', () => {
