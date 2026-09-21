@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   boolean,
   date,
   index,
@@ -44,7 +45,7 @@ export const task = pgTable(
     // instant (spec §3.4).
     dueDate: date('due_date'),
     position: text('position').notNull(),
-    parentTaskId: text('parent_task_id').references((): any => task.id, { onDelete: 'cascade' }),
+    parentTaskId: text('parent_task_id').references((): AnyPgColumn => task.id, { onDelete: 'cascade' }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdBy: text('created_by').notNull().references(() => user.id),
