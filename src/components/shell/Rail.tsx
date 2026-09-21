@@ -67,16 +67,25 @@ function RailBody({ workspaceSlug, workspaces, projects }: Props) {
         )}
       </div>
 
-      <div className="flex items-center gap-1 border-t border-border pt-3">
+      <div className="space-y-1 border-t border-border pt-3">
+        <div className="flex items-center gap-1">
+          <Link
+            href={`/${workspaceSlug}/settings/members`}
+            aria-current={pathname.endsWith('/settings/members') ? 'page' : undefined}
+            className="flex h-11 flex-1 items-center gap-2 rounded-[var(--radius-button)] px-2 text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
+          >
+            <Settings className="size-4" aria-hidden="true" />
+            Settings
+          </Link>
+          <ThemeToggle />
+        </div>
         <Link
-          href={`/${workspaceSlug}/settings/members`}
-          aria-current={pathname.includes('/settings') ? 'page' : undefined}
-          className="flex h-11 flex-1 items-center gap-2 rounded-[var(--radius-button)] px-2 text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
+          href={`/${workspaceSlug}/settings/general`}
+          aria-current={pathname.endsWith('/settings/general') ? 'page' : undefined}
+          className="flex h-11 items-center gap-2 rounded-[var(--radius-button)] px-2 pl-8 text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
         >
-          <Settings className="size-4" aria-hidden="true" />
-          Settings
+          General
         </Link>
-        <ThemeToggle />
       </div>
     </nav>
   );

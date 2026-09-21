@@ -1,15 +1,20 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { safeNextPath } from '@/lib/next-path';
 import { signUp } from '@/lib/auth-client';
 
-export default function SignUpPage() {
+function SignUpForm() {
   const router = useRouter();
+  // An invitation link sends unauthenticated visitors here with ?next=/invite/<id>,
+  // so signing up has to land back on the invitation rather than at the generic
+  // "create a workspace" page.
+  const next = safeNextPath(useSearchParams().get('next'));
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -30,7 +35,7 @@ export default function SignUpPage() {
       setPending(false);
       return;
     }
-    router.push('/');
+    router.push(next);
   }
 
   return (
@@ -70,8 +75,22 @@ export default function SignUpPage() {
 
       <p className="text-center text-sm text-muted-foreground">
         Already have an account?{' '}
-        <Link href="/sign-in" className="text-primary underline-offset-4 hover:underline">Sign in</Link>
+        <Link
+          href={next === '/' ? '/sign-in' : `/sign-in?next=${encodeURIComponent(next)}`}
+          className="text-primary underline-offset-4 hover:underline"
+        >
+          Sign in
+        </Link>
       </p>
     </form>
+  );
+}
+
+// useSearchParams needs a Suspense boundary, or the page cannot be prerendered.
+export default function SignUpPage() {
+  return (
+    <Suspense>
+      <SignUpForm />
+    </Suspense>
   );
 }

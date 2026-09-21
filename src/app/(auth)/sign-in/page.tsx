@@ -1,15 +1,19 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { safeNextPath } from '@/lib/next-path';
 import { signIn } from '@/lib/auth-client';
 
-export default function SignInPage() {
+function SignInForm() {
   const router = useRouter();
+  // Carried over from sign-up so an invited person who already has an account
+  // still lands back on the invitation.
+  const next = safeNextPath(useSearchParams().get('next'));
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -29,7 +33,7 @@ export default function SignInPage() {
       setPending(false);
       return;
     }
-    router.push('/');
+    router.push(next);
   }
 
   return (
@@ -63,8 +67,22 @@ export default function SignInPage() {
 
       <p className="text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{' '}
-        <Link href="/sign-up" className="text-primary underline-offset-4 hover:underline">Create one</Link>
+        <Link
+          href={next === '/' ? '/sign-up' : `/sign-up?next=${encodeURIComponent(next)}`}
+          className="text-primary underline-offset-4 hover:underline"
+        >
+          Create one
+        </Link>
       </p>
     </form>
+  );
+}
+
+// useSearchParams needs a Suspense boundary, or the page cannot be prerendered.
+export default function SignInPage() {
+  return (
+    <Suspense>
+      <SignInForm />
+    </Suspense>
   );
 }
