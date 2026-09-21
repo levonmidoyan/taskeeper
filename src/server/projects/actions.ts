@@ -22,7 +22,7 @@ export async function createProjectAction(
 ): Promise<Result<{ id: string }>> {
   return withAction(async () => {
     const result = await createProject(await requireWorkspace(workspaceSlug), input);
-    if (result.ok) revalidatePath(`/${workspaceSlug}`);
+    if (result.ok) revalidatePath(`/${workspaceSlug}`, 'layout');
     return result;
   });
 }
@@ -33,7 +33,7 @@ export async function renameProjectAction(
 ): Promise<Result<null>> {
   return withAction(async () => {
     const result = await renameProject(await requireWorkspace(workspaceSlug), input);
-    if (result.ok) revalidatePath(`/${workspaceSlug}`);
+    if (result.ok) revalidatePath(`/${workspaceSlug}`, 'layout');
     return result;
   });
 }
@@ -44,7 +44,7 @@ export async function archiveProjectAction(
 ): Promise<Result<null>> {
   return withAction(async () => {
     const result = await archiveProject(await requireWorkspace(workspaceSlug), input);
-    if (result.ok) revalidatePath(`/${workspaceSlug}`);
+    if (result.ok) revalidatePath(`/${workspaceSlug}`, 'layout');
     return result;
   });
 }
@@ -55,7 +55,7 @@ export async function deleteProjectAction(
 ): Promise<Result<null>> {
   return withAction(async () => {
     const result = await deleteProject(await requireWorkspace(workspaceSlug), input);
-    if (result.ok) revalidatePath(`/${workspaceSlug}`);
+    if (result.ok) revalidatePath(`/${workspaceSlug}`, 'layout');
     return result;
   });
 }
