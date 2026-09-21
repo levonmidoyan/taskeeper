@@ -49,7 +49,11 @@ export function QuickAddTask({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex items-center gap-2">
+    // relative, so the sr-only label below resolves its containing block here
+    // rather than at the viewport. In the board's horizontally scrolling strip
+    // an unpositioned absolute label escapes the scroll container and stretches
+    // the page itself sideways.
+    <form onSubmit={onSubmit} className="relative flex items-center gap-2">
       <Plus className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       <label htmlFor={`quick-add-${statusId ?? 'default'}`} className="sr-only">
         {placeholder}
