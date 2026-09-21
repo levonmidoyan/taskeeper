@@ -41,3 +41,6 @@ next-env.d.ts
 
 # superpowers scratch dir
 .superpowers/
+
+# Playwright MCP session artifacts
+.playwright-mcp/
