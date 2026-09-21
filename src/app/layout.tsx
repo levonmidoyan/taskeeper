@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import { ThemeProvider } from '@/components/theme-provider';
+import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
 
 const jakarta = localFont({
@@ -21,6 +22,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-dvh antialiased">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           {children}
+          {/* aria-live, and never steals focus. */}
+          <Toaster position="bottom-right" />
         </ThemeProvider>
       </body>
     </html>
