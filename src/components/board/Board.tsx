@@ -1,8 +1,8 @@
 'use client';
 
 import {
-  DndContext, KeyboardSensor, PointerSensor, closestCenter, closestCorners,
-  getFirstCollision, pointerWithin, rectIntersection,
+  DndContext, KeyboardSensor, MeasuringStrategy, PointerSensor,
+  closestCenter, closestCorners, getFirstCollision, pointerWithin, rectIntersection,
   useSensor, useSensors, type CollisionDetection, type DragEndEvent,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
@@ -167,6 +167,11 @@ export function Board({
       id="project-board"
       sensors={sensors}
       collisionDetection={collisionDetection}
+      // Always, not the default WhileDragging: a keyboard drag can have its
+      // first arrow key handled before the columns have been measured, and an
+      // unmeasured droppable is not a collision candidate — so the card would
+      // travel nowhere and drop back into the column it started in.
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       onDragEnd={onDragEnd}
     >
       {/* Horizontal scroll lives here, never on the page (spec §6.4). */}

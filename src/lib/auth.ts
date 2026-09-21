@@ -13,6 +13,12 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: 8,
   },
+  // On by default, and it must stay on in production — it is what stops
+  // credential stuffing against sign-in. The end-to-end suite signs up several
+  // accounts in a row from one address and trips it, so the test runner opts
+  // out explicitly rather than the app guessing from NODE_ENV: the e2e run is a
+  // production build, so NODE_ENV cannot tell the two apart.
+  rateLimit: { enabled: process.env.AUTH_RATE_LIMIT !== 'off' },
   plugins: [
     organization(),
     // nextCookies must be last: it wraps the response so Server Actions can set

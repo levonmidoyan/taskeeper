@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      TZ: UTC
+      DATABASE_URL: postgres://taskeeper:taskeeper@localhost:5432/taskeeper_test
+      DATABASE_URL_TEST: postgres://taskeeper:taskeeper@localhost:5432/taskeeper_test
+      BETTER_AUTH_SECRET: ci-secret-not-used-in-production
+      BETTER_AUTH_URL: http://localhost:3000
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: taskeeper
+          POSTGRES_PASSWORD: taskeeper
+          POSTGRES_DB: taskeeper_test
+          TZ: UTC
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U taskeeper"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Enable corepack
+        run: corepack enable
+
+      # --immutable is the CI lockfile check: it fails rather than silently
+      # updating yarn.lock.
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Apply migrations
+        run: yarn db:migrate
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Unit and server tests
+        run: yarn test
+
+      - name: Install browsers
+        run: yarn playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: yarn e2e

@@ -10,6 +10,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: false,
+    // tests/e2e is Playwright's; its specs import @playwright/test and cannot
+    // run under vitest.
+    include: ['tests/{unit,server}/**/*.test.ts'],
     setupFiles: ['./tests/setup/env.ts'],
     // Tests share one database and truncate between cases, so they must not run
     // in parallel against each other.
