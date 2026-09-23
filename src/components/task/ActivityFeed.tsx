@@ -5,28 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { formatInZone } from '@/lib/dates';
+import { describeActivity } from '@/lib/activity-text';
 import {
   createCommentAction, deleteCommentAction, updateCommentAction,
 } from '@/server/comments/actions';
 import type { FeedEntry } from '@/server/activity/queries';
-
-/** The one place an activity row turns into a sentence. */
-function describeActivity(entry: Extract<FeedEntry, { type: 'activity' }>): string {
-  switch (entry.kind) {
-    case 'created':
-      return 'created this task';
-    case 'title':
-      return `renamed it from “${entry.from}” to “${entry.to}”`;
-    case 'status':
-      return `moved it from ${entry.from} to ${entry.to}`;
-    case 'priority':
-      return `changed priority from ${entry.from} to ${entry.to}`;
-    case 'assignee':
-      return entry.to ? `assigned it to ${entry.to}` : `unassigned ${entry.from}`;
-    case 'due_date':
-      return entry.to ? `set the due date to ${entry.to}` : 'cleared the due date';
-  }
-}
 
 export function ActivityFeed({
   taskId,
