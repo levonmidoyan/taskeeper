@@ -10,12 +10,14 @@ import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { ActivityFeed } from '@/components/task/ActivityFeed';
 import { LabelPicker } from '@/components/task/LabelPicker';
 import { SubtaskSection } from '@/components/task/SubtaskSection';
 import type { StatusRow } from '@/server/projects/queries';
 import type { MemberRow } from '@/server/labels/queries';
 import { deleteTaskAction, updateTaskAction } from '@/server/tasks/actions';
 import type { LabelRow, Priority, TaskDetail } from '@/server/tasks/queries';
+import type { FeedEntry } from '@/server/activity/queries';
 
 const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
 
@@ -26,6 +28,10 @@ export function TaskDetailDialog({
   members,
   allLabels,
   workspaceSlug,
+  feed,
+  currentUserId,
+  canModerate,
+  timezone,
 }: {
   task: TaskDetail;
   projectId: string;
@@ -33,6 +39,10 @@ export function TaskDetailDialog({
   members: MemberRow[];
   allLabels: LabelRow[];
   workspaceSlug: string;
+  feed: FeedEntry[];
+  currentUserId: string;
+  canModerate: boolean;
+  timezone: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -209,6 +219,15 @@ export function TaskDetailDialog({
               workspaceSlug={workspaceSlug}
             />
           )}
+
+          <ActivityFeed
+            taskId={task.id}
+            feed={feed}
+            workspaceSlug={workspaceSlug}
+            currentUserId={currentUserId}
+            canModerate={canModerate}
+            timezone={timezone}
+          />
 
           <div className="border-t border-border pt-4">
             <button
