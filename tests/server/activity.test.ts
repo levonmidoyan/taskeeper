@@ -111,6 +111,21 @@ describe('activity recording', () => {
     expect(entries.map((e) => e.kind)).toEqual(['created']);
   });
 
+  // Review Focus (fix round 1): memberName must be scoped to the caller's
+  // workspace, not a bare lookup by id.
+  it('does not disclose a name for an assignee outside the workspace', async () => {
+    const a = await setup('a8@example.com', 'ws-a8');
+    const b = await setup('b8@example.com', 'ws-b8');
+    const created = await createTask(a.ctx, { projectId: a.projectId, title: 'Ship v1' });
+    if (!created.ok) throw new Error('create failed');
+
+    await updateTask(a.ctx, { taskId: created.data.id, assigneeId: b.user.id });
+
+    const entries = await rows(created.data.id);
+    expect(entries.map((e) => e.kind)).toEqual(['created', 'assignee']);
+    expect(entries[1].toValue).toBeNull();
+  });
+
   // Review Focus 4.
   it('writes no activity when the update is rejected', async () => {
     const a = await setup('a7@example.com', 'ws-a7');

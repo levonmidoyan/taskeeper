@@ -1,6 +1,6 @@
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { db, project, task, taskStatus, user } from '@/db';
+import { db, member, project, task, taskStatus, user } from '@/db';
 import { newId } from '@/lib/ids';
 import { positionBetween } from '@/lib/position';
 import { err, ok, withAction, type Result } from '@/lib/result';
@@ -51,12 +51,18 @@ async function loadOwnedTask(ctx: WorkspaceContext, taskId: string) {
   return row ?? null;
 }
 
-/** Member names, for activity rows that must survive the member being removed. */
-async function memberName(userId: string | null): Promise<string | null> {
+/**
+ * Member names, for activity rows that must survive the member being removed.
+ * Scoped to this workspace's membership: an id outside it (whether a stale
+ * assignee or an unvalidated one) resolves to null rather than disclosing a
+ * stranger's name across tenants.
+ */
+async function memberName(ctx: WorkspaceContext, userId: string | null): Promise<string | null> {
   if (!userId) return null;
   const [row] = await db
     .select({ name: user.name })
     .from(user)
+    .innerJoin(member, and(eq(member.userId, user.id), eq(member.organizationId, ctx.workspaceId)))
     .where(eq(user.id, userId))
     .limit(1);
   return row?.name ?? null;
@@ -179,8 +185,8 @@ export async function updateTask(
     if (patch.assigneeId !== undefined && patch.assigneeId !== owned.assigneeId) {
       entries.push({
         kind: 'assignee',
-        from: await memberName(owned.assigneeId),
-        to: await memberName(patch.assigneeId as string | null),
+        from: await memberName(ctx, owned.assigneeId),
+        to: await memberName(ctx, patch.assigneeId as string | null),
       });
     }
     if (patch.statusId !== undefined && patch.statusId !== owned.statusId) {
