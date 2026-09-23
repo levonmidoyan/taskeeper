@@ -34,6 +34,83 @@ Every task's requirements implicitly include this section.
 - **TDD is mandatory.** Write the failing test, watch it fail, implement, watch it pass, commit. A step that says "run it to verify it fails" is not optional — a test that has never failed has not been shown to test anything.
 - **Commit at the end of every task**, with a Conventional Commits message. Never add `Co-Authored-By` trailers.
 
+---
+
+## Amendment A — server module split (pre-flight ruling, binding)
+
+**This section overrides any `'use server'` placement or file path shown in a task
+body below.** Two defects were found in this plan before execution began.
+
+### A1. `slugify` must not live in a `'use server'` module
+
+Task 8 defines `slugify()` — a synchronous function — inside
+`src/server/workspaces/actions.ts`, which carries `'use server'`. Next.js allows
+only async exports from such a module, so this fails at build, and Task 9 imports
+it from there.
+
+**Do this instead:** `slugify` lives in `src/lib/slug.ts`, a plain module with no
+directive. Tasks 8 and 9 and the Task 8 test import it from `@/lib/slug`.
+
+### A2. Context-taking functions must not be Server Actions
+
+As written, every `actions.ts` carries `'use server'` at the top *and* exports the
+context-taking core functions (`createProject(ctx, input)`, `updateTask(ctx, input)`,
+`inviteMember(ctx, input)`, and so on). Every export of a `'use server'` module is a
+public HTTP endpoint. A client could therefore call these directly with a forged
+context — `{ workspaceId: <any workspace>, role: 'owner' }` — and the function would
+trust it, because spec §4 makes the context the sole carrier of tenancy. That is a
+complete bypass of the boundary Task 7 exists to build, available to anyone holding
+any session.
+
+**Do this instead.** Every feature under `src/server/` is two files:
+
+| file | directive | contains | imported by |
+|---|---|---|---|
+| `service.ts` | none | the context-taking functions, exactly as the task body writes them | server components, other services, tests |
+| `actions.ts` | `'use server'` | **only** the slug-taking wrappers | client components only |
+
+A wrapper is the whole of what `actions.ts` holds:
+
+```ts
+'use server';
+
+import { requireWorkspace } from '@/lib/session';
+import { withAction, type Result } from '@/lib/result';
+import { createProject } from './service';
+
+export async function createProjectAction(
+  workspaceSlug: string,
+  input: { name: string },
+): Promise<Result<{ id: string }>> {
+  return withAction(async () => createProject(await requireWorkspace(workspaceSlug), input));
+}
+```
+
+Applies to `workspaces`, `projects`, `tasks`, `labels`, `members`, and `settings`.
+
+Specific consequences:
+
+- Task 8: `createWorkspaceForUser(userId, name)` goes in
+  `src/server/workspaces/service.ts`. Only `createWorkspaceAction` stays in
+  `actions.ts` — it derives the user from the session itself, which is allowed.
+- Task 15: `acceptInvitation(userId, userEmail, invitationId)` goes in
+  `src/server/members/service.ts`. As an action it would let any caller redeem an
+  invitation as another user.
+- Every test file imports the context-taking functions from `./service`, not
+  `./actions`. The import lines in the task bodies change accordingly; nothing else
+  about the tests changes.
+- `queries.ts` files are unaffected — they never carried `'use server'`.
+
+### Added Global Constraint
+
+- **A `'use server'` module may export only functions that derive the caller's
+  identity server-side** — that is, functions whose first parameter is a workspace
+  slug, or which read the session themselves. A `'use server'` export taking a
+  `WorkspaceContext`, a `userId`, or a `workspaceId` from its caller is a review
+  rejection: it is a public endpoint trusting client-supplied authorization.
+
+---
+
 ## File Structure
 
 ```
@@ -97,7 +174,8 @@ Files split by responsibility, not layer: a feature's queries, actions, and Zod 
 Produces a repo where `yarn test` runs and connects to a real Postgres. Everything later depends on this.
 
 **Files:**
-- Create: `package.json`, `tsconfig.json`, `next.config.ts`, `docker-compose.yml`, `.env.example`, `.env.local`, `vitest.config.ts`, `tests/setup/db.ts`, `tests/unit/smoke.test.ts`
+- Create: `package.json`, `tsconfig.json`, `next.config.ts`, `docker-compose.yml`, `.env.example`, `.env.local`, `vitest.config.ts`, `tests/unit/smoke.test.ts`
+  (`tests/setup/db.ts` is NOT created here — it needs the schema and is specified in Task 5 Step 9.)
 - Create: `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/globals.css`
 
 **Interfaces:**
@@ -178,7 +256,7 @@ services:
       POSTGRES_DB: taskeeper
       TZ: UTC
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - taskeeper-pgdata:/var/lib/postgresql/data
       - ./scripts/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
@@ -500,12 +578,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 import { Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // Post-hydration detection. useSyncExternalStore rather than a
+  // useState/useEffect pair: the latter is a synchronous setState in an effect,
+  // which eslint-config-next flags, and suppressing it would seed a pattern every
+  // later client component copies.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const isDark = resolvedTheme === 'dark';
 
@@ -513,7 +598,10 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
-      aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+      // Gated on `mounted` like the icon: an ungated label differs between server
+      // and client whenever a persisted theme differs from the default, which is a
+      // hydration mismatch that suppressHydrationWarning on <html> does not cover.
+      aria-label={mounted ? (isDark ? 'Switch to light theme' : 'Switch to dark theme') : 'Toggle theme'}
       className="inline-flex size-11 items-center justify-center rounded-[var(--radius-button)] text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
     >
       {/* Render a stable icon until mounted, so server and client markup match. */}
@@ -620,6 +708,12 @@ describe('formatInZone', () => {
   it('renders an instant in the workspace zone, not UTC', () => {
     expect(formatInZone(new Date('2026-09-20T21:30:00Z'), YEREVAN)).toBe('21 Sep 2026, 01:30');
   });
+
+  it('uses a three-letter month for September, not a four-letter one', () => {
+    // Guards against a locale whose September abbreviation is "Sept", which
+    // would make date columns ragged.
+    expect(formatInZone(new Date('2026-09-05T10:00:00Z'), YEREVAN)).toBe('05 Sep 2026, 14:00');
+  });
 });
 
 describe('formatDueDate', () => {
@@ -673,14 +767,18 @@ export function isOverdue(dueDate: string, tz: string, now: Date = new Date()): 
 
 /** Renders an instant (created_at, completed_at) in the workspace zone. */
 export function formatInZone(instant: Date, tz: string): string {
-  const parts = new Intl.DateTimeFormat('en-GB', {
+  // en-US for a consistently three-letter month: en-GB renders September as
+  // "Sept", ragged against every other month in a table column. Order is
+  // assembled below rather than taken from the locale. hourCycle 'h23' rather
+  // than hour12:false, which can yield hour "24" at midnight on some ICU builds.
+  const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: tz,
     day: '2-digit',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
+    hourCycle: 'h23',
   }).formatToParts(instant);
 
   const get = (type: Intl.DateTimeFormatPartTypes) =>
@@ -708,12 +806,20 @@ export function formatDueDate(dueDate: string, tz: string, now: Date = new Date(
   const asInstant = new Date(Date.UTC(y, m - 1, d, 12));
   const sameYear = dueDate.slice(0, 4) === today.slice(0, 4);
 
-  return new Intl.DateTimeFormat('en-GB', {
+  const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'UTC',
     day: 'numeric',
     month: 'short',
     ...(sameYear ? {} : { year: 'numeric' }),
-  }).format(asInstant);
+  }).formatToParts(asInstant);
+
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? '';
+
+  // Day-month order is ours, not the locale's.
+  return sameYear
+    ? `${get('day')} ${get('month')}`
+    : `${get('day')} ${get('month')} ${get('year')}`;
 }
 ```
 
@@ -723,7 +829,7 @@ export function formatDueDate(dueDate: string, tz: string, now: Date = new Date(
 yarn vitest run tests/unit/dates.test.ts
 ```
 
-Expected: PASS, 11 tests.
+Expected: PASS, 13 tests.
 
 - [ ] **Step 5: Commit**
 
