@@ -1,31 +1,34 @@
 'use client';
 
-import { Trash2 } from 'lucide-react';
+import { ChevronLeft, Trash2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { LabelPicker } from '@/components/task/LabelPicker';
+import { SubtaskSection } from '@/components/task/SubtaskSection';
 import type { StatusRow } from '@/server/projects/queries';
 import type { MemberRow } from '@/server/labels/queries';
 import { deleteTaskAction, updateTaskAction } from '@/server/tasks/actions';
-import type { LabelRow, Priority, TaskRow } from '@/server/tasks/queries';
+import type { LabelRow, Priority, TaskDetail } from '@/server/tasks/queries';
 
 const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
 
-export function TaskDetailPanel({
+export function TaskDetailDialog({
   task,
+  projectId,
   statuses,
   members,
   allLabels,
   workspaceSlug,
 }: {
-  task: TaskRow;
+  task: TaskDetail;
+  projectId: string;
   statuses: StatusRow[];
   members: MemberRow[];
   allLabels: LabelRow[];
@@ -36,6 +39,12 @@ export function TaskDetailPanel({
   const [, startTransition] = useTransition();
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description);
+
+  function openParent() {
+    const next = new URLSearchParams(searchParams);
+    next.set('task', task.parentId!);
+    router.push(`?${next.toString()}`, { scroll: false });
+  }
 
   function close() {
     const next = new URLSearchParams(searchParams);
@@ -66,11 +75,22 @@ export function TaskDetailPanel({
   }
 
   return (
-    <Sheet open onOpenChange={(open) => { if (!open) close(); }}>
-      <SheetContent side="right" className="w-full gap-0 overflow-y-auto sm:max-w-[480px]">
-        <SheetTitle className="sr-only">Task details</SheetTitle>
+    <Dialog open onOpenChange={(open) => { if (!open) close(); }}>
+      <DialogContent className="max-h-[85vh] gap-0 overflow-y-auto p-0 sm:max-w-2xl">
+        <DialogTitle className="sr-only">Task details</DialogTitle>
 
         <div className="space-y-5 p-5">
+          {task.parentId && (
+            <button
+              type="button"
+              onClick={openParent}
+              className="-ml-1 inline-flex items-center gap-1 rounded-[var(--radius-button)] px-1 py-1 text-xs text-muted-foreground transition-colors duration-150 hover:text-foreground"
+            >
+              <ChevronLeft className="size-3.5" aria-hidden="true" />
+              {task.parentTitle}
+            </button>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="task-title">Title</Label>
             <Input
@@ -178,6 +198,18 @@ export function TaskDetailPanel({
             />
           </div>
 
+          {/* Depth is capped at one level: a subtask's dialog offers the way
+              back to its parent instead of a nested list. */}
+          {!task.parentId && (
+            <SubtaskSection
+              parent={task}
+              subtasks={task.subtasks}
+              statuses={statuses}
+              projectId={projectId}
+              workspaceSlug={workspaceSlug}
+            />
+          )}
+
           <div className="border-t border-border pt-4">
             <button
               type="button"
@@ -189,7 +221,7 @@ export function TaskDetailPanel({
             </button>
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }

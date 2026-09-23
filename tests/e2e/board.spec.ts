@@ -138,3 +138,35 @@ test('a task opened from the board is deep-linkable and closes with back', async
 
   expect(deepLink).toContain('?task=');
 });
+
+test('a subtask can be added from the task dialog and opened in place', async ({ page }) => {
+  await signUpWithProject(page, 'subtask');
+
+  const card = await openBoard(page, 'Drag me');
+  await card.click();
+  await expect(page.getByLabel('Title')).toHaveValue('Drag me');
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByText('0/0')).toBeVisible();
+
+  await dialog.getByPlaceholder('Add a subtask…').fill('Write the copy');
+  await dialog.getByPlaceholder('Add a subtask…').press('Enter');
+
+  // exact, because the row carries three buttons whose names contain the title:
+  // the checkbox, the title itself, and delete.
+  await expect(dialog.getByRole('button', { name: 'Write the copy', exact: true })).toBeVisible();
+  await expect(dialog.getByText('0/1')).toBeVisible();
+
+  // Clicking the subtask swaps the dialog to it, with a way back to the parent.
+  await dialog.getByRole('button', { name: 'Write the copy', exact: true }).click();
+  await expect(page.getByLabel('Title')).toHaveValue('Write the copy');
+  await expect(dialog.getByRole('button', { name: 'Drag me', exact: true })).toBeVisible();
+  await expect(dialog.getByPlaceholder('Add a subtask…')).toBeHidden();
+
+  await dialog.getByRole('button', { name: 'Drag me', exact: true }).click();
+  await expect(page.getByLabel('Title')).toHaveValue('Drag me');
+
+  // The checkbox completes the subtask, which the counter reflects.
+  await dialog.getByRole('button', { name: 'Mark "Write the copy" as done' }).click();
+  await expect(dialog.getByText('1/1')).toBeVisible();
+});

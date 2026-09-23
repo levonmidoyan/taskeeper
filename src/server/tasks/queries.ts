@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { db, label, project, task, taskLabel, taskStatus, user } from '@/db';
 import { isOverdue } from '@/lib/dates';
 import type { WorkspaceContext } from '@/lib/session';
@@ -102,6 +103,55 @@ export async function getTask(ctx: WorkspaceContext, taskId: string): Promise<Ta
 
   const [withLabels] = await attachLabels(rows);
   return withLabels ?? null;
+}
+
+export type TaskDetail = TaskRow & {
+  parentId: string | null;
+  parentTitle: string | null;
+  subtasks: TaskRow[];
+};
+
+/**
+ * One task plus what the detail dialog needs around it: its subtasks, and the
+ * parent it hangs off so the dialog can offer a way back. Kept apart from
+ * getTask so the board's list queries stay a single round trip.
+ */
+export async function getTaskDetail(
+  ctx: WorkspaceContext,
+  taskId: string,
+): Promise<TaskDetail | null> {
+  const parent = alias(task, 'parent_task');
+
+  const rows = await db
+    .select({ ...baseColumns, parentId: task.parentTaskId, parentTitle: parent.title })
+    .from(task)
+    .leftJoin(user, eq(user.id, task.assigneeId))
+    .leftJoin(parent, eq(parent.id, task.parentTaskId))
+    .where(and(eq(task.id, taskId), eq(task.workspaceId, ctx.workspaceId)))
+    .limit(1);
+
+  const [withLabels] = await attachLabels(rows);
+  if (!withLabels) return null;
+
+  const subtaskRows = await db
+    .select(baseColumns)
+    .from(task)
+    .leftJoin(user, eq(user.id, task.assigneeId))
+    .where(
+      and(
+        eq(task.parentTaskId, taskId),
+        eq(task.workspaceId, ctx.workspaceId),
+        isNull(task.archivedAt),
+      ),
+    )
+    .orderBy(asc(task.position));
+
+  return {
+    ...withLabels,
+    parentId: rows[0].parentId,
+    parentTitle: rows[0].parentTitle,
+    subtasks: await attachLabels(subtaskRows),
+  };
 }
 
 export async function listMyOpenTasks(

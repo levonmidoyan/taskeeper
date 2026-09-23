@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation';
 import { Board } from '@/components/board/Board';
 import { ProjectHeader } from '@/components/shell/ProjectHeader';
-import { TaskDetailPanel } from '@/components/task/TaskDetailPanel';
+import { TaskDetailDialog } from '@/components/task/TaskDetailDialog';
 import { requireWorkspace } from '@/lib/session';
 import { listLabels, listWorkspaceMembers } from '@/server/labels/queries';
 import { getProject } from '@/server/projects/queries';
-import { getTask, listProjectTasks } from '@/server/tasks/queries';
+import { getTaskDetail, listProjectTasks } from '@/server/tasks/queries';
 
 export default async function ProjectBoardPage({
   params,
@@ -24,7 +24,7 @@ export default async function ProjectBoardPage({
   const basePath = `/${workspaceSlug}/projects/${projectId}`;
 
   const { task: openTaskId } = await searchParams;
-  const openTask = openTaskId ? await getTask(ctx, openTaskId) : null;
+  const openTask = openTaskId ? await getTaskDetail(ctx, openTaskId) : null;
   const [members, allLabels] = openTask
     ? await Promise.all([listWorkspaceMembers(ctx), listLabels(ctx)])
     : [[], []];
@@ -40,8 +40,12 @@ export default async function ProjectBoardPage({
         timezone={ctx.timezone}
       />
       {openTask && (
-        <TaskDetailPanel
+        <TaskDetailDialog
+          // Remounted per task, so the title and description fields reset when
+          // the dialog swaps between a parent and one of its subtasks.
+          key={openTask.id}
           task={openTask}
+          projectId={projectId}
           statuses={project.statuses}
           members={members}
           allLabels={allLabels}

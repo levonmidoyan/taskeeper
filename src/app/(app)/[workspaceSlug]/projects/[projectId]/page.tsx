@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation';
 import { ProjectHeader } from '@/components/shell/ProjectHeader';
-import { TaskDetailPanel } from '@/components/task/TaskDetailPanel';
+import { TaskDetailDialog } from '@/components/task/TaskDetailDialog';
 import { TaskList } from '@/components/task/TaskList';
 import { requireWorkspace } from '@/lib/session';
 import { listLabels, listWorkspaceMembers } from '@/server/labels/queries';
 import { getProject } from '@/server/projects/queries';
-import { getTask, listProjectTasks } from '@/server/tasks/queries';
+import { getTaskDetail, listProjectTasks } from '@/server/tasks/queries';
 
 export default async function ProjectListPage({
   params,
@@ -26,7 +26,7 @@ export default async function ProjectListPage({
   // The panel is driven by ?task=<id>, so it is deep-linkable and the browser's
   // back button closes it (spec §6.3).
   const { task: openTaskId } = await searchParams;
-  const openTask = openTaskId ? await getTask(ctx, openTaskId) : null;
+  const openTask = openTaskId ? await getTaskDetail(ctx, openTaskId) : null;
   const [members, allLabels] = openTask
     ? await Promise.all([listWorkspaceMembers(ctx), listLabels(ctx)])
     : [[], []];
@@ -42,8 +42,12 @@ export default async function ProjectListPage({
         timezone={ctx.timezone}
       />
       {openTask && (
-        <TaskDetailPanel
+        <TaskDetailDialog
+          // Remounted per task, so the title and description fields reset when
+          // the dialog swaps between a parent and one of its subtasks.
+          key={openTask.id}
           task={openTask}
+          projectId={projectId}
           statuses={project.statuses}
           members={members}
           allLabels={allLabels}
