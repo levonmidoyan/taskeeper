@@ -4,11 +4,16 @@ import { nextCookies } from 'better-auth/next-js';
 import { organization } from 'better-auth/plugins';
 import { db } from '@/db';
 import * as schema from '@/db/schema';
+import { appUrl, trustedOrigins } from '@/lib/url';
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: 'pg', schema }),
   secret: process.env.BETTER_AUTH_SECRET,
-  baseURL: process.env.BETTER_AUTH_URL,
+  baseURL: appUrl(),
+  // Without this, the trusted list is just baseURL, and any request arriving on
+  // another valid host (Vercel preview/deployment domain) fails with
+  // "Invalid origin".
+  trustedOrigins: trustedOrigins(),
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
