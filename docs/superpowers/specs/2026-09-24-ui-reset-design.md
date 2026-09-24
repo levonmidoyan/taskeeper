@@ -36,8 +36,8 @@ replacing Sonner as the toast engine.
 
 | # | Decision | Rationale |
 |---|---|---|
-| D1 | Remove `radix-ui` (umbrella), `lucide-react`, `shadcn`, `tw-animate-css`, `cn` from `package.json`. Scoped `@radix-ui/react-*` packages may appear, **only** as dependencies of copied Align components. | Align copies source that imports Radix primitives directly; that is acceptable. The umbrella package and shadcn styling are what we remove. |
-| D2 | Align theme: **Blue** primary, **Gray** neutral, oklch, Tailwind v4 CSS-first, Inter font. | Align's default and most refined combination; calm, neutral fit for a task tool. |
+| D1 | Remove `radix-ui` (umbrella), `lucide-react`, `shadcn`, `cn`, `class-variance-authority` from `package.json` (A1: `tw-animate-css` stays). Scoped `@radix-ui/react-*` packages may appear, **only** as dependencies of copied Align components. | Align copies source that imports Radix primitives directly; that is acceptable. The umbrella package and shadcn styling are what we remove. |
+| D2 | Align theme: **Blue** primary, **Gray** neutral, oklch, Tailwind v4 CSS-first, Inter font (self-hosted, A5). | Align's default and most refined combination; calm, neutral fit for a task tool. |
 | D3 | Tabler Icons everywhere. | User preference. Remix (Align's default) and lucide (Kibo's default) imports are rewritten. |
 | D4 | Rich text stored as **Markdown** in existing `text` columns. | No migration; old plain-text rows are valid Markdown; human-readable; searchable. |
 | D5 | Keep **Sonner** as the toast engine, restyled as an Align Notification. | 39 existing `toast()` call sites stay untouched; Sonner has no Radix dependency. |
@@ -109,7 +109,7 @@ bridged names; step 9 of §7 enforces this.
 | `Sheet` | Drawer | Rail (mobile) |
 | `sonner` wrapper | Sonner with an Align Notification-styled toast (D5) | global |
 | raw `<textarea>` ×3 | Kibo Editor (§6) | description, comment new, comment edit |
-| hand-rolled checkboxes | Checkbox | TaskRow, SubtaskSection |
+| done toggles (`<button aria-pressed>`) | Stay buttons, restyled with Tabler circle icons and Align tokens (A2) | TaskRow, SubtaskSection |
 | label chips, `PriorityDot`, `DueChip` | Badge / Status Badge | TaskRow, TaskCard |
 | member initials | Avatar | MemberTable, assignee display |
 | InviteForm role `Select` (Member / Admin) | Radio group, labelled `Role` | InviteForm |
@@ -139,11 +139,11 @@ is adapted:
 | Kibo as shipped | Adaptation |
 |---|---|
 | `MouseSensor` without activation constraint; `KeyboardSensor` without sortable coordinates | Board passes its own `sensors` (Kibo spreads `...props` onto `DndContext`): `PointerSensor` with `distance: 8`, `KeyboardSensor` with `sortableKeyboardCoordinates`, and `TouchSensor` with `delay: 250, tolerance: 5`. |
-| `closestCenter` collision | Board passes its existing custom `collisionDetection` (pointer → rect → nearest card in column), re-keyed on the column-id set instead of the `status:` prefix, plus `measuring: { droppable: { strategy: Always } }` and `id="project-board"`. |
+| `closestCenter` collision | Board passes its existing custom `collisionDetection` (pointer → rect → nearest card in column), still keyed on the `status:` prefix (A3), plus `measuring: { droppable: { strategy: Always } }` and `id="project-board"`. |
 | `handleDragOver` mutates the item in place (`newData[i].column = …`) | Clone the item before changing `column`. |
 | Cards wrapped in shadcn `Card`; lists in shadcn `ScrollArea` (Radix) | Align-styled `div`; native `overflow-y-auto`. |
 | `KanbanBoard` is an unlabelled `div` | Accepts `as="section"` and `aria-label` so columns stay `region "<status name>"`. |
-| Announcements print column **id** | Replaced by Board's announcements: `Moved to <name>, position n of m.` in the existing `aria-live` region. |
+| Custom announcements print column **id** | Removed, so dnd-kit's default announcements apply (A3); Board keeps its own `Moved to <name>, position n of m.` `aria-live` region. |
 | `grid auto-cols-fr` | Fixed 280px columns; horizontal scroll only on the board container. |
 | `tunnel-rat` + `DragOverlay` portal | Kept. |
 
@@ -273,7 +273,50 @@ commit; `yarn e2e` passes at the end of every step from 4 onwards.
 - `package.json` contains none of: `radix-ui`, `lucide-react`, `shadcn`, `tw-animate-css`, `cn`.
   Any `@radix-ui/react-*` present is imported by a file in `src/components/ui/`.
 - `grep -rE "lucide-react|@remixicon|from 'radix-ui'" src` returns nothing.
-- App code (outside `src/components/kibo-ui/`) uses no bridged shadcn token names and no hex
-  colours; hex values appear only in `globals.css`.
+- App code (outside the vendored `src/components/ui/` and `src/components/kibo-ui/`) uses no
+  bridged shadcn token names and no hex colours; vendored files may keep upstream's literal SVG
+  fills.
 - Keyboard operation of the board and of every modal, dropdown and select works (e2e plus a
   manual pass).
+
+## 10. Amendments from planning (2026-09-24)
+
+Found while reading the pinned Align and Kibo sources and the e2e specs; these override the
+sections above where they conflict.
+
+- **A1 — `tw-animate-css` stays.** Align's Modal, Drawer, Dropdown, Select and Tooltip animate
+  with `animate-in` / `fade-in-0` / `zoom-in-95` / `slide-in-from-*` classes, which in Tailwind
+  v4 come from `tw-animate-css`. It has no Radix or shadcn dependency.
+- **A2 — Done toggles are not checkboxes.** `tests/e2e` locate them as
+  `getByRole('button', { name: 'Mark "<title>" as done' })`; Align's Checkbox is
+  `role="checkbox"`. They stay `<button aria-pressed>` and are only restyled.
+- **A3 — dnd-kit ids and announcements are part of the contract.** `board.spec.ts` waits on
+  dnd-kit's default live region (`[id^="DndLiveRegion"]`) for "Draggable item",
+  "droppable area status:" and "was dropped". Column droppable ids keep the `status:` prefix,
+  and Kibo's custom announcements are removed so dnd-kit's defaults apply.
+- **A4 — Kibo Kanban fixes beyond §5.1.** `handleDragEnd` calls `onDragEnd` *before* its own
+  final reorder, so our copy computes the final data first and passes it as a second
+  argument: `onDragEnd(event, finalData)`. A drop on a column container (`overIndex === -1`)
+  appends instead of `arrayMove(…, -1)`. `handleDragOver`'s fallback to `columns[0]` when the
+  target is neither card nor column is removed. `onDragCancel` clears the overlay card. The
+  overlay portal renders only after mount (hydration). Cards render as `<li><button>` so the
+  card keeps its native button semantics.
+- **A5 — Inter is self-hosted** (`src/app/fonts/InterVariable.woff2` via `next/font/local`),
+  matching the v1 decision to self-host fonts; no build-time network fetch.
+- **A6 — Staged removal instead of one cut (§7 step 1).** So that every plan part leaves a
+  working app, the shadcn components move to a temporary `src/components/legacy-ui/`, and the
+  Kibo bridge also maps the legacy token names until the last screen is rebuilt. `radix-ui`,
+  `lucide-react`, `cn`, `class-variance-authority`, `shadcn`, `components.json`,
+  `shadcn/tailwind.css` and `legacy-ui/` are all deleted in Part 4's cleanup task. The
+  definition of done (§9) is unchanged.
+- **A7 — Align CLI is run in a throwaway directory.** `@alignui/cli@0.0.19 tailwind` is
+  interactive, requires a `tailwind.config` file, and installs `tailwindcss@latest`. It is run
+  once in a temp project; its CSS is post-processed (the `@media (prefers-color-scheme: dark)`
+  block is removed so `next-themes` alone controls dark mode) and committed as
+  `src/styles/align-tokens.css`.
+- **A8 — Tailwind v4 fixes in vendored Align source.** The v3 arbitrary-variable shorthand
+  `-[--x]` becomes `-(--x)`; Remix icons become Tabler (`RiArrowDownSLine→IconChevronDown`,
+  `RiArrowRightSLine→IconChevronRight`, `RiCheckLine→IconCheck`, `RiCloseLine→IconX`,
+  `RemixiconComponentType→TablerIcon`); Drawer gains a `side` prop (the rail opens from the
+  left); files that import Radix get `'use client'`.
+
