@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status: COMPLETE (2026-09-23).** All 16 tasks implemented, reviewed, and committed on
+> `feat/taskeeper-v1` (`9b078c7..3ff2cc0`). Every step checkbox below is ticked. The
+> per-task ledger — rulings, review findings, and deferred minors — lives in
+> `.superpowers/sdd/2026-09-20-taskeeper-v1/progress.md`; work after Task 16
+> (production migration path, subtask dialog) is outside this plan.
+
 **Goal:** Build a multi-user task manager where a team signs up, creates a workspace, invites members, and manages tasks across projects in list and board views.
 
 **Architecture:** Next.js App Router with React Server Components for reads and Server Actions for writes. All database access is funnelled through `src/server/*`, which every function enters holding a `WorkspaceContext` resolved server-side from the URL slug plus a membership check — that is the single tenant-isolation boundary. Drizzle over a plain `node-postgres` pool keeps the app portable between serverless and self-hosted deployments.
@@ -182,7 +188,7 @@ Produces a repo where `yarn test` runs and connects to a real Postgres. Everythi
 - Consumes: nothing.
 - Produces: `yarn test` (vitest), `yarn dev`, `yarn db:up`, `DATABASE_URL` / `DATABASE_URL_TEST` conventions.
 
-- [ ] **Step 1: Activate Yarn 4 and configure the linker**
+- [x] **Step 1: Activate Yarn 4 and configure the linker**
 
 ```bash
 cd /home/levon/taskeeper
@@ -213,7 +219,7 @@ And add to `.gitignore`:
 .pnp.*
 ```
 
-- [ ] **Step 2: Scaffold the Next.js app**
+- [x] **Step 2: Scaffold the Next.js app**
 
 ```bash
 yarn dlx create-next-app@16.3.5 . --typescript --tailwind --eslint --app --src-dir --import-alias "@/*" --no-turbopack --use-yarn --yes
@@ -223,7 +229,7 @@ If the directory is not empty, answer yes to proceeding — `docs/`, `.git/`, `.
 `.yarnrc.yml` are expected to already exist and must not be deleted. If the scaffold
 overwrites `package.json` and drops the `packageManager` field, re-run `corepack use yarn@4.10.3`.
 
-- [ ] **Step 3: Pin versions and add dependencies**
+- [x] **Step 3: Pin versions and add dependencies**
 
 ```bash
 yarn add --exact next@16.3.5 react@19.3.0 react-dom@19.3.0 \
@@ -240,7 +246,7 @@ version floor stops being a floor.
 
 If any exact version above no longer resolves, install the closest published version and note the substitution in the commit message — do not silently float to `latest`.
 
-- [ ] **Step 4: Write `docker-compose.yml`**
+- [x] **Step 4: Write `docker-compose.yml`**
 
 Two databases in one container: the dev database and a separate test database, so running tests never destroys dev data.
 
@@ -272,13 +278,13 @@ volumes:
 
 Port 5433, not 5432, so it cannot collide with a Postgres already installed on the host.
 
-- [ ] **Step 5: Write `scripts/init-test-db.sql`**
+- [x] **Step 5: Write `scripts/init-test-db.sql`**
 
 ```sql
 CREATE DATABASE taskeeper_test OWNER taskeeper;
 ```
 
-- [ ] **Step 6: Write `.env.example` and `.env.local`**
+- [x] **Step 6: Write `.env.example` and `.env.local`**
 
 `.env.example` is committed. `.env.local` is gitignored and holds the same values for local development.
 
@@ -299,7 +305,7 @@ RESEND_API_KEY=
 TZ=UTC
 ```
 
-- [ ] **Step 7: Add scripts to `package.json`**
+- [x] **Step 7: Add scripts to `package.json`**
 
 ```json
 {
@@ -325,7 +331,7 @@ Invoke these as `yarn dev`, `yarn test`, `yarn db:up` — Yarn runs a script by 
 directly, which is Yarn's equivalent of `npx` for a dependency that is already installed.
 `yarn dlx` is for packages that are not dependencies, such as the scaffolder and the shadcn CLI.
 
-- [ ] **Step 8: Write `vitest.config.ts`**
+- [x] **Step 8: Write `vitest.config.ts`**
 
 ```ts
 import { defineConfig } from 'vitest/config';
@@ -349,7 +355,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 9: Write `tests/setup/env.ts`**
+- [x] **Step 9: Write `tests/setup/env.ts`**
 
 ```ts
 import { config } from 'dotenv';
@@ -366,7 +372,7 @@ if (!process.env.DATABASE_URL_TEST) {
 process.env.DATABASE_URL = process.env.DATABASE_URL_TEST;
 ```
 
-- [ ] **Step 10: Write the failing smoke test**
+- [x] **Step 10: Write the failing smoke test**
 
 This proves the harness runs and the container is reachable before any real code exists.
 
@@ -392,7 +398,7 @@ describe('test harness', () => {
 });
 ```
 
-- [ ] **Step 11: Run the test with the database stopped, to verify it fails**
+- [x] **Step 11: Run the test with the database stopped, to verify it fails**
 
 ```bash
 yarn db:down
@@ -401,7 +407,7 @@ yarn test
 
 Expected: the UTC test passes, the database test FAILS with `ECONNREFUSED`. This confirms the test is actually reaching a database rather than passing vacuously.
 
-- [ ] **Step 12: Start the database and re-run**
+- [x] **Step 12: Start the database and re-run**
 
 ```bash
 yarn db:up
@@ -410,7 +416,7 @@ yarn test
 
 Expected: both tests PASS.
 
-- [ ] **Step 13: Commit**
+- [x] **Step 13: Commit**
 
 ```bash
 git add -A
@@ -432,7 +438,7 @@ Produces the visual foundation every later component depends on. No feature work
 - Consumes: Task 1's scaffold.
 - Produces: semantic Tailwind utilities `bg-background`, `bg-card`, `text-foreground`, `text-muted-foreground`, `border-border`, `bg-primary`, `text-primary-foreground`, `bg-success`, `bg-destructive`, `ring-ring`; `<ThemeToggle />`.
 
-- [ ] **Step 1: Download the font**
+- [x] **Step 1: Download the font**
 
 ```bash
 mkdir -p src/app/fonts
@@ -442,7 +448,7 @@ curl -L -o src/app/fonts/PlusJakartaSans-Variable.woff2 \
 
 Self-hosted rather than the Google Fonts CDN: no render-blocking third-party request and no layout shift (spec §6.2).
 
-- [ ] **Step 2: Write `src/app/globals.css` with the token set**
+- [x] **Step 2: Write `src/app/globals.css` with the token set**
 
 Values are copied verbatim from spec §6.1. `@theme inline` is how Tailwind v4 turns CSS variables into utility classes.
 
@@ -523,7 +529,7 @@ body {
 }
 ```
 
-- [ ] **Step 3: Write `src/components/theme-provider.tsx`**
+- [x] **Step 3: Write `src/components/theme-provider.tsx`**
 
 ```tsx
 'use client';
@@ -536,7 +542,7 @@ export function ThemeProvider({ children, ...props }: ComponentProps<typeof Next
 }
 ```
 
-- [ ] **Step 4: Wire fonts and the provider in `src/app/layout.tsx`**
+- [x] **Step 4: Wire fonts and the provider in `src/app/layout.tsx`**
 
 `suppressHydrationWarning` on `<html>` is required: `next-themes` writes the theme class before React hydrates, so the server and client markup differ by design on that one attribute.
 
@@ -571,7 +577,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 ```
 
-- [ ] **Step 5: Write `src/components/shell/ThemeToggle.tsx`**
+- [x] **Step 5: Write `src/components/shell/ThemeToggle.tsx`**
 
 ```tsx
 'use client';
@@ -613,7 +619,7 @@ export function ThemeToggle() {
 
 The 44px (`size-11`) target meets the minimum touch size from the design guidelines.
 
-- [ ] **Step 6: Verify both themes render**
+- [x] **Step 6: Verify both themes render**
 
 ```bash
 yarn dev
@@ -621,7 +627,7 @@ yarn dev
 
 Open `http://localhost:3000`, toggle the theme, and confirm: no flash of the wrong theme on reload, body text readable in both, focus ring visible when tabbing to the toggle. Then stop the dev server.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A
@@ -646,7 +652,7 @@ Pure functions, no database. Built early because every later date decision depen
   - `formatDueDate(dueDate: string, tz: string, now?: Date): string`
   - `DEFAULT_TIMEZONE = 'Asia/Yerevan'`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 The `now` parameter exists purely so these cases are testable without mocking global time.
 
@@ -731,7 +737,7 @@ describe('formatDueDate', () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 ```bash
 yarn vitest run tests/unit/dates.test.ts
@@ -739,7 +745,7 @@ yarn vitest run tests/unit/dates.test.ts
 
 Expected: FAIL — `Failed to resolve import "@/lib/dates"`.
 
-- [ ] **Step 3: Implement `src/lib/dates.ts`**
+- [x] **Step 3: Implement `src/lib/dates.ts`**
 
 `Intl.DateTimeFormat` with `en-CA` is used because that locale's short date format is exactly `YYYY-MM-DD`, which avoids hand-assembling the string from parts.
 
@@ -823,7 +829,7 @@ export function formatDueDate(dueDate: string, tz: string, now: Date = new Date(
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 ```bash
 yarn vitest run tests/unit/dates.test.ts
@@ -831,7 +837,7 @@ yarn vitest run tests/unit/dates.test.ts
 
 Expected: PASS, 13 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/dates.ts tests/unit/dates.test.ts
@@ -854,7 +860,7 @@ Pure functions. Board ordering depends on these (spec §3.3).
   - `positionsForCount(n: number): string[]`
   - `newId(): string`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 // tests/unit/position.test.ts
@@ -924,7 +930,7 @@ describe('newId', () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 ```bash
 yarn vitest run tests/unit/position.test.ts
@@ -932,7 +938,7 @@ yarn vitest run tests/unit/position.test.ts
 
 Expected: FAIL — cannot resolve `@/lib/position`.
 
-- [ ] **Step 3: Implement `src/lib/ids.ts`**
+- [x] **Step 3: Implement `src/lib/ids.ts`**
 
 ```ts
 import { nanoid } from 'nanoid';
@@ -943,7 +949,7 @@ export function newId(): string {
 }
 ```
 
-- [ ] **Step 4: Implement `src/lib/position.ts`**
+- [x] **Step 4: Implement `src/lib/position.ts`**
 
 ```ts
 import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing';
@@ -964,7 +970,7 @@ export function positionsForCount(n: number): string[] {
 }
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 ```bash
 yarn vitest run tests/unit/position.test.ts
@@ -972,7 +978,7 @@ yarn vitest run tests/unit/position.test.ts
 
 Expected: PASS, 8 tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/lib/position.ts src/lib/ids.ts tests/unit/position.test.ts
@@ -993,7 +999,7 @@ Produces the whole schema from spec §3 and a test harness that can create and t
 - Consumes: `newId` (Task 4).
 - Produces: `db` (Drizzle client), tables `user, session, account, verification, organization, member, invitation, project, taskStatus, task, label, taskLabel, workspaceSettings`, and `resetDb()` / `closeDb()` for tests.
 
-- [ ] **Step 1: Write `src/db/index.ts`**
+- [x] **Step 1: Write `src/db/index.ts`**
 
 ```ts
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -1016,7 +1022,7 @@ export { pool };
 export * from './schema';
 ```
 
-- [ ] **Step 2: Write `src/db/schema/auth.ts`**
+- [x] **Step 2: Write `src/db/schema/auth.ts`**
 
 These tables mirror what better-auth's adapter expects. Do not hand-edit their columns later; regenerate if the plugin set changes (spec §3.1).
 
@@ -1103,7 +1109,7 @@ export const invitation = pgTable('invitation', {
 });
 ```
 
-- [ ] **Step 3: Write `src/db/schema/settings.ts`**
+- [x] **Step 3: Write `src/db/schema/settings.ts`**
 
 ```ts
 import { pgTable, smallint, text } from 'drizzle-orm/pg-core';
@@ -1119,7 +1125,7 @@ export const workspaceSettings = pgTable('workspace_settings', {
 });
 ```
 
-- [ ] **Step 4: Write `src/db/schema/project.ts`**
+- [x] **Step 4: Write `src/db/schema/project.ts`**
 
 ```ts
 import { index, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
@@ -1145,7 +1151,7 @@ export const project = pgTable(
 );
 ```
 
-- [ ] **Step 5: Write `src/db/schema/task.ts`**
+- [x] **Step 5: Write `src/db/schema/task.ts`**
 
 ```ts
 import {
@@ -1229,7 +1235,7 @@ export const taskLabel = pgTable(
 );
 ```
 
-- [ ] **Step 6: Write `src/db/schema/index.ts`**
+- [x] **Step 6: Write `src/db/schema/index.ts`**
 
 ```ts
 export * from './auth';
@@ -1238,7 +1244,7 @@ export * from './project';
 export * from './task';
 ```
 
-- [ ] **Step 7: Write `drizzle.config.ts`**
+- [x] **Step 7: Write `drizzle.config.ts`**
 
 ```ts
 import { config } from 'dotenv';
@@ -1256,7 +1262,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 8: Generate and apply the migration**
+- [x] **Step 8: Generate and apply the migration**
 
 ```bash
 yarn db:up
@@ -1272,7 +1278,7 @@ DATABASE_URL="$DATABASE_URL_TEST" yarn drizzle-kit migrate
 
 Expected: a new file under `drizzle/` and both databases holding all 13 tables.
 
-- [ ] **Step 9: Write `tests/setup/db.ts`**
+- [x] **Step 9: Write `tests/setup/db.ts`**
 
 ```ts
 import { sql } from 'drizzle-orm';
@@ -1299,7 +1305,7 @@ export async function closeDb(): Promise<void> {
 export { db };
 ```
 
-- [ ] **Step 10: Write the failing schema test**
+- [x] **Step 10: Write the failing schema test**
 
 ```ts
 // tests/server/schema.test.ts
@@ -1387,7 +1393,7 @@ describe('schema', () => {
 });
 ```
 
-- [ ] **Step 11: Run the tests**
+- [x] **Step 11: Run the tests**
 
 ```bash
 yarn vitest run tests/server/schema.test.ts
@@ -1395,7 +1401,7 @@ yarn vitest run tests/server/schema.test.ts
 
 Expected: PASS, 4 tests. If the RESTRICT test passes without throwing, the foreign key in Step 5 is wrong — fix it and regenerate the migration before continuing.
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```bash
 git add -A
@@ -1418,7 +1424,7 @@ Sign up, sign in, sign out, and the session cookie. No workspace logic yet.
 - Consumes: `db` (Task 5).
 - Produces: `auth` (better-auth server instance), `authClient` with `signUp`, `signIn`, `signOut`, `useSession`, and `organization` methods.
 
-- [ ] **Step 1: Add shadcn/ui primitives**
+- [x] **Step 1: Add shadcn/ui primitives**
 
 ```bash
 yarn dlx shadcn@latest init --yes --base-color slate
@@ -1427,7 +1433,7 @@ yarn dlx shadcn@latest add button input label dialog dropdown-menu sheet select 
 
 After this, open `src/app/globals.css` and confirm the token block from Task 2 is still intact — shadcn's init rewrites that file. If it replaced the tokens, restore them from git and keep only shadcn's additions.
 
-- [ ] **Step 2: Write `src/lib/auth.ts`**
+- [x] **Step 2: Write `src/lib/auth.ts`**
 
 ```ts
 import { betterAuth } from 'better-auth';
@@ -1456,7 +1462,7 @@ export const auth = betterAuth({
 export type Session = typeof auth.$Infer.Session;
 ```
 
-- [ ] **Step 3: Write `src/lib/auth-client.ts`**
+- [x] **Step 3: Write `src/lib/auth-client.ts`**
 
 ```ts
 'use client';
@@ -1471,7 +1477,7 @@ export const authClient = createAuthClient({
 export const { signIn, signUp, signOut, useSession } = authClient;
 ```
 
-- [ ] **Step 4: Write the route handler**
+- [x] **Step 4: Write the route handler**
 
 ```ts
 // src/app/api/auth/[...all]/route.ts
@@ -1481,7 +1487,7 @@ import { toNextJsHandler } from 'better-auth/next-js';
 export const { POST, GET } = toNextJsHandler(auth);
 ```
 
-- [ ] **Step 5: Regenerate the schema and reconcile**
+- [x] **Step 5: Regenerate the schema and reconcile**
 
 ```bash
 yarn dlx @better-auth/cli generate --config src/lib/auth.ts --output drizzle/better-auth-schema.ts -y
@@ -1496,7 +1502,7 @@ DATABASE_URL="$DATABASE_URL_TEST" yarn drizzle-kit migrate
 
 Delete `drizzle/better-auth-schema.ts` afterwards — it is a comparison artifact, not source.
 
-- [ ] **Step 6: Write the failing auth test**
+- [x] **Step 6: Write the failing auth test**
 
 ```ts
 // tests/server/auth.test.ts
@@ -1558,7 +1564,7 @@ describe('auth', () => {
 });
 ```
 
-- [ ] **Step 7: Run to verify, iterating on schema mismatches**
+- [x] **Step 7: Run to verify, iterating on schema mismatches**
 
 ```bash
 yarn vitest run tests/server/auth.test.ts
@@ -1566,7 +1572,7 @@ yarn vitest run tests/server/auth.test.ts
 
 Expected on first run: FAIL. Column-mismatch errors here mean Step 5's reconciliation is incomplete — fix `src/db/schema/auth.ts`, regenerate, re-migrate, re-run. Do not move on until all 5 pass.
 
-- [ ] **Step 8: Write `src/app/(auth)/layout.tsx`**
+- [x] **Step 8: Write `src/app/(auth)/layout.tsx`**
 
 ```tsx
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -1578,7 +1584,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 }
 ```
 
-- [ ] **Step 9: Write `src/app/(auth)/sign-up/page.tsx`**
+- [x] **Step 9: Write `src/app/(auth)/sign-up/page.tsx`**
 
 Labels are visible, not placeholder-only. Errors render below their field. Inputs are 16px so iOS does not zoom on focus.
 
@@ -1662,11 +1668,11 @@ export default function SignUpPage() {
 }
 ```
 
-- [ ] **Step 10: Write `src/app/(auth)/sign-in/page.tsx`**
+- [x] **Step 10: Write `src/app/(auth)/sign-in/page.tsx`**
 
 Same structure, calling `signIn.email({ email, password })`, with heading "Sign in", `autoComplete="current-password"`, no name field, no password helper text, and the footer link pointing to `/sign-up` with the text "Create one".
 
-- [ ] **Step 11: Verify by hand**
+- [x] **Step 11: Verify by hand**
 
 ```bash
 yarn dev
@@ -1674,7 +1680,7 @@ yarn dev
 
 Sign up at `/sign-up`, confirm redirect, sign out via devtools cookie deletion, sign in at `/sign-in`. Confirm a wrong password shows the error below the button and does not clear the email field.
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```bash
 git add -A
@@ -1701,7 +1707,7 @@ The most important task in the plan. Every later query depends on `requireWorksp
   - `type Result<T>`, `ok(data)`, `err(message)`, `withAction(fn)`
   - `ForbiddenError`
 
-- [ ] **Step 1: Write `src/lib/result.ts`**
+- [x] **Step 1: Write `src/lib/result.ts`**
 
 ```ts
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -1739,7 +1745,7 @@ export async function withAction<T>(fn: () => Promise<Result<T>>): Promise<Resul
 }
 ```
 
-- [ ] **Step 2: Write the failing tenancy tests**
+- [x] **Step 2: Write the failing tenancy tests**
 
 Each case asserts a *negative*: a member of workspace A must not be able to reach workspace B.
 
@@ -1831,7 +1837,7 @@ describe('requireRole', () => {
 });
 ```
 
-- [ ] **Step 3: Write `tests/setup/factories.ts`**
+- [x] **Step 3: Write `tests/setup/factories.ts`**
 
 ```ts
 import { and, eq } from 'drizzle-orm';
@@ -1865,7 +1871,7 @@ export async function joinWorkspace(userId: string, workspaceId: string, role: '
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they fail**
+- [x] **Step 4: Run the tests to verify they fail**
 
 ```bash
 yarn vitest run tests/server/tenancy.test.ts
@@ -1873,7 +1879,7 @@ yarn vitest run tests/server/tenancy.test.ts
 
 Expected: FAIL — cannot resolve `@/lib/session`.
 
-- [ ] **Step 5: Implement `src/lib/session.ts`**
+- [x] **Step 5: Implement `src/lib/session.ts`**
 
 ```ts
 import { and, eq } from 'drizzle-orm';
@@ -1947,7 +1953,7 @@ export function requireRole(ctx: WorkspaceContext, ...roles: WorkspaceRole[]): v
 }
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 ```bash
 yarn vitest run tests/server/tenancy.test.ts
@@ -1955,7 +1961,7 @@ yarn vitest run tests/server/tenancy.test.ts
 
 Expected: PASS, 9 tests.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A
@@ -1980,7 +1986,7 @@ Turns a bare authenticated user into someone standing inside a workspace. Closes
   - `createWorkspaceAction(input: { name: string }): Promise<Result<{ slug: string }>>`
   - `slugify(name: string): string`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 // tests/server/workspaces.test.ts
@@ -2065,7 +2071,7 @@ describe('listMyWorkspaces', () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 ```bash
 yarn vitest run tests/server/workspaces.test.ts
@@ -2073,7 +2079,7 @@ yarn vitest run tests/server/workspaces.test.ts
 
 Expected: FAIL — cannot resolve `@/server/workspaces/queries`.
 
-- [ ] **Step 3: Implement `src/server/workspaces/queries.ts`**
+- [x] **Step 3: Implement `src/server/workspaces/queries.ts`**
 
 ```ts
 import { eq } from 'drizzle-orm';
@@ -2108,7 +2114,7 @@ export async function listMyWorkspaces(userId: string): Promise<WorkspaceSummary
 }
 ```
 
-- [ ] **Step 4: Implement `src/server/workspaces/actions.ts`**
+- [x] **Step 4: Implement `src/server/workspaces/actions.ts`**
 
 ```ts
 'use server';
@@ -2175,7 +2181,7 @@ export async function createWorkspaceAction(
 }
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 ```bash
 yarn vitest run tests/server/workspaces.test.ts
@@ -2183,7 +2189,7 @@ yarn vitest run tests/server/workspaces.test.ts
 
 Expected: PASS, 8 tests.
 
-- [ ] **Step 6: Implement the root redirect in `src/app/page.tsx`**
+- [x] **Step 6: Implement the root redirect in `src/app/page.tsx`**
 
 ```tsx
 import { headers } from 'next/headers';
@@ -2202,7 +2208,7 @@ export default async function RootPage() {
 }
 ```
 
-- [ ] **Step 7: Write `src/app/(app)/new-workspace/page.tsx`**
+- [x] **Step 7: Write `src/app/(app)/new-workspace/page.tsx`**
 
 ```tsx
 'use client';
@@ -2261,7 +2267,7 @@ export default function NewWorkspacePage() {
 }
 ```
 
-- [ ] **Step 8: Verify the full path by hand**
+- [x] **Step 8: Verify the full path by hand**
 
 ```bash
 yarn dev
@@ -2269,7 +2275,7 @@ yarn dev
 
 Sign up as a brand new user. Expected: redirected to `/new-workspace`, then after submitting to `/<slug>`, which 404s for now — that is correct, Task 10 builds it.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add -A
@@ -2294,7 +2300,7 @@ git commit -m "feat: workspace creation and post-signup routing"
   - `archiveProject(ctx, input): Promise<Result<null>>`
   - `deleteProject(ctx, input): Promise<Result<null>>`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 // tests/server/projects.test.ts
@@ -2437,7 +2443,7 @@ describe('deleteProject', () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 ```bash
 yarn vitest run tests/server/projects.test.ts
@@ -2445,7 +2451,7 @@ yarn vitest run tests/server/projects.test.ts
 
 Expected: FAIL — cannot resolve `@/server/projects/queries`.
 
-- [ ] **Step 3: Implement `src/server/projects/queries.ts`**
+- [x] **Step 3: Implement `src/server/projects/queries.ts`**
 
 ```ts
 import { and, asc, count, eq, isNull } from 'drizzle-orm';
@@ -2523,7 +2529,7 @@ export async function getProject(
 }
 ```
 
-- [ ] **Step 4: Implement `src/server/projects/actions.ts`**
+- [x] **Step 4: Implement `src/server/projects/actions.ts`**
 
 ```ts
 'use server';
@@ -2654,7 +2660,7 @@ export async function deleteProject(
 }
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 ```bash
 yarn vitest run tests/server/projects.test.ts
@@ -2662,7 +2668,7 @@ yarn vitest run tests/server/projects.test.ts
 
 Expected: PASS, 10 tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A
@@ -2683,7 +2689,7 @@ The rail, workspace switcher, and project navigation. First screen a signed-in u
 - Consumes: `requireWorkspace` (Task 7), `listProjects`/`createProject` (Task 9), `listMyWorkspaces` (Task 8), `ThemeToggle` (Task 2).
 - Produces: the `[workspaceSlug]` route segment every later page nests inside.
 
-- [ ] **Step 1: Write `src/app/(app)/[workspaceSlug]/layout.tsx`**
+- [x] **Step 1: Write `src/app/(app)/[workspaceSlug]/layout.tsx`**
 
 ```tsx
 import { headers } from 'next/headers';
@@ -2725,7 +2731,7 @@ export default async function WorkspaceLayout({
 }
 ```
 
-- [ ] **Step 2: Write `src/components/shell/Rail.tsx`**
+- [x] **Step 2: Write `src/components/shell/Rail.tsx`**
 
 The active project is marked by weight plus a left indicator bar, never by color alone. Below 1024px the rail becomes a Sheet.
 
@@ -2837,7 +2843,7 @@ export function Rail(props: Props) {
 }
 ```
 
-- [ ] **Step 3: Write `src/components/shell/WorkspaceSwitcher.tsx`**
+- [x] **Step 3: Write `src/components/shell/WorkspaceSwitcher.tsx`**
 
 ```tsx
 'use client';
@@ -2882,7 +2888,7 @@ export function WorkspaceSwitcher({
 }
 ```
 
-- [ ] **Step 4: Write `src/components/shell/NewProjectDialog.tsx`**
+- [x] **Step 4: Write `src/components/shell/NewProjectDialog.tsx`**
 
 Server Actions need the `WorkspaceContext`, which only exists server-side, so this calls a thin route-aware wrapper. Add that wrapper to `src/server/projects/actions.ts`:
 
@@ -2967,7 +2973,7 @@ export function NewProjectDialog({ workspaceSlug }: { workspaceSlug: string }) {
 }
 ```
 
-- [ ] **Step 5: Write the workspace home page**
+- [x] **Step 5: Write the workspace home page**
 
 ```tsx
 // src/app/(app)/[workspaceSlug]/page.tsx
@@ -2996,7 +3002,7 @@ export default async function WorkspaceHome({
 
 Task 11 replaces the body of this page with the assigned-task list once tasks exist.
 
-- [ ] **Step 6: Verify by hand**
+- [x] **Step 6: Verify by hand**
 
 ```bash
 yarn dev
@@ -3004,7 +3010,7 @@ yarn dev
 
 Confirm: the rail renders; creating a project navigates to its (still 404) page and the project appears in the rail; visiting another user's workspace slug directly returns 404, not a redirect or an error page revealing the workspace exists; at 375px width the rail is a drawer and there is no horizontal page scroll.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A
@@ -3034,7 +3040,7 @@ The core data layer. Includes the board move, whose correctness the whole drag i
   - `moveTask(ctx, input): Promise<Result<{ position: string }>>`
   - `deleteTask(ctx, input): Promise<Result<null>>`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 // tests/server/tasks.test.ts
@@ -3288,7 +3294,7 @@ describe('deleteTask', () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 ```bash
 yarn vitest run tests/server/tasks.test.ts
@@ -3296,7 +3302,7 @@ yarn vitest run tests/server/tasks.test.ts
 
 Expected: FAIL — cannot resolve `@/server/tasks/queries`.
 
-- [ ] **Step 3: Implement `src/server/tasks/queries.ts`**
+- [x] **Step 3: Implement `src/server/tasks/queries.ts`**
 
 ```ts
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
@@ -3449,7 +3455,7 @@ export async function listStatuses(ctx: WorkspaceContext, projectId: string) {
 }
 ```
 
-- [ ] **Step 4: Implement `src/server/tasks/actions.ts`**
+- [x] **Step 4: Implement `src/server/tasks/actions.ts`**
 
 ```ts
 'use server';
@@ -3712,7 +3718,7 @@ export async function deleteTaskAction(
 }
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 ```bash
 yarn vitest run tests/server/tasks.test.ts
@@ -3720,7 +3726,7 @@ yarn vitest run tests/server/tasks.test.ts
 
 Expected: PASS, 17 tests. If the `in ${ids}` array syntax errors under this Drizzle version, replace it with `inArray(taskLabel.taskId, ids)` imported from `drizzle-orm`.
 
-- [ ] **Step 6: Run the whole suite**
+- [x] **Step 6: Run the whole suite**
 
 ```bash
 yarn test
@@ -3728,7 +3734,7 @@ yarn test
 
 Expected: every test from Tasks 1, 3, 4, 5, 6, 7, 8, 9, and 11 passes.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A
@@ -3751,7 +3757,7 @@ The first screen where a user actually sees and creates tasks. Completes the "fi
 - Consumes: `listProjectTasks`, `listStatuses`, `listMyOpenTasks`, `createTaskAction`, `updateTaskAction` (Task 11); `getProject` (Task 9); `formatDueDate`, `isOverdue` (Task 3).
 - Produces: `<ViewTabs />`, `<TaskList />`, `<QuickAddTask />`, `<PriorityDot />`, `<DueChip />` — all reused by Tasks 13 and 14.
 
-- [ ] **Step 1: Write `src/components/task/PriorityDot.tsx`**
+- [x] **Step 1: Write `src/components/task/PriorityDot.tsx`**
 
 Priority is conveyed by shape and label, not by color alone.
 
@@ -3782,7 +3788,7 @@ export function PriorityDot({ priority }: { priority: Priority }) {
 }
 ```
 
-- [ ] **Step 2: Write `src/components/task/DueChip.tsx`**
+- [x] **Step 2: Write `src/components/task/DueChip.tsx`**
 
 ```tsx
 import { CalendarClock } from 'lucide-react';
@@ -3808,7 +3814,7 @@ export function DueChip({ dueDate, timezone }: { dueDate: string | null; timezon
 }
 ```
 
-- [ ] **Step 3: Write `src/components/shell/ViewTabs.tsx`**
+- [x] **Step 3: Write `src/components/shell/ViewTabs.tsx`**
 
 ```tsx
 'use client';
@@ -3847,7 +3853,7 @@ export function ViewTabs({ basePath }: { basePath: string }) {
 }
 ```
 
-- [ ] **Step 4: Write `src/components/shell/ProjectHeader.tsx`**
+- [x] **Step 4: Write `src/components/shell/ProjectHeader.tsx`**
 
 ```tsx
 import { ViewTabs } from '@/components/shell/ViewTabs';
@@ -3867,7 +3873,7 @@ export function ProjectHeader({
 
 `pl-16` on small screens reserves room for the fixed drawer trigger from Task 10 so the title never sits underneath it.
 
-- [ ] **Step 5: Write `src/components/task/QuickAddTask.tsx`**
+- [x] **Step 5: Write `src/components/task/QuickAddTask.tsx`**
 
 ```tsx
 'use client';
@@ -3930,7 +3936,7 @@ export function QuickAddTask({
 }
 ```
 
-- [ ] **Step 6: Write `src/components/task/TaskRow.tsx`**
+- [x] **Step 6: Write `src/components/task/TaskRow.tsx`**
 
 ```tsx
 'use client';
@@ -4036,7 +4042,7 @@ export function TaskRow({
 }
 ```
 
-- [ ] **Step 7: Write `src/components/task/TaskList.tsx`**
+- [x] **Step 7: Write `src/components/task/TaskList.tsx`**
 
 ```tsx
 import { QuickAddTask } from '@/components/task/QuickAddTask';
@@ -4084,7 +4090,7 @@ export function TaskList({
 }
 ```
 
-- [ ] **Step 8: Write the list view page**
+- [x] **Step 8: Write the list view page**
 
 ```tsx
 // src/app/(app)/[workspaceSlug]/projects/[projectId]/page.tsx
@@ -4122,7 +4128,7 @@ export default async function ProjectListPage({
 }
 ```
 
-- [ ] **Step 9: Replace the workspace home body with assigned tasks**
+- [x] **Step 9: Replace the workspace home body with assigned tasks**
 
 ```tsx
 // src/app/(app)/[workspaceSlug]/page.tsx
@@ -4177,7 +4183,7 @@ export default async function WorkspaceHome({
 }
 ```
 
-- [ ] **Step 10: Mount the toaster**
+- [x] **Step 10: Mount the toaster**
 
 Add to `src/app/layout.tsx` inside `<ThemeProvider>`, after `{children}`:
 
@@ -4189,7 +4195,7 @@ import { Toaster } from '@/components/ui/sonner';
 
 Sonner's toasts use `aria-live` and do not steal focus, which is what the design requires.
 
-- [ ] **Step 11: Verify by hand**
+- [x] **Step 11: Verify by hand**
 
 ```bash
 yarn dev
@@ -4197,7 +4203,7 @@ yarn dev
 
 Confirm: typing a title and pressing Enter adds a task and keeps focus in the field so a second can be typed immediately; the circle button marks a task done and the title goes struck-through; tabbing reaches every control with a visible ring; at 375px there is no horizontal scroll.
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```bash
 git add -A
@@ -4216,7 +4222,7 @@ git commit -m "feat: project list view with quick add and my-tasks home"
 - Consumes: `listProjectTasks`, `moveTaskAction` (Task 11); `getProject` (Task 9); `QuickAddTask`, `PriorityDot`, `DueChip` (Task 12).
 - Produces: `<Board />`.
 
-- [ ] **Step 1: Write the board page**
+- [x] **Step 1: Write the board page**
 
 ```tsx
 // src/app/(app)/[workspaceSlug]/projects/[projectId]/board/page.tsx
@@ -4254,7 +4260,7 @@ export default async function ProjectBoardPage({
 }
 ```
 
-- [ ] **Step 2: Write `src/components/board/TaskCard.tsx`**
+- [x] **Step 2: Write `src/components/board/TaskCard.tsx`**
 
 ```tsx
 'use client';
@@ -4324,7 +4330,7 @@ export function TaskCard({
 }
 ```
 
-- [ ] **Step 3: Write `src/components/board/BoardColumn.tsx`**
+- [x] **Step 3: Write `src/components/board/BoardColumn.tsx`**
 
 ```tsx
 'use client';
@@ -4389,7 +4395,7 @@ export function BoardColumn({
 }
 ```
 
-- [ ] **Step 4: Write `src/components/board/Board.tsx`**
+- [x] **Step 4: Write `src/components/board/Board.tsx`**
 
 ```tsx
 'use client';
@@ -4530,13 +4536,13 @@ export function Board({
 }
 ```
 
-- [ ] **Step 5: Add the missing dnd-kit utilities package**
+- [x] **Step 5: Add the missing dnd-kit utilities package**
 
 ```bash
 yarn add --exact @dnd-kit/utilities@3.2.2
 ```
 
-- [ ] **Step 6: Verify pointer dragging by hand**
+- [x] **Step 6: Verify pointer dragging by hand**
 
 ```bash
 yarn dev
@@ -4544,15 +4550,15 @@ yarn dev
 
 Create three tasks, open the Board tab, and confirm: dragging a card between columns moves it instantly; reloading keeps the new column; dragging into a gap between two cards holds that exact position after reload; the page never scrolls sideways at 375px but the board container does.
 
-- [ ] **Step 7: Verify keyboard dragging by hand**
+- [x] **Step 7: Verify keyboard dragging by hand**
 
 With the mouse untouched: Tab to a card, press Space to lift, arrow right to the next column, Space to drop. Confirm the move persists after reload and that a screen reader announcement is produced. If arrow keys scroll the page instead of moving the card, the `KeyboardSensor` is not wired — fix it before committing, since the board is otherwise inaccessible.
 
-- [ ] **Step 8: Verify reduced motion**
+- [x] **Step 8: Verify reduced motion**
 
 In devtools, emulate `prefers-reduced-motion: reduce` and confirm cards still move and drop correctly with transitions suppressed.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add -A
@@ -4579,7 +4585,7 @@ The slide-over that both views open via `?task=<id>`. Includes label creation, w
   - `setTaskLabelsAction(workspaceSlug, { taskId, labelIds }): Promise<Result<null>>`
   - `deleteLabelAction(workspaceSlug, { labelId }): Promise<Result<null>>`
 
-- [ ] **Step 1: Write the failing label tests**
+- [x] **Step 1: Write the failing label tests**
 
 ```ts
 // tests/server/labels.test.ts
@@ -4691,7 +4697,7 @@ describe('setTaskLabels', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 ```bash
 yarn vitest run tests/server/labels.test.ts
@@ -4699,7 +4705,7 @@ yarn vitest run tests/server/labels.test.ts
 
 Expected: FAIL — cannot resolve `@/server/labels/actions`.
 
-- [ ] **Step 3: Implement `src/server/labels/queries.ts`**
+- [x] **Step 3: Implement `src/server/labels/queries.ts`**
 
 ```ts
 import { asc, eq } from 'drizzle-orm';
@@ -4735,7 +4741,7 @@ export async function listWorkspaceMembers(ctx: WorkspaceContext): Promise<Membe
 }
 ```
 
-- [ ] **Step 4: Implement `src/server/labels/actions.ts`**
+- [x] **Step 4: Implement `src/server/labels/actions.ts`**
 
 ```ts
 'use server';
@@ -4861,7 +4867,7 @@ export async function deleteLabelAction(
 }
 ```
 
-- [ ] **Step 5: Run to verify the tests pass**
+- [x] **Step 5: Run to verify the tests pass**
 
 ```bash
 yarn vitest run tests/server/labels.test.ts
@@ -4869,7 +4875,7 @@ yarn vitest run tests/server/labels.test.ts
 
 Expected: PASS, 7 tests.
 
-- [ ] **Step 6: Write `src/components/task/LabelPicker.tsx`**
+- [x] **Step 6: Write `src/components/task/LabelPicker.tsx`**
 
 ```tsx
 'use client';
@@ -4990,7 +4996,7 @@ export function LabelPicker({
 }
 ```
 
-- [ ] **Step 7: Write `src/components/task/TaskDetailPanel.tsx`**
+- [x] **Step 7: Write `src/components/task/TaskDetailPanel.tsx`**
 
 ```tsx
 'use client';
@@ -5180,7 +5186,7 @@ export function TaskDetailPanel({
 }
 ```
 
-- [ ] **Step 8: Render the panel from both views**
+- [x] **Step 8: Render the panel from both views**
 
 Both page components take `searchParams`. Add to each of `projects/[projectId]/page.tsx` and `projects/[projectId]/board/page.tsx`:
 
@@ -5217,7 +5223,7 @@ export default async function Page({
 
 Add the imports for `getTask`, `listWorkspaceMembers`, `listLabels`, and `TaskDetailPanel` to both files.
 
-- [ ] **Step 9: Verify by hand**
+- [x] **Step 9: Verify by hand**
 
 ```bash
 yarn dev
@@ -5225,7 +5231,7 @@ yarn dev
 
 Confirm: clicking a task opens the panel and the URL gains `?task=<id>`; the browser back button closes it; reloading with that URL reopens it; editing the title and clicking away saves; typing a new label name and pressing Enter creates and attaches it; typing an existing name attaches it rather than erroring; deleting asks for confirmation first.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add -A
@@ -5253,7 +5259,7 @@ Closes the second success criterion: an owner invites a teammate who accepts and
   - `updateWorkspaceSettings(ctx, { timezone, weekStart }): Promise<Result<null>>`
   - `sendInviteEmail(to, url, workspaceName): Promise<void>`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 // tests/server/members.test.ts
@@ -5401,7 +5407,7 @@ describe('updateWorkspaceSettings', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 ```bash
 yarn vitest run tests/server/members.test.ts
@@ -5409,7 +5415,7 @@ yarn vitest run tests/server/members.test.ts
 
 Expected: FAIL — cannot resolve `@/server/members/actions`.
 
-- [ ] **Step 3: Implement `src/lib/email.ts`**
+- [x] **Step 3: Implement `src/lib/email.ts`**
 
 ```ts
 import { Resend } from 'resend';
@@ -5439,7 +5445,7 @@ export async function sendInviteEmail(
 }
 ```
 
-- [ ] **Step 4: Implement `src/server/members/actions.ts`**
+- [x] **Step 4: Implement `src/server/members/actions.ts`**
 
 ```ts
 'use server';
@@ -5636,7 +5642,7 @@ export async function changeMemberRoleAction(
 }
 ```
 
-- [ ] **Step 5: Implement `src/server/settings/actions.ts`**
+- [x] **Step 5: Implement `src/server/settings/actions.ts`**
 
 ```ts
 'use server';
@@ -5697,7 +5703,7 @@ export async function updateWorkspaceSettingsAction(
 }
 ```
 
-- [ ] **Step 6: Run to verify the tests pass**
+- [x] **Step 6: Run to verify the tests pass**
 
 ```bash
 yarn vitest run tests/server/members.test.ts
@@ -5705,7 +5711,7 @@ yarn vitest run tests/server/members.test.ts
 
 Expected: PASS, 13 tests.
 
-- [ ] **Step 7: Write the invitation acceptance page**
+- [x] **Step 7: Write the invitation acceptance page**
 
 ```tsx
 // src/app/(auth)/invite/[invitationId]/page.tsx
@@ -5742,7 +5748,7 @@ export default async function AcceptInvitePage({
 }
 ```
 
-- [ ] **Step 8: Write the members settings page and its components**
+- [x] **Step 8: Write the members settings page and its components**
 
 `src/app/(app)/[workspaceSlug]/settings/members/page.tsx`:
 
@@ -5959,7 +5965,7 @@ export function MemberTable({
 }
 ```
 
-- [ ] **Step 9: Write the general settings page with the timezone control**
+- [x] **Step 9: Write the general settings page with the timezone control**
 
 `src/components/settings/TimezoneForm.tsx`:
 
@@ -6057,11 +6063,11 @@ export default async function GeneralSettingsPage({
 }
 ```
 
-- [ ] **Step 10: Add a settings sub-navigation link**
+- [x] **Step 10: Add a settings sub-navigation link**
 
 In `src/components/shell/Rail.tsx`, the Settings link currently points at `/settings/members`. Leave it, and add a second link directly beneath it to `/${workspaceSlug}/settings/general` labelled "General", styled the same way, so both settings pages are reachable.
 
-- [ ] **Step 11: Verify the full invite flow by hand**
+- [x] **Step 11: Verify the full invite flow by hand**
 
 ```bash
 yarn dev
@@ -6069,7 +6075,7 @@ yarn dev
 
 As the owner, invite `second@example.com`. With `RESEND_API_KEY` empty, the invite URL is printed to the server console. Open it in a private window, sign up as `second@example.com`, and confirm: you land in the workspace and see the same projects. Then confirm a member cannot see the invite form, and that an owner cannot demote themselves when they are the only owner.
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```bash
 git add -A
@@ -6090,14 +6096,14 @@ Proves the success criteria from spec §1 hold in a real browser, and stops regr
 - Consumes: the whole application.
 - Produces: `yarn e2e`, a CI workflow.
 
-- [ ] **Step 1: Install Playwright**
+- [x] **Step 1: Install Playwright**
 
 ```bash
 yarn add --exact --dev @playwright/test@1.58.0
 yarn playwright install --with-deps chromium
 ```
 
-- [ ] **Step 2: Write `playwright.config.ts`**
+- [x] **Step 2: Write `playwright.config.ts`**
 
 ```ts
 import { defineConfig, devices } from '@playwright/test';
@@ -6127,7 +6133,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 3: Write `tests/e2e/auth.spec.ts`**
+- [x] **Step 3: Write `tests/e2e/auth.spec.ts`**
 
 ```ts
 import { expect, test } from '@playwright/test';
@@ -6181,7 +6187,7 @@ test('a workspace slug the user does not belong to returns 404', async ({ page }
 });
 ```
 
-- [ ] **Step 4: Write `tests/e2e/board.spec.ts`**
+- [x] **Step 4: Write `tests/e2e/board.spec.ts`**
 
 ```ts
 import { expect, test, type Page } from '@playwright/test';
@@ -6265,7 +6271,7 @@ test('a task opened from the board is deep-linkable and closes with back', async
 });
 ```
 
-- [ ] **Step 5: Run the e2e suite**
+- [x] **Step 5: Run the e2e suite**
 
 ```bash
 yarn db:up
@@ -6274,7 +6280,7 @@ yarn e2e
 
 Expected: 5 tests PASS. If the pointer drag test is flaky, increase the `steps` in `mouse.move` rather than adding a sleep — the flake is dnd-kit not receiving enough intermediate move events, not a timing race.
 
-- [ ] **Step 6: Write `.github/workflows/ci.yml`**
+- [x] **Step 6: Write `.github/workflows/ci.yml`**
 
 ```yaml
 name: CI
@@ -6338,7 +6344,7 @@ jobs:
 
 `yarn install --immutable` is the CI equivalent of a lockfile check: it fails rather than silently updating `yarn.lock`.
 
-- [ ] **Step 7: Run the whole suite one final time**
+- [x] **Step 7: Run the whole suite one final time**
 
 ```bash
 yarn typecheck && yarn test && yarn e2e
@@ -6346,7 +6352,7 @@ yarn typecheck && yarn test && yarn e2e
 
 Expected: typecheck clean, every unit and server test passing, all 5 e2e tests passing. Do not mark this task complete on a partial pass — report exactly which tests fail and why.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add -A
