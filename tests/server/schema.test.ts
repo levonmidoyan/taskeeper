@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
-import { organization, project, task, taskStatus, user } from '@/db';
+import { comment, organization, project, task, taskActivity, taskStatus, user } from '@/db';
 import { newId } from '@/lib/ids';
 import { positionBetween } from '@/lib/position';
 
@@ -78,5 +78,44 @@ describe('schema', () => {
 
     await db.execute(sql`DELETE FROM organization WHERE id = ${workspaceId}`);
     expect(await db.select().from(task)).toHaveLength(0);
+  });
+});
+
+describe('comment and task_activity', () => {
+  it('deletes a task\'s comments and activity with the task', async () => {
+    const { userId, workspaceId, projectId, statusId } = await seedProject();
+    const taskId = newId();
+    await db.insert(task).values({
+      id: taskId, workspaceId, projectId, title: 'Ship v1', statusId,
+      position: positionBetween(null, null), createdBy: userId,
+    });
+    await db.insert(comment).values({
+      id: newId(), workspaceId, taskId, authorId: userId, body: 'First',
+    });
+    await db.insert(taskActivity).values({
+      id: newId(), workspaceId, taskId, actorId: userId, kind: 'created', toValue: 'Ship v1',
+    });
+
+    await db.delete(task).where(sql`id = ${taskId}`);
+
+    expect(await db.select().from(comment)).toHaveLength(0);
+    expect(await db.select().from(taskActivity)).toHaveLength(0);
+  });
+
+  it('defaults edited_at to null and stamps created_at', async () => {
+    const { userId, workspaceId, projectId, statusId } = await seedProject();
+    const taskId = newId();
+    await db.insert(task).values({
+      id: taskId, workspaceId, projectId, title: 'Ship v1', statusId,
+      position: positionBetween(null, null), createdBy: userId,
+    });
+
+    await db.insert(comment).values({
+      id: newId(), workspaceId, taskId, authorId: userId, body: 'Looks good',
+    });
+
+    const [row] = await db.select().from(comment);
+    expect(row.editedAt).toBeNull();
+    expect(row.createdAt).toBeInstanceOf(Date);
   });
 });

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db, invitation, member, organization, user } from '@/db';
 import { sendInviteEmail } from '@/lib/email';
 import { newId } from '@/lib/ids';
+import { appUrl } from '@/lib/url';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import { requireRole, type WorkspaceContext } from '@/lib/session';
 
@@ -53,7 +54,7 @@ export async function inviteMember(
 
     await sendInviteEmail(
       parsed.data.email,
-      `${process.env.BETTER_AUTH_URL}/invite/${id}`,
+      `${appUrl()}/invite/${id}`,
       ws?.name ?? 'the workspace',
     );
 

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
 import { DueChip } from '@/components/task/DueChip';
+import { doneToggleTarget } from '@/lib/task-done';
 import { PriorityDot } from '@/components/task/PriorityDot';
 import type { StatusRow } from '@/server/projects/queries';
 import type { TaskRow as TaskRowData } from '@/server/tasks/queries';
@@ -26,11 +27,9 @@ export function TaskRow({
   const [pending, startTransition] = useTransition();
 
   const done = task.completedAt !== null;
-  const doneStatus = statuses.find((s) => s.isDone);
-  const openStatus = statuses.find((s) => !s.isDone);
 
   function toggleDone() {
-    const target = done ? openStatus : doneStatus;
+    const target = doneToggleTarget(statuses, done);
     if (!target) {
       toast.error('This project has no done column.');
       return;

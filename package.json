@@ -12,6 +12,7 @@
     "db:down": "docker compose down",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:prod": "DRIZZLE_ENV_FILE=.env.production.local drizzle-kit migrate",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test"

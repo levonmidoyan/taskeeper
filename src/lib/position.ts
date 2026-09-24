@@ -14,3 +14,13 @@ export function positionsForCount(n: number): string[] {
   if (n <= 0) return [];
   return generateNKeysBetween(null, null, n);
 }
+
+/**
+ * n ascending keys after an existing one, for appending a batch to the end of a
+ * list — reassigning a deleted column's tasks onto the end of another column,
+ * say. Their relative order is the order they are passed in.
+ */
+export function positionsAfter(last: string | null, n: number): string[] {
+  if (n <= 0) return [];
+  return generateNKeysBetween(last, null, n);
+}

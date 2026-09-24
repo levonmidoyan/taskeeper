@@ -4,7 +4,7 @@ import { createUser, createWorkspace } from '../setup/factories';
 import { createProject } from '@/server/projects/service';
 import { getProject } from '@/server/projects/queries';
 import { createTask, deleteTask, moveTask, updateTask } from '@/server/tasks/service';
-import { getTask, listMyOpenTasks, listProjectTasks } from '@/server/tasks/queries';
+import { getTask, getTaskDetail, listMyOpenTasks, listProjectTasks } from '@/server/tasks/queries';
 import { task } from '@/db';
 import type { WorkspaceContext } from '@/lib/session';
 
@@ -243,5 +243,43 @@ describe('deleteTask', () => {
 
     expect((await deleteTask(a.ctx, { taskId: created.data.id })).ok).toBe(false);
     expect(await db.select().from(task)).toHaveLength(1);
+  });
+});
+
+describe('getTaskDetail', () => {
+  it('returns a task with its subtasks and parent breadcrumb', async () => {
+    const { ctx, projectId, statuses } = await setup('ada14@example.com', 'acme14');
+    const parent = await createTask(ctx, { projectId, title: 'Parent' });
+    if (!parent.ok) throw new Error('setup failed');
+    const child = await createTask(ctx, {
+      projectId, title: 'Child', parentTaskId: parent.data.id,
+    });
+    const other = await createTask(ctx, { projectId, title: 'Unrelated' });
+    if (!child.ok || !other.ok) throw new Error('setup failed');
+
+    const done = statuses.find((s) => s.isDone)!;
+    await updateTask(ctx, { taskId: child.data.id, statusId: done.id });
+
+    const detail = await getTaskDetail(ctx, parent.data.id);
+    expect(detail).not.toBeNull();
+    expect(detail!.parentId).toBeNull();
+    expect(detail!.parentTitle).toBeNull();
+    expect(detail!.subtasks.map((s) => s.title)).toEqual(['Child']);
+    expect(detail!.subtaskCount).toBe(1);
+    expect(detail!.subtaskDoneCount).toBe(1);
+
+    const childDetail = await getTaskDetail(ctx, child.data.id);
+    expect(childDetail!.parentId).toBe(parent.data.id);
+    expect(childDetail!.parentTitle).toBe('Parent');
+    expect(childDetail!.subtasks).toEqual([]);
+  });
+
+  it('returns null for a task in another workspace', async () => {
+    const a = await setup('a5@example.com', 'ws-a5');
+    const b = await setup('b5@example.com', 'ws-b5');
+    const created = await createTask(b.ctx, { projectId: b.projectId, title: 'Theirs' });
+    if (!created.ok) throw new Error('setup failed');
+
+    expect(await getTaskDetail(a.ctx, created.data.id)).toBeNull();
   });
 });

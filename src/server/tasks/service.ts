@@ -1,10 +1,11 @@
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { db, project, task, taskStatus } from '@/db';
+import { db, member, project, task, taskStatus, user } from '@/db';
 import { newId } from '@/lib/ids';
 import { positionBetween } from '@/lib/position';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
+import { recordActivity, type ActivityKind } from '@/server/activity/service';
 
 const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const;
 
@@ -21,7 +22,7 @@ async function assertProject(ctx: WorkspaceContext, projectId: string) {
 /** Confirms a status belongs to a project that belongs to this workspace. */
 async function assertStatus(ctx: WorkspaceContext, statusId: string, projectId: string) {
   const [row] = await db
-    .select({ id: taskStatus.id, isDone: taskStatus.isDone })
+    .select({ id: taskStatus.id, isDone: taskStatus.isDone, name: taskStatus.name })
     .from(taskStatus)
     .innerJoin(project, eq(project.id, taskStatus.projectId))
     .where(
@@ -39,12 +40,32 @@ async function loadOwnedTask(ctx: WorkspaceContext, taskId: string) {
   const [row] = await db
     .select({
       id: task.id, projectId: task.projectId, statusId: task.statusId,
-      completedAt: task.completedAt,
+      completedAt: task.completedAt, title: task.title, priority: task.priority,
+      assigneeId: task.assigneeId, dueDate: task.dueDate,
+      statusName: taskStatus.name,
     })
     .from(task)
+    .innerJoin(taskStatus, eq(taskStatus.id, task.statusId))
     .where(and(eq(task.id, taskId), eq(task.workspaceId, ctx.workspaceId)))
     .limit(1);
   return row ?? null;
+}
+
+/**
+ * Member names, for activity rows that must survive the member being removed.
+ * Scoped to this workspace's membership: an id outside it (whether a stale
+ * assignee or an unvalidated one) resolves to null rather than disclosing a
+ * stranger's name across tenants.
+ */
+async function memberName(ctx: WorkspaceContext, userId: string | null): Promise<string | null> {
+  if (!userId) return null;
+  const [row] = await db
+    .select({ name: user.name })
+    .from(user)
+    .innerJoin(member, and(eq(member.userId, user.id), eq(member.organizationId, ctx.workspaceId)))
+    .where(eq(user.id, userId))
+    .limit(1);
+  return row?.name ?? null;
 }
 
 const createSchema = z.object({
@@ -89,17 +110,20 @@ export async function createTask(
       .limit(1);
 
     const id = newId();
-    await db.insert(task).values({
-      id,
-      // From the context, never the input: this is what keeps the denormalized
-      // column honest (spec §3.3).
-      workspaceId: ctx.workspaceId,
-      projectId: parsed.data.projectId,
-      title: parsed.data.title,
-      statusId,
-      parentTaskId: parsed.data.parentTaskId,
-      position: positionBetween(last?.position ?? null, null),
-      createdBy: ctx.userId,
+    await db.transaction(async (tx) => {
+      await tx.insert(task).values({
+        id,
+        // From the context, never the input: this is what keeps the denormalized
+        // column honest (spec §3.3).
+        workspaceId: ctx.workspaceId,
+        projectId: parsed.data.projectId,
+        title: parsed.data.title,
+        statusId,
+        parentTaskId: parsed.data.parentTaskId,
+        position: positionBetween(last?.position ?? null, null),
+        createdBy: ctx.userId,
+      });
+      await recordActivity(ctx, { taskId: id, kind: 'created', to: parsed.data.title }, tx);
     });
 
     return ok({ id });
@@ -137,15 +161,44 @@ export async function updateTask(
     if (parsed.data.assigneeId !== undefined) patch.assigneeId = parsed.data.assigneeId;
     if (parsed.data.dueDate !== undefined) patch.dueDate = parsed.data.dueDate;
 
+    let newStatusName: string | null = null;
     if (parsed.data.statusId !== undefined) {
       const status = await assertStatus(ctx, parsed.data.statusId, owned.projectId);
       if (!status) return err('That column does not belong to this project.');
       patch.statusId = parsed.data.statusId;
+      newStatusName = status.name;
       // completed_at follows the column's is_done flag in both directions.
       patch.completedAt = status.isDone ? (owned.completedAt ?? new Date()) : null;
     }
 
-    await db.update(task).set(patch).where(eq(task.id, parsed.data.taskId));
+    const entries: { kind: ActivityKind; from?: string | null; to?: string | null }[] = [];
+
+    if (patch.title !== undefined && patch.title !== owned.title) {
+      entries.push({ kind: 'title', from: owned.title, to: patch.title as string });
+    }
+    if (patch.priority !== undefined && patch.priority !== owned.priority) {
+      entries.push({ kind: 'priority', from: owned.priority, to: patch.priority as string });
+    }
+    if (patch.dueDate !== undefined && patch.dueDate !== owned.dueDate) {
+      entries.push({ kind: 'due_date', from: owned.dueDate, to: patch.dueDate as string | null });
+    }
+    if (patch.assigneeId !== undefined && patch.assigneeId !== owned.assigneeId) {
+      entries.push({
+        kind: 'assignee',
+        from: await memberName(ctx, owned.assigneeId),
+        to: await memberName(ctx, patch.assigneeId as string | null),
+      });
+    }
+    if (patch.statusId !== undefined && patch.statusId !== owned.statusId) {
+      entries.push({ kind: 'status', from: owned.statusName, to: newStatusName });
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.update(task).set(patch).where(eq(task.id, parsed.data.taskId));
+      for (const entry of entries) {
+        await recordActivity(ctx, { taskId: parsed.data.taskId, ...entry }, tx);
+      }
+    });
 
     return ok(null);
   });
@@ -195,15 +248,29 @@ export async function moveTask(
 
     const position = positionBetween(before, after);
 
-    await db
-      .update(task)
-      .set({
-        statusId: parsed.data.statusId,
-        position,
-        completedAt: status.isDone ? (owned.completedAt ?? new Date()) : null,
-        updatedAt: new Date(),
-      })
-      .where(eq(task.id, parsed.data.taskId));
+    const crossedColumn = parsed.data.statusId !== owned.statusId;
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(task)
+        .set({
+          statusId: parsed.data.statusId,
+          position,
+          completedAt: status.isDone ? (owned.completedAt ?? new Date()) : null,
+          updatedAt: new Date(),
+        })
+        .where(eq(task.id, parsed.data.taskId));
+
+      // A reorder inside one column is not history — recording it would bury the
+      // feed under every drag.
+      if (crossedColumn) {
+        await recordActivity(
+          ctx,
+          { taskId: parsed.data.taskId, kind: 'status', from: owned.statusName, to: status.name },
+          tx,
+        );
+      }
+    });
 
     return ok({ position });
   });
