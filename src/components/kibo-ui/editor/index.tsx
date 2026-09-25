@@ -83,6 +83,8 @@ export function handleEditorEscape(event: KeyboardEvent): boolean {
   if (target.closest('[data-editor-link-form]')) return true;
   const dom = target.closest<HTMLElement & { editor?: Editor }>('.ProseMirror');
   if (!dom?.editor || !slashPluginKey.getState(dom.editor.state)?.active) return false;
+  // A menu with no matches is hidden; Escape then belongs to the dialog.
+  if (!document.querySelector('#slash-command')?.closest('.tippy-box[data-state="visible"]')) return false;
   exitSuggestion(dom.editor.view, slashPluginKey);
   return true;
 }

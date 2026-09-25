@@ -23,6 +23,9 @@ type SlashMenuProps = { items: SlashItem[]; editor: Editor; range: Range };
 function SlashMenu({ items, editor, range }: SlashMenuProps) {
   return (
     <Command
+      // cmdk keeps its highlight on a value that filtering removed (nothing is highlighted and
+      // Enter does nothing); a new key per item set remounts it on the first match.
+      key={items.map((item) => item.title).join('|')}
       id="slash-command"
       label="Insert block"
       shouldFilter={false}
@@ -78,32 +81,39 @@ export const SlashCommand = Extension.create({
         render: () => {
           let component: ReactRenderer<unknown, SlashMenuProps> | undefined;
           let popup: TippyInstance | undefined;
+          // "cd /tmp" or "run /deploy" matches nothing: the menu steps aside and Enter and the
+          // arrows stay the editor's, or a path in the text would trap the caret on its line.
+          let hasItems = false;
 
           return {
             onStart: (props) => {
+              hasItems = props.items.length > 0;
               component = new ReactRenderer(SlashMenu, { props, editor: props.editor });
               popup = tippy(document.body, {
                 getReferenceClientRect: () => props.clientRect?.() ?? new DOMRect(),
                 appendTo: () => props.editor.view.dom.closest('[role="dialog"]') ?? document.body,
                 content: component.element,
-                showOnCreate: true,
+                showOnCreate: hasItems,
                 interactive: true,
                 trigger: 'manual',
                 placement: 'bottom-start',
               });
             },
             onUpdate: (props) => {
+              hasItems = props.items.length > 0;
               component?.updateProps(props);
               popup?.setProps({
                 getReferenceClientRect: () => props.clientRect?.() ?? new DOMRect(),
               });
+              if (hasItems) popup?.show();
+              else popup?.hide();
             },
             onKeyDown: ({ event }) => {
               if (event.key === 'Escape') {
                 popup?.hide();
                 return true;
               }
-              return forwardToMenu(event);
+              return hasItems && forwardToMenu(event);
             },
             onExit: () => {
               popup?.destroy();
