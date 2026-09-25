@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Keep Tailwind from scanning plan/spec markdown — wildcard class names in prose emit invalid CSS. */
+@source not "../../docs";
 /* Animation utilities (animate-in, fade-in-0, zoom-in-95, slide-in-from-*) used by Align's
    Modal, Drawer, Dropdown, Select and Tooltip (spec §10 A1). */
 @import "tw-animate-css";
@@ -50,7 +52,7 @@
   --color-success: var(--color-success-base);
 }
 
-/* LEGACY — radii used as rounded-[var(--radius-*)] by not-yet-rebuilt screens. Part 4 removes. */
+/* LEGACY — radii referenced via arbitrary-value rounded utilities by not-yet-rebuilt screens. Part 4 removes. */
 :root {
   --radius-button: 0.5rem;
   --radius-card: 0.625rem;
