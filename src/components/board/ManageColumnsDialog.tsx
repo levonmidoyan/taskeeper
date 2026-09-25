@@ -1,17 +1,17 @@
 'use client';
 
-import { ArrowDown, ArrowUp, CircleCheck, Columns3, Plus, Trash2 } from 'lucide-react';
+import {
+  IconArrowDown, IconArrowUp, IconColumns3, IconPlus, IconTrash,
+} from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/legacy-ui/button';
-import {
-  Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger,
-} from '@/components/legacy-ui/dialog';
-import { Input } from '@/components/legacy-ui/input';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/legacy-ui/select';
+import * as Button from '@/components/ui/button';
+import * as CompactButton from '@/components/ui/compact-button';
+import * as Input from '@/components/ui/input';
+import * as Modal from '@/components/ui/modal';
+import * as Select from '@/components/ui/select';
+import * as Switch from '@/components/ui/switch';
 import type { StatusRow } from '@/server/projects/queries';
 import {
   createStatusAction, deleteStatusAction, moveStatusAction, updateStatusAction,
@@ -68,7 +68,7 @@ export function ManageColumnsDialog({
   function move(index: number, direction: -1 | 1) {
     const status = statuses[index];
     // The two neighbours the column lands between once it has moved past one of
-    // them. Ids, never a position: the server computes the key (spec §6.4).
+    // them. Ids, never a position: the server computes the key (v1 spec §6.4).
     const [beforeId, afterId] = direction === -1
       ? [statuses[index - 2]?.id ?? null, statuses[index - 1].id]
       : [statuses[index + 1].id, statuses[index + 2]?.id ?? null];
@@ -109,142 +109,150 @@ export function ManageColumnsDialog({
   }
 
   return (
-    <Dialog
+    <Modal.Root
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
         if (!next) setConfirmingId(null);
       }}
     >
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Columns3 aria-hidden="true" />
+      <Modal.Trigger asChild>
+        <Button.Root variant="neutral" mode="stroke" size="xsmall">
+          <Button.Icon as={IconColumns3} />
           Columns
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
-        <DialogTitle>Columns</DialogTitle>
-        <DialogDescription>
-          Rename, reorder, add, or remove this project’s columns.
-        </DialogDescription>
+        </Button.Root>
+      </Modal.Trigger>
+      <Modal.Content className="max-w-lg">
+        <Modal.Header
+          icon={IconColumns3}
+          title="Columns"
+          description="Rename, reorder, add, or remove this project's columns."
+        />
 
-        <ul className="space-y-2">
-          {statuses.map((status, index) => {
-            const others = statuses.filter((s) => s.id !== status.id);
+        <Modal.Body className="flex flex-col gap-3">
+          <ul className="flex flex-col gap-2">
+            {statuses.map((status, index) => {
+              const others = statuses.filter((s) => s.id !== status.id);
 
-            return (
-              <li
-                key={`${status.id}:${status.name}:${status.isDone}`}
-                className="rounded-[var(--radius-card)] border border-border p-2"
-              >
-                <div className="flex items-center gap-1.5">
-                  <div className="flex flex-col">
-                    <Button
+              return (
+                <li
+                  key={`${status.id}:${status.name}:${status.isDone}`}
+                  className="rounded-10 p-2 ring-1 ring-inset ring-stroke-soft-200"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex flex-col">
+                      <CompactButton.Root
+                        variant="ghost"
+                        size="medium"
+                        aria-label={`Move ${status.name} left`}
+                        disabled={pending || index === 0}
+                        onClick={() => move(index, -1)}
+                      >
+                        <CompactButton.Icon as={IconArrowUp} />
+                      </CompactButton.Root>
+                      <CompactButton.Root
+                        variant="ghost"
+                        size="medium"
+                        aria-label={`Move ${status.name} right`}
+                        disabled={pending || index === statuses.length - 1}
+                        onClick={() => move(index, 1)}
+                      >
+                        <CompactButton.Icon as={IconArrowDown} />
+                      </CompactButton.Root>
+                    </div>
+
+                    <Input.Root size="small" className="flex-1">
+                      <Input.Wrapper>
+                        <Input.Input
+                          // Uncontrolled and remounted by the key above, so a rename
+                          // that the server rejected or normalised snaps back to what
+                          // is actually stored.
+                          defaultValue={status.name}
+                          aria-label={`${status.name} name`}
+                          maxLength={32}
+                          disabled={pending}
+                          onBlur={(event) => rename(status, event.currentTarget.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') event.currentTarget.blur();
+                            if (event.key === 'Escape') {
+                              event.currentTarget.value = status.name;
+                              event.currentTarget.blur();
+                            }
+                          }}
+                        />
+                      </Input.Wrapper>
+                    </Input.Root>
+
+                    <span className="flex items-center gap-1.5 pl-1" title="Tasks in this column count as done">
+                      <Switch.Root
+                        checked={status.isDone}
+                        onCheckedChange={() => toggleDone(status)}
+                        disabled={pending}
+                        aria-label={`${status.name} completes tasks`}
+                      />
+                      <span aria-hidden="true" className="hidden text-paragraph-xs text-text-sub-600 sm:inline">
+                        Done
+                      </span>
+                    </span>
+
+                    <CompactButton.Root
                       variant="ghost"
-                      size="icon-xs"
-                      aria-label={`Move ${status.name} left`}
-                      disabled={pending || index === 0}
-                      onClick={() => move(index, -1)}
+                      size="medium"
+                      aria-label={`Delete ${status.name}`}
+                      className="hover:text-error-base"
+                      disabled={pending || statuses.length === 1}
+                      onClick={() => setConfirmingId(confirmingId === status.id ? null : status.id)}
                     >
-                      <ArrowUp aria-hidden="true" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label={`Move ${status.name} right`}
-                      disabled={pending || index === statuses.length - 1}
-                      onClick={() => move(index, 1)}
-                    >
-                      <ArrowDown aria-hidden="true" />
-                    </Button>
+                      <CompactButton.Icon as={IconTrash} />
+                    </CompactButton.Root>
                   </div>
 
-                  <Input
-                    // Uncontrolled and remounted by the key above, so a rename
-                    // that the server rejected or normalised snaps back to what
-                    // is actually stored.
-                    defaultValue={status.name}
-                    aria-label={`${status.name} name`}
-                    maxLength={32}
-                    disabled={pending}
-                    className="h-9"
-                    onBlur={(event) => rename(status, event.currentTarget.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') event.currentTarget.blur();
-                      if (event.key === 'Escape') {
-                        event.currentTarget.value = status.name;
-                        event.currentTarget.blur();
-                      }
-                    }}
-                  />
+                  {confirmingId === status.id && others.length > 0 && (
+                    <DeleteColumnConfirm
+                      status={status}
+                      others={others}
+                      pending={pending}
+                      onCancel={() => setConfirmingId(null)}
+                      onConfirm={(reassignToId) => remove(status, reassignToId)}
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
 
-                  <Button
-                    variant={status.isDone ? 'secondary' : 'ghost'}
-                    size="icon-sm"
-                    aria-pressed={status.isDone}
-                    aria-label={`${status.name} completes tasks`}
-                    title="Tasks in this column count as done"
-                    disabled={pending}
-                    onClick={() => toggleDone(status)}
-                  >
-                    <CircleCheck aria-hidden="true" />
-                  </Button>
+          <form onSubmit={add} className="flex items-center gap-2">
+            <Input.Root size="small" className="flex-1">
+              <Input.Wrapper>
+                <Input.Input
+                  value={adding}
+                  onChange={(event) => setAdding(event.target.value)}
+                  placeholder="New column name"
+                  aria-label="New column name"
+                  maxLength={32}
+                  disabled={pending}
+                />
+              </Input.Wrapper>
+            </Input.Root>
+            <Button.Root type="submit" size="small" disabled={pending || !adding.trim()}>
+              <Button.Icon as={IconPlus} />
+              Add
+            </Button.Root>
+          </form>
 
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Delete ${status.name}`}
-                    className="text-muted-foreground hover:text-destructive"
-                    disabled={pending || statuses.length === 1}
-                    onClick={() => setConfirmingId(confirmingId === status.id ? null : status.id)}
-                  >
-                    <Trash2 aria-hidden="true" />
-                  </Button>
-                </div>
-
-                {confirmingId === status.id && others.length > 0 && (
-                  <DeleteColumnConfirm
-                    status={status}
-                    others={others}
-                    pending={pending}
-                    onCancel={() => setConfirmingId(null)}
-                    onConfirm={(reassignToId) => remove(status, reassignToId)}
-                  />
-                )}
-              </li>
-            );
-          })}
-        </ul>
-
-        <form onSubmit={add} className="flex items-center gap-2">
-          <Input
-            value={adding}
-            onChange={(event) => setAdding(event.target.value)}
-            placeholder="New column name"
-            aria-label="New column name"
-            maxLength={32}
-            disabled={pending}
-            className="h-9"
-          />
-          <Button type="submit" size="lg" disabled={pending || !adding.trim()}>
-            <Plus aria-hidden="true" />
-            Add
-          </Button>
-        </form>
-
-        <p className="text-xs text-muted-foreground">
-          The <CircleCheck className="inline size-3 align-[-1px]" aria-hidden="true" /> toggle marks a
-          column as done: tasks dropped there are completed, and the task checkbox sends them to the
-          first one.
-        </p>
-      </DialogContent>
-    </Dialog>
+          <p className="text-paragraph-xs text-text-sub-600">
+            A column switched to Done completes the tasks dropped into it, and a task&apos;s done
+            toggle sends it to the first such column.
+          </p>
+        </Modal.Body>
+      </Modal.Content>
+    </Modal.Root>
   );
 }
 
 /**
  * A column holding tasks cannot simply be dropped — task.status_id is RESTRICT
- * (spec §3.2) — so the confirmation asks where its tasks should go. An empty
+ * (v1 spec §3.2) — so the confirmation asks where its tasks should go. An empty
  * column ignores the answer, which is why the target is offered rather than
  * demanded: the client never needs to know the count.
  */
@@ -264,28 +272,26 @@ function DeleteColumnConfirm({
   const [target, setTarget] = useState(others[0].id);
 
   return (
-    <div className="mt-2 space-y-2 border-t border-border pt-2">
-      <p className="text-xs text-muted-foreground">
-        Delete <span className="font-medium text-foreground">{status.name}</span> and move any tasks
-        in it to:
+    <div className="mt-2 flex flex-col gap-2 border-t border-stroke-soft-200 pt-2">
+      <p className="text-paragraph-xs text-text-sub-600">
+        Delete <span className="text-label-xs text-text-strong-950">{status.name}</span> and move any
+        tasks in it to:
       </p>
       <div className="flex items-center gap-2">
-        <Select value={target} onValueChange={setTarget} disabled={pending}>
-          <SelectTrigger aria-label="Move tasks to" className="h-9 flex-1">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {others.map((other) => (
-              <SelectItem key={other.id} value={other.id}>{other.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button variant="ghost" size="lg" disabled={pending} onClick={onCancel}>
+        <Select.Root size="small" value={target} onValueChange={setTarget} disabled={pending}>
+          <Select.Trigger aria-label="Move tasks to" className="flex-1">
+            <Select.Value />
+          </Select.Trigger>
+          <Select.Content>
+            {others.map((other) => <Select.Item key={other.id} value={other.id}>{other.name}</Select.Item>)}
+          </Select.Content>
+        </Select.Root>
+        <Button.Root variant="neutral" mode="ghost" size="xsmall" disabled={pending} onClick={onCancel}>
           Cancel
-        </Button>
-        <Button variant="destructive" size="lg" disabled={pending} onClick={() => onConfirm(target)}>
+        </Button.Root>
+        <Button.Root variant="error" size="xsmall" disabled={pending} onClick={() => onConfirm(target)}>
           Delete
-        </Button>
+        </Button.Root>
       </div>
     </div>
   );
