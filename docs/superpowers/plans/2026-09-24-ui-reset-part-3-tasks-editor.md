@@ -371,7 +371,7 @@ export function QuickAddTask({
         maxLength={200}
         aria-busy={pending}
         placeholder={placeholder}
-        className="h-11 w-full bg-transparent text-paragraph-md text-text-strong-950 placeholder:text-text-soft-400 focus:outline-none lg:text-paragraph-sm"
+        className="h-11 w-full bg-transparent text-paragraph-md text-text-strong-950 placeholder:text-text-soft-400 lg:text-paragraph-sm"
       />
     </form>
   );
@@ -1238,7 +1238,7 @@ export function EditorLinkControl() {
         }}
         placeholder="Paste a link"
         className={cn(
-          'h-8 w-48 rounded-lg bg-bg-weak-50 px-2 text-paragraph-sm text-text-strong-950 outline-none placeholder:text-text-soft-400',
+          'h-8 w-48 rounded-lg bg-bg-weak-50 px-2 text-paragraph-sm text-text-strong-950 placeholder:text-text-soft-400',
           invalid && 'ring-1 ring-inset ring-error-base',
         )}
       />
@@ -1838,7 +1838,7 @@ export function SubtaskSection({
           maxLength={200}
           aria-busy={pending}
           placeholder="Add a subtask…"
-          className="h-11 w-full bg-transparent text-paragraph-md text-text-strong-950 placeholder:text-text-soft-400 focus:outline-none lg:text-paragraph-sm"
+          className="h-11 w-full bg-transparent text-paragraph-md text-text-strong-950 placeholder:text-text-soft-400 lg:text-paragraph-sm"
         />
       </form>
     </section>

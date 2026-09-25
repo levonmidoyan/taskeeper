@@ -91,7 +91,7 @@ export function SubtaskSection({
           maxLength={200}
           aria-busy={pending}
           placeholder="Add a subtask…"
-          className="h-11 w-full bg-transparent text-base text-foreground placeholder:text-muted-foreground focus:outline-none lg:text-sm"
+          className="h-11 w-full bg-transparent text-base text-foreground placeholder:text-muted-foreground lg:text-sm"
         />
       </form>
     </section>
