@@ -22,8 +22,10 @@ export function TextField({ id, label, hint, error, className, ...input }: TextF
     <div className={cn('flex flex-col gap-1', className)}>
       <Label.Root htmlFor={id}>{label}</Label.Root>
       <Input.Root hasError={error}>
-        <Input.Wrapper>
-          <Input.Input id={id} aria-describedby={hintId} aria-invalid={error || undefined} {...input} />
+        <Input.Wrapper asChild>
+          <div>
+            <Input.Input id={id} aria-describedby={hintId} aria-invalid={error || undefined} {...input} />
+          </div>
         </Input.Wrapper>
       </Input.Root>
       {hint && <Hint.Root id={hintId}>{hint}</Hint.Root>}
