@@ -96,3 +96,25 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Markdown, rendered (components/task/Markdown.tsx) and edited (kibo-ui/editor). */
+@layer components {
+  .md-content {
+    @apply text-paragraph-sm text-text-strong-950 [overflow-wrap:anywhere];
+  }
+  .md-content > :where(* + *) { @apply mt-2; }
+  .md-content :where(h1) { @apply text-label-lg; }
+  .md-content :where(h2) { @apply text-label-md; }
+  .md-content :where(h3) { @apply text-label-sm; }
+  .md-content :where(ul) { @apply list-outside list-disc pl-5; }
+  .md-content :where(ol) { @apply list-outside list-decimal pl-5; }
+  .md-content :where(ul.contains-task-list, ul[data-type="taskList"]) { @apply list-none pl-0; }
+  .md-content :where(li[data-type="taskItem"], li.task-list-item) { @apply flex items-start gap-2; }
+  .md-content :where(li > p) { @apply m-0; }
+  .md-content :where(blockquote) { @apply border-l-2 border-stroke-soft-200 pl-3 text-text-sub-600; }
+  .md-content :where(code) { @apply rounded-md bg-bg-weak-50 px-1 py-0.5 font-mono text-[0.9em]; }
+  .md-content :where(pre) { @apply overflow-x-auto rounded-10 bg-bg-weak-50 p-3 font-mono text-paragraph-xs; }
+  .md-content :where(pre code) { @apply bg-transparent p-0; }
+  .md-content :where(a) { @apply text-primary-base underline underline-offset-2; }
+  .md-content :where(hr) { @apply border-stroke-soft-200; }
+}
