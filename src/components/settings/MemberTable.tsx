@@ -43,8 +43,8 @@ export function MemberTable({
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl ring-1 ring-inset ring-stroke-soft-200">
-      <table className="w-full border-collapse text-paragraph-sm">
+    <div className="overflow-x-auto rounded-2xl ring-1 ring-inset ring-stroke-soft-200">
+      <table className="w-full min-w-[36rem] border-collapse text-paragraph-sm">
         <thead className="bg-bg-weak-50">
           <tr className="text-left text-label-xs uppercase text-text-soft-400">
             <th scope="col" className="px-4 py-2 font-medium">Name</th>
