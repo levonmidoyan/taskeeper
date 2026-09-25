@@ -97,7 +97,7 @@ function DrawerHeader({
         <DrawerClose asChild>
           <CompactButton.Root variant='ghost' size='large'>
             <CompactButton.Icon as={IconX} aria-hidden='true' />
-                  <span className='sr-only'>Close</span>
+            <span className='sr-only'>Close</span>
           </CompactButton.Root>
         </DrawerClose>
       )}

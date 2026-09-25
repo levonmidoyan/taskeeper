@@ -25,7 +25,7 @@ await setup.getByRole('button', { name: 'Create project' }).click();
 for (const title of ['Write the landing copy', 'Pick a hero image', 'Ship it']) {
   await setup.getByPlaceholder('Add a task…').fill(title);
   await setup.getByPlaceholder('Add a task…').press('Enter');
-  await setup.getByText(title).waitFor();
+  await setup.getByText(title, { exact: true }).waitFor();
 }
 const projectUrl = setup.url();
 const workspaceUrl = new URL(projectUrl).pathname.split('/').slice(0, 2).join('/');
