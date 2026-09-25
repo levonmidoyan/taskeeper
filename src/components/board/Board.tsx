@@ -72,49 +72,59 @@ export function Board({
     // Press and hold, so a swipe still scrolls the board. Mouse + Touch rather than
     // Pointer: a PointerSensor also answers touch and would start a drag on every swipe.
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    // Space only: dnd-kit also lifts on Enter by default, which would turn Enter on a
+    // focused card into a drag instead of opening the task. Tab still drops (dnd-kit's
+    // default), so focus never leaves a card that is mid-drag.
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+      keyboardCodes: { start: ['Space'], cancel: ['Escape'], end: ['Space', 'Tab'] },
+    }),
   );
 
   /**
-   * Pointer first when there is one, rect overlap otherwise (a keyboard drag has no
-   * pointer). A hit on a column resolves to the nearest card inside it, so dropping into a
-   * gap keeps that gap. A hit on the dragged card itself — which happens once the live
-   * preview has moved it into the hovered column — resolves to that card's column, so
-   * dnd-kit keeps announcing the column (board.spec.ts, spec §10 A3).
+   * With a pointer (mouse, touch), only what the pointer is inside counts; no pointer hit
+   * means the release is off the board, so no collision (`[]`) is reported and `onDragEnd`
+   * discards the drag (event.over is null). Rect overlap is deliberately not consulted
+   * here: the dragged card's rect can still overlap a column after the pointer has left
+   * every column, and that would save a drop the user threw away. Without a pointer
+   * (keyboard) there is no "off the board", so rect overlap, then closestCorners, pick the
+   * target — with every droppable measured (MeasuringStrategy.Always) closestCorners always
+   * finds one.
    *
-   * With a pointer, no pointer/rect hit means the release is off the board entirely: report
-   * no collision (`[]`) rather than falling back to closestCorners, which — with every
-   * droppable measured (MeasuringStrategy.Always) — always finds *something* nearest and
-   * would silently save the drag instead of discarding it (event.over must be null for the
-   * `onDragEnd` discard-guard to fire). Without a pointer (keyboard), there is no "off the
-   * board" to detect, so closestCorners is the only option; its result is fed through the
-   * same self-hit / column mapping below rather than returned directly.
+   * The raw hit is then mapped:
+   * - The dragged card itself (the live preview has moved it into the hovered column)
+   *   resolves to its column flagged `data.self`, so dnd-kit keeps announcing the column
+   *   (board.spec.ts, spec §10 A3) and Kanban treats it as "stay put".
+   * - A column, with the pointer below its last card, resolves to the column unflagged:
+   *   Kanban moves the card to the end of that column. Mapping to the nearest card here
+   *   would let Kibo's arrayMove place the card before or after that card depending only
+   *   on flat-array order.
+   * - Any other column hit resolves to the nearest card inside it, so dropping into a gap
+   *   keeps that gap. An empty column stays the column (append).
    */
   const collisionDetection: CollisionDetection = useCallback(
     (args) => {
-      const pointerHits = pointerWithin(args);
-      const hits = pointerHits.length > 0 ? pointerHits : rectIntersection(args);
-      let overId = getFirstCollision(hits, 'id');
-
-      if (overId == null) {
-        if (args.pointerCoordinates != null) return [];
-        overId = getFirstCollision(closestCorners(args), 'id');
-        if (overId == null) return [];
-      }
+      const pointer = args.pointerCoordinates;
+      const overId = pointer
+        ? getFirstCollision(pointerWithin(args), 'id')
+        : getFirstCollision(rectIntersection(args), 'id') ?? getFirstCollision(closestCorners(args), 'id');
+      if (overId == null) return [];
 
       const id = String(overId);
       const activeId = String(args.active.id);
 
       if (id === activeId) {
         const column = items.find((item) => item.id === activeId)?.column;
-        return column ? [{ id: column }] : [];
+        return column ? [{ id: column, data: { self: true } }] : [];
       }
 
       if (columns.some((column) => column.id === id)) {
-        const cardIds = new Set(
-          items.filter((item) => item.column === id && item.id !== activeId).map((item) => item.id),
-        );
-        if (cardIds.size > 0) {
+        const cards = items.filter((item) => item.column === id && item.id !== activeId);
+        if (cards.length > 0) {
+          const last = args.droppableRects.get(cards[cards.length - 1].id);
+          if (pointer && last && pointer.y > last.bottom) return [{ id }];
+
+          const cardIds = new Set(cards.map((item) => item.id));
           const inner = closestCenter({
             ...args,
             droppableContainers: args.droppableContainers.filter((c) => cardIds.has(String(c.id))),

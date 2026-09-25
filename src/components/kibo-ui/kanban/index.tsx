@@ -8,22 +8,28 @@
  *   cross-column keyboard drops).
  * - No custom announcements: dnd-kit's defaults apply (Kibo's printed column ids, and
  *   board.spec.ts waits on the default wording).
- * - handleDragOver clones instead of mutating the item, appends when the target is a column
- *   rather than arrayMove(…, -1), and does nothing when the target is neither card nor
- *   column (Kibo fell back to the first column).
+ * - handleDragOver clones instead of mutating the item and does nothing when the target is
+ *   neither card nor column (Kibo fell back to the first column).
+ * - A column as the target (handleDragOver and handleDragEnd) means "the end of that
+ *   column", including the card's own column — Kibo used arrayMove(…, -1) and ignored its
+ *   own column. The one exception is a collision the caller flags `data.self` (the dragged
+ *   card over itself, mapped to its column): the card stays where it is.
  * - onDragEnd receives the final data as its second argument. Kibo called it before its own
  *   final reorder, so a caller reading its state saw the pre-drop order.
  * - onDragCancel clears the overlay card (Kibo left it set).
- * - The DragOverlay portal renders only after mount (hydration).
+ * - The DragOverlay portal renders only after mount (hydration); its content is
+ *   aria-hidden, since it duplicates the card that is being dragged.
  * - Columns are <section> (named regions via aria-label); cards are <li><button> with the
  *   listeners on the button, keeping native button semantics; CSS.Translate, not Transform,
  *   so cards do not scale between columns of different widths.
  * - shadcn Card and ScrollArea (Radix) replaced by Align-styled elements and native overflow.
+ *   The drop-target ring is drawn on an overlay above the column's content, so a footer
+ *   does not paint over it. The provider has no grid defaults; the caller lays out columns.
  */
 
 import {
-  DndContext, type DndContextProps, type DragEndEvent, type DragOverEvent, DragOverlay,
-  type DragStartEvent, useDroppable,
+  type Collision, DndContext, type DndContextProps, type DragEndEvent, type DragOverEvent,
+  DragOverlay, type DragStartEvent, useDroppable,
 } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -59,8 +65,11 @@ export function KanbanBoard({ id, children, className, ...props }: KanbanBoardPr
     <section
       ref={setNodeRef}
       className={cn(
-        'flex min-h-40 flex-col overflow-hidden rounded-2xl bg-bg-weak-50 ring-2 ring-inset transition-shadow duration-150',
-        isOver ? 'ring-primary-base' : 'ring-transparent',
+        // The ring sits on an ::after overlay above the content, so nothing inside the
+        // column (such as a footer with its own background) paints over it.
+        'relative flex min-h-40 flex-col overflow-hidden rounded-2xl bg-bg-weak-50',
+        'after:pointer-events-none after:absolute after:inset-0 after:z-10 after:rounded-2xl after:ring-2 after:ring-inset after:transition-shadow after:duration-150',
+        isOver ? 'after:ring-primary-base' : 'after:ring-transparent',
         className,
       )}
       {...props}
@@ -103,6 +112,7 @@ export function KanbanCard({ id, name, children, className, onClick }: KanbanCar
       {activeCardId === id && (
         <overlay.In>
           <div
+            aria-hidden="true"
             className={cn(
               'w-full cursor-grabbing rounded-10 bg-bg-white-0 p-3 shadow-regular-md ring-2 ring-primary-base',
               className,
@@ -156,11 +166,17 @@ export type KanbanProviderProps<T extends KanbanItemProps, C extends KanbanColum
     onDragCancel?: () => void;
   };
 
-function moveToEnd<T>(items: T[], index: number): T[] {
-  const next = [...items];
-  const [moved] = next.splice(index, 1);
-  next.push(moved);
-  return next;
+/** The caller's collision detection flags the dragged card over itself: "stay put". */
+const isSelfHit = (collisions: Collision[] | null) => collisions?.[0]?.data?.self === true;
+
+/**
+ * The data with items[index] moved to the end of `column` (the flat array's end is the
+ * column's end), or null when it is already there.
+ */
+function toColumnEnd<T extends KanbanItemProps>(items: T[], index: number, column: string): T[] | null {
+  const item = items[index];
+  if (item.column === column && items.findLastIndex((i) => i.column === column) === index) return null;
+  return [...items.filter((_, i) => i !== index), { ...item, column }];
 }
 
 export function KanbanProvider<T extends KanbanItemProps, C extends KanbanColumnProps>({
@@ -190,12 +206,16 @@ export function KanbanProvider<T extends KanbanItemProps, C extends KanbanColumn
     const overColumn = overItem?.column ?? columns.find((col) => col.id === over.id)?.id;
     if (!overColumn) return;
 
-    if (data[activeIndex].column !== overColumn) {
-      let next = data.map((item, i) => (i === activeIndex ? { ...item, column: overColumn } : item));
-      next = overItem
-        ? arrayMove(next, activeIndex, data.findIndex((item) => item.id === over.id))
-        : moveToEnd(next, activeIndex);
-      onDataChange?.(next);
+    if (overItem) {
+      // Within one column the sortable strategy previews the reorder; handleDragEnd
+      // commits it.
+      if (data[activeIndex].column !== overColumn) {
+        const next = data.map((item, i) => (i === activeIndex ? { ...item, column: overColumn } : item));
+        onDataChange?.(arrayMove(next, activeIndex, data.findIndex((item) => item.id === over.id)));
+      }
+    } else if (!isSelfHit(event.collisions)) {
+      const next = toColumnEnd(data, activeIndex, overColumn);
+      if (next) onDataChange?.(next);
     }
 
     onDragOver?.(event);
@@ -206,14 +226,20 @@ export function KanbanProvider<T extends KanbanItemProps, C extends KanbanColumn
     const { active, over } = event;
 
     let next = data;
-    if (over && active.id !== over.id) {
-      const oldIndex = data.findIndex((item) => item.id === active.id);
+    const oldIndex = data.findIndex((item) => item.id === active.id);
+    if (over && active.id !== over.id && oldIndex !== -1) {
       const newIndex = data.findIndex((item) => item.id === over.id);
-      // A drop on a column (not a card) has no index: the card stays where
-      // handleDragOver already put it.
-      if (oldIndex !== -1 && newIndex !== -1) {
+      if (newIndex !== -1) {
         next = arrayMove(data, oldIndex, newIndex);
         onDataChange?.(next);
+      } else if (columns.some((col) => col.id === over.id) && !isSelfHit(event.collisions)) {
+        // A drop on a column: the end of it. handleDragOver usually got there first, but
+        // it only runs when the target changes, and self-hit → column keeps the same id.
+        const moved = toColumnEnd(data, oldIndex, String(over.id));
+        if (moved) {
+          next = moved;
+          onDataChange?.(next);
+        }
       }
     }
 
@@ -234,7 +260,7 @@ export function KanbanProvider<T extends KanbanItemProps, C extends KanbanColumn
         onDragCancel={handleDragCancel}
         {...props}
       >
-        <div className={cn('grid size-full auto-cols-fr grid-flow-col gap-4', className)}>
+        <div className={cn('flex size-full gap-4', className)}>
           {columns.map((column) => children(column))}
         </div>
         {mounted && createPortal(<DragOverlay><overlay.Out /></DragOverlay>, document.body)}
