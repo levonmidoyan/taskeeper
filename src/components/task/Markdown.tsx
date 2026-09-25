@@ -26,6 +26,16 @@ const components: Components = {
       {children}
     </a>
   ),
+  // A remote image would load in every viewer's browser, telling its host who read the
+  // task and when. The editor cannot make images, so show them as links.
+  img: ({ src, alt }) => {
+    const href = typeof src === 'string' ? src : undefined;
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        {alt || href}
+      </a>
+    );
+  },
 };
 
 export function Markdown({ children, className }: { children: string; className?: string }) {

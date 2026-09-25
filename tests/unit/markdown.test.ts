@@ -33,6 +33,16 @@ describe('Markdown', () => {
     expect(link).toContain('rel="noopener noreferrer"');
   });
 
+  it('shows an image as a link instead of loading it', () => {
+    // A remote image loads in every viewer's browser (a tracking pixel); the editor has no
+    // image node either, so it would only ever come from pasted or old text.
+    const image = render('see ![logo](https://x.com/a.png) here');
+    expect(image).not.toContain('<img');
+    expect(image).toContain('href="https://x.com/a.png"');
+    expect(image).toContain('>logo</a>');
+    expect(render('![](https://x.com/b.png)')).toContain('>https://x.com/b.png</a>');
+  });
+
   it('wraps output in the shared md-content class', () => {
     expect(render('hi')).toMatch(/^<div class="md-content/);
   });
