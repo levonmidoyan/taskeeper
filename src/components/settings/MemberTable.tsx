@@ -42,10 +42,14 @@ export function MemberTable({
     });
   }
 
+  // Below sm each row stacks — name on top, role and remove beneath — so the controls
+  // stay on screen instead of in a sideways-scrolling strip. `relative` keeps the sr-only
+  // header text inside the table's box; unpositioned, it escapes the overflow container
+  // and stretches the page sideways.
   return (
-    <div className="overflow-x-auto rounded-2xl ring-1 ring-inset ring-stroke-soft-200">
-      <table className="w-full min-w-[36rem] border-collapse text-paragraph-sm">
-        <thead className="bg-bg-weak-50">
+    <div className="relative overflow-x-auto rounded-2xl ring-1 ring-inset ring-stroke-soft-200">
+      <table className="w-full border-collapse text-paragraph-sm sm:min-w-[36rem]">
+        <thead className="bg-bg-weak-50 max-sm:sr-only">
           <tr className="text-left text-label-xs uppercase text-text-soft-400">
             <th scope="col" className="px-4 py-2 font-medium">Name</th>
             <th scope="col" className="px-4 py-2 font-medium">Role</th>
@@ -54,9 +58,12 @@ export function MemberTable({
         </thead>
         <tbody>
           {members.map((member) => (
-            <tr key={member.userId} className="border-t border-stroke-soft-200">
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-3">
+            <tr
+              key={member.userId}
+              className="border-t border-stroke-soft-200 max-sm:flex max-sm:flex-wrap max-sm:items-center max-sm:pb-3 max-sm:first:border-t-0"
+            >
+              <td className="px-4 py-3 max-sm:min-w-0 max-sm:basis-full">
+                <div className="flex min-w-0 items-center gap-3">
                   <Avatar.Root size="32" color="blue">{member.name.slice(0, 1)}</Avatar.Root>
                   <div className="min-w-0">
                     <div className="truncate text-label-sm text-text-strong-950">{member.name}</div>
@@ -64,7 +71,7 @@ export function MemberTable({
                   </div>
                 </div>
               </td>
-              <td className="px-4 py-3">
+              <td className="px-4 py-3 max-sm:py-0 max-sm:pl-15">
                 {currentRole === 'owner' ? (
                   <Select.Root
                     size="small"
@@ -85,7 +92,7 @@ export function MemberTable({
                   <span className="capitalize text-text-sub-600">{member.role}</span>
                 )}
               </td>
-              <td className="px-4 py-3 text-right">
+              <td className="px-4 py-3 text-right max-sm:ml-auto max-sm:py-0">
                 {(currentRole === 'owner' || currentRole === 'admin')
                   && member.userId !== currentUserId && (
                   <Button.Root

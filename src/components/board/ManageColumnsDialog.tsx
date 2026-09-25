@@ -190,7 +190,7 @@ export function ManageColumnsDialog({
                         disabled={pending}
                         aria-label={`${status.name} completes tasks`}
                       />
-                      <span aria-hidden="true" className="hidden text-paragraph-xs text-text-sub-600 sm:inline">
+                      <span aria-hidden="true" className="text-paragraph-xs text-text-sub-600">
                         Done
                       </span>
                     </span>
