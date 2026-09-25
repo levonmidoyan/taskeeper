@@ -138,8 +138,8 @@ is adapted:
 
 | Kibo as shipped | Adaptation |
 |---|---|
-| `MouseSensor` without activation constraint; `KeyboardSensor` without sortable coordinates | Board passes its own `sensors` (Kibo spreads `...props` onto `DndContext`): `PointerSensor` with `distance: 8`, `KeyboardSensor` with `sortableKeyboardCoordinates`, and `TouchSensor` with `delay: 250, tolerance: 5`. |
-| `closestCenter` collision | Board passes its existing custom `collisionDetection` (pointer → rect → nearest card in column), still keyed on the `status:` prefix (A3), plus `measuring: { droppable: { strategy: Always } }` and `id="project-board"`. |
+| `MouseSensor` without activation constraint; `KeyboardSensor` without sortable coordinates | Board passes its own `sensors` (Kibo spreads `...props` onto `DndContext`): `MouseSensor` with `distance: 8`, `TouchSensor` with `delay: 250, tolerance: 5`, and `KeyboardSensor` with `sortableKeyboardCoordinates` (Space lifts and drops, Escape cancels; Enter is left to open the task). Mouse + Touch rather than `PointerSensor`, which also answers touch and would start a drag on every swipe. |
+| `closestCenter` collision | Board passes its existing custom `collisionDetection` (pointer hits only when there is a pointer, so a release off the board saves nothing; rect → closest corners for the keyboard; a column hit maps to the nearest card in it, or to the column itself — "end of column" — when the pointer is below its last card), still keyed on the `status:` prefix (A3), plus `measuring: { droppable: { strategy: Always } }` and `id="project-board"`. |
 | `handleDragOver` mutates the item in place (`newData[i].column = …`) | Clone the item before changing `column`. |
 | Cards wrapped in shadcn `Card`; lists in shadcn `ScrollArea` (Radix) | Align-styled `div`; native `overflow-y-auto`. |
 | `KanbanBoard` is an unlabelled `div` | Accepts `as="section"` and `aria-label` so columns stay `region "<status name>"`. |
@@ -157,11 +157,14 @@ is adapted:
 `router.refresh()`; empty column shows "Drop a task here"; QuickAddTask in each column footer;
 clicking a card opens the task detail via `?task=<id>`.
 
-**Data flow:** server `tasks` → `useOptimistic` → local `data` state for `KanbanProvider`
-(re-synced whenever the optimistic list changes) → `onDataChange` updates it during the drag →
-`onDragEnd` reads the card's final column and index from `data`, derives neighbours with a pure
-helper, calls `moveTaskAction`, refreshes. `onDragCancel` (Esc) resets `data` to the optimistic
-list.
+**Data flow:** server `tasks` → `useOptimistic` → `KanbanProvider` gets
+`data = dragItems ?? optimisticItems`. `dragItems` is a working copy that exists only while a
+drag is in progress: `onDataChange` sets it during the drag, and only drop (`onDragEnd`) and
+cancel (`onDragCancel`, Esc) clear it — never an async callback, which could land in the middle
+of the next drag. Outside a drag the board renders the optimistic list directly, so nothing has
+to be re-synced. `onDragEnd` reads the card's final column and index from the final data,
+derives neighbours with a pure helper, and — unless the drop was off the board or left the card
+between the same neighbours — applies the optimistic move, calls `moveTaskAction`, refreshes.
 
 **Neighbour helper:** `neighboursAfterMove(data, taskId) → { statusId, beforeId, afterId, index }`
 in `src/components/board/neighbours.ts`, unit-tested (§8).
