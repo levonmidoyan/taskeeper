@@ -58,7 +58,10 @@ test('a comment is written with the editor and rendered as Markdown', async ({ p
   await page.getByLabel('Comment').pressSequentially('Ship **today**');
   await page.getByRole('button', { name: 'Comment' }).click();
 
-  await expect(page.locator('strong', { hasText: 'today' })).toBeVisible();
+  // Scoped to the feed: the composer shows its own bold "today" until the post lands, and
+  // reloading before then would cancel it.
+  const posted = page.getByRole('listitem').locator('strong', { hasText: 'today' });
+  await expect(posted).toBeVisible();
   await page.reload();
-  await expect(page.locator('strong', { hasText: 'today' })).toBeVisible();
+  await expect(posted).toBeVisible();
 });
