@@ -1,23 +1,24 @@
 'use client';
 
+import { IconLayoutKanban, IconList } from '@tabler/icons-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { KanbanSquare, List } from 'lucide-react';
+import { cn } from '@/utils/cn';
 
 export function ViewTabs({ basePath }: { basePath: string }) {
   const pathname = usePathname();
   const onBoard = pathname.endsWith('/board');
 
   const views = [
-    { href: basePath, label: 'List', icon: List, active: !onBoard },
-    { href: `${basePath}/board`, label: 'Board', icon: KanbanSquare, active: onBoard },
+    { href: basePath, label: 'List', icon: IconList, active: !onBoard },
+    { href: `${basePath}/board`, label: 'Board', icon: IconLayoutKanban, active: onBoard },
   ];
 
   return (
     <div
       role="tablist"
       aria-label="Project views"
-      className="flex items-center gap-1 rounded-[var(--radius-button)] bg-muted p-1"
+      className="flex items-center gap-1 rounded-10 bg-bg-weak-50 p-1"
     >
       {views.map(({ href, label, icon: Icon, active }) => (
         <Link
@@ -25,11 +26,12 @@ export function ViewTabs({ basePath }: { basePath: string }) {
           href={href}
           role="tab"
           aria-selected={active}
-          className={`inline-flex h-9 items-center gap-1.5 rounded-[var(--radius-button)] px-3 text-sm transition-colors duration-150 ${
+          className={cn(
+            'inline-flex h-7 items-center gap-1.5 rounded-lg px-3 text-label-sm transition-colors duration-150',
             active
-              ? 'bg-card font-semibold text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
+              ? 'bg-bg-white-0 text-text-strong-950 shadow-regular-xs'
+              : 'text-text-sub-600 hover:text-text-strong-950',
+          )}
         >
           <Icon className="size-4" aria-hidden="true" />
           {label}

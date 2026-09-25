@@ -24,7 +24,7 @@ export default async function WorkspaceLayout({
   ]);
 
   return (
-    <div className="flex min-h-dvh bg-background">
+    <div className="flex min-h-dvh bg-bg-white-0">
       <Rail
         workspaceSlug={ctx.slug}
         workspaces={workspaces}

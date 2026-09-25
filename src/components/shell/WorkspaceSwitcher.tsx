@@ -1,15 +1,10 @@
 'use client';
 
-import { Check, ChevronsUpDown, Plus } from 'lucide-react';
+import { IconCheck, IconPlus, IconSelector } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/legacy-ui/dropdown-menu';
+import * as Dropdown from '@/components/ui/dropdown';
 import type { WorkspaceSummary } from '@/server/workspaces/queries';
+import { cn } from '@/utils/cn';
 
 export function WorkspaceSwitcher({
   current,
@@ -22,30 +17,27 @@ export function WorkspaceSwitcher({
   const active = workspaces.find((w) => w.slug === current);
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="flex h-11 w-full items-center justify-between rounded-[var(--radius-button)] px-2 text-left text-sm font-semibold text-foreground transition-colors duration-150 hover:bg-muted">
+    <Dropdown.Root>
+      <Dropdown.Trigger className="flex h-11 w-full items-center justify-between gap-2 rounded-10 px-2.5 text-left text-label-md text-text-strong-950 transition-colors duration-150 hover:bg-bg-weak-50 data-[state=open]:bg-bg-weak-50">
         <span className="truncate">{active?.name ?? 'Workspace'}</span>
-        <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
+        <IconSelector className="size-4 shrink-0 text-text-soft-400" aria-hidden="true" />
+      </Dropdown.Trigger>
+      <Dropdown.Content align="start" className="w-56">
         {workspaces.map((workspace) => (
-          <DropdownMenuItem
-            key={workspace.id}
-            onSelect={() => router.push(`/${workspace.slug}`)}
-          >
-            <Check
-              className={`size-4 ${workspace.slug === current ? 'opacity-100' : 'opacity-0'}`}
-              aria-hidden="true"
+          <Dropdown.Item key={workspace.id} onSelect={() => router.push(`/${workspace.slug}`)}>
+            <Dropdown.ItemIcon
+              as={IconCheck}
+              className={cn(workspace.slug === current ? 'opacity-100' : 'opacity-0')}
             />
             <span className="truncate">{workspace.name}</span>
-          </DropdownMenuItem>
+          </Dropdown.Item>
         ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => router.push('/new-workspace')}>
-          <Plus className="size-4" aria-hidden="true" />
+        <Dropdown.Separator />
+        <Dropdown.Item onSelect={() => router.push('/new-workspace')}>
+          <Dropdown.ItemIcon as={IconPlus} />
           New workspace
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </Dropdown.Item>
+      </Dropdown.Content>
+    </Dropdown.Root>
   );
 }
