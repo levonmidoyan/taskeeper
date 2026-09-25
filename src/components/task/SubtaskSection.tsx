@@ -1,6 +1,6 @@
 'use client';
 
-import { Circle, CircleCheck, Plus, Trash2 } from 'lucide-react';
+import { IconCircle, IconCircleCheckFilled, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -8,6 +8,7 @@ import { doneToggleTarget } from '@/lib/task-done';
 import type { StatusRow } from '@/server/projects/queries';
 import { createTaskAction, deleteTaskAction, updateTaskAction } from '@/server/tasks/actions';
 import type { TaskRow } from '@/server/tasks/queries';
+import { cn } from '@/utils/cn';
 
 export function SubtaskSection({
   parent,
@@ -58,29 +59,24 @@ export function SubtaskSection({
   }
 
   return (
-    <section className="space-y-2">
+    <section className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-foreground">Subtasks</h2>
-        <span className="tabular text-xs text-muted-foreground">
+        <h2 className="text-label-sm text-text-strong-950">Subtasks</h2>
+        <span className="tabular text-paragraph-xs text-text-sub-600">
           {doneCount}/{subtasks.length}
         </span>
       </div>
 
       {subtasks.length > 0 && (
-        <ul className="rounded-[var(--radius-card)] border border-border">
+        <ul className="overflow-hidden rounded-10 ring-1 ring-inset ring-stroke-soft-200">
           {subtasks.map((subtask) => (
-            <SubtaskRow
-              key={subtask.id}
-              subtask={subtask}
-              statuses={statuses}
-              workspaceSlug={workspaceSlug}
-            />
+            <SubtaskRow key={subtask.id} subtask={subtask} statuses={statuses} workspaceSlug={workspaceSlug} />
           ))}
         </ul>
       )}
 
-      <form onSubmit={onSubmit} className="relative flex items-center gap-2">
-        <Plus className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <form onSubmit={onSubmit} className="relative flex items-center gap-2 px-1">
+        <IconPlus className="size-4 shrink-0 text-text-soft-400" aria-hidden="true" />
         <label htmlFor={`add-subtask-${parent.id}`} className="sr-only">
           Add a subtask
         </label>
@@ -91,7 +87,7 @@ export function SubtaskSection({
           maxLength={200}
           aria-busy={pending}
           placeholder="Add a subtask…"
-          className="h-11 w-full bg-transparent text-base text-foreground placeholder:text-muted-foreground lg:text-sm"
+          className="h-11 w-full bg-transparent text-paragraph-md text-text-strong-950 placeholder:text-text-soft-400 lg:text-paragraph-sm"
         />
       </form>
     </section>
@@ -120,9 +116,7 @@ function SubtaskRow({
       return;
     }
     startTransition(async () => {
-      const result = await updateTaskAction(workspaceSlug, {
-        taskId: subtask.id, statusId: target.id,
-      });
+      const result = await updateTaskAction(workspaceSlug, { taskId: subtask.id, statusId: target.id });
       if (!result.ok) toast.error(result.error);
       else router.refresh();
     });
@@ -144,26 +138,27 @@ function SubtaskRow({
   }
 
   return (
-    <li className="group flex items-center gap-2 border-b border-border pr-2 last:border-b-0">
+    <li className="group flex items-center gap-2 border-b border-stroke-soft-200 pr-2 last:border-b-0">
       <button
         type="button"
         onClick={toggleDone}
         disabled={pending}
         aria-pressed={done}
         aria-label={done ? `Mark "${subtask.title}" as not done` : `Mark "${subtask.title}" as done`}
-        className="inline-flex size-11 shrink-0 items-center justify-center text-muted-foreground transition-colors duration-150 hover:text-foreground disabled:opacity-50"
+        className="inline-flex size-11 shrink-0 items-center justify-center text-text-soft-400 transition-colors duration-150 hover:text-text-strong-950 disabled:opacity-50"
       >
         {done
-          ? <CircleCheck className="size-4 text-success" aria-hidden="true" />
-          : <Circle className="size-4" aria-hidden="true" />}
+          ? <IconCircleCheckFilled className="size-4 text-success-base" aria-hidden="true" />
+          : <IconCircle className="size-4" aria-hidden="true" />}
       </button>
 
       <button
         type="button"
         onClick={open}
-        className={`min-w-0 flex-1 truncate py-3 text-left text-sm ${
-          done ? 'text-muted-foreground line-through' : 'text-foreground'
-        }`}
+        className={cn(
+          'min-w-0 flex-1 truncate py-3 text-left text-paragraph-sm',
+          done ? 'text-text-soft-400 line-through' : 'text-text-strong-950',
+        )}
       >
         {subtask.title}
       </button>
@@ -175,9 +170,9 @@ function SubtaskRow({
         aria-label={`Delete "${subtask.title}"`}
         // Always reachable by keyboard and on touch; only the hover styling is
         // conditional, so the row stays quiet until pointed at.
-        className="inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-button)] text-muted-foreground opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 hover:text-destructive disabled:opacity-50"
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-text-soft-400 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 hover:text-error-base disabled:opacity-50"
       >
-        <Trash2 className="size-4" aria-hidden="true" />
+        <IconTrash className="size-4" aria-hidden="true" />
       </button>
     </li>
   );
