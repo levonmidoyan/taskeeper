@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import { ThemeProvider } from '@/components/theme-provider';
-import { Toaster } from '@/components/legacy-ui/sonner';
+import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
 
 // Self-hosted like the font it replaces (spec §10 A5): no build-time network fetch.
