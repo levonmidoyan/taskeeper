@@ -81,13 +81,26 @@ export function Board({
    * gap keeps that gap. A hit on the dragged card itself — which happens once the live
    * preview has moved it into the hovered column — resolves to that card's column, so
    * dnd-kit keeps announcing the column (board.spec.ts, spec §10 A3).
+   *
+   * With a pointer, no pointer/rect hit means the release is off the board entirely: report
+   * no collision (`[]`) rather than falling back to closestCorners, which — with every
+   * droppable measured (MeasuringStrategy.Always) — always finds *something* nearest and
+   * would silently save the drag instead of discarding it (event.over must be null for the
+   * `onDragEnd` discard-guard to fire). Without a pointer (keyboard), there is no "off the
+   * board" to detect, so closestCorners is the only option; its result is fed through the
+   * same self-hit / column mapping below rather than returned directly.
    */
   const collisionDetection: CollisionDetection = useCallback(
     (args) => {
       const pointerHits = pointerWithin(args);
       const hits = pointerHits.length > 0 ? pointerHits : rectIntersection(args);
-      const overId = getFirstCollision(hits, 'id');
-      if (overId == null) return closestCorners(args);
+      let overId = getFirstCollision(hits, 'id');
+
+      if (overId == null) {
+        if (args.pointerCoordinates != null) return [];
+        overId = getFirstCollision(closestCorners(args), 'id');
+        if (overId == null) return [];
+      }
 
       const id = String(overId);
       const activeId = String(args.active.id);
