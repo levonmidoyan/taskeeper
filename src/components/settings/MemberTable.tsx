@@ -5,7 +5,7 @@ import { useTransition } from 'react';
 import { toast } from 'sonner';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+} from '@/components/legacy-ui/select';
 import { changeMemberRoleAction, removeMemberAction } from '@/server/members/actions';
 import type { MemberRow } from '@/server/labels/queries';
 import type { WorkspaceRole } from '@/lib/session';

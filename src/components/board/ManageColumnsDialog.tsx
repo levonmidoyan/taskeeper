@@ -4,14 +4,14 @@ import { ArrowDown, ArrowUp, CircleCheck, Columns3, Plus, Trash2 } from 'lucide-
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/legacy-ui/button';
 import {
   Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+} from '@/components/legacy-ui/dialog';
+import { Input } from '@/components/legacy-ui/input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+} from '@/components/legacy-ui/select';
 import type { StatusRow } from '@/server/projects/queries';
 import {
   createStatusAction, deleteStatusAction, moveStatusAction, updateStatusAction,

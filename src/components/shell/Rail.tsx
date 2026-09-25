@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { Menu, Settings } from 'lucide-react';
 import { useState } from 'react';
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/legacy-ui/sheet';
 import { ThemeToggle } from '@/components/shell/ThemeToggle';
 import { WorkspaceSwitcher } from '@/components/shell/WorkspaceSwitcher';
 import { NewProjectDialog } from '@/components/shell/NewProjectDialog';

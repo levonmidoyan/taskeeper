@@ -3,16 +3,16 @@
 import { Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/legacy-ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from '@/components/legacy-ui/dialog';
+import { Input } from '@/components/legacy-ui/input';
+import { Label } from '@/components/legacy-ui/label';
 import { createProjectAction } from '@/server/projects/actions';
 
 export function NewProjectDialog({ workspaceSlug }: { workspaceSlug: string }) {

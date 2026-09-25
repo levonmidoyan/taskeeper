@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@/components/legacy-ui/dropdown-menu';
 import type { WorkspaceSummary } from '@/server/workspaces/queries';
 
 export function WorkspaceSwitcher({

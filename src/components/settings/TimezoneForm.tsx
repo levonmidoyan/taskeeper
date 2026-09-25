@@ -3,11 +3,11 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/legacy-ui/button';
+import { Label } from '@/components/legacy-ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+} from '@/components/legacy-ui/select';
 import { updateWorkspaceSettingsAction } from '@/server/settings/actions';
 
 // A short curated list. Intl.supportedValuesOf('timeZone') has ~400 entries,

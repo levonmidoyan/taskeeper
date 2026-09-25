@@ -4,12 +4,12 @@ import { ChevronLeft, Trash2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogTitle } from '@/components/legacy-ui/dialog';
+import { Input } from '@/components/legacy-ui/input';
+import { Label } from '@/components/legacy-ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+} from '@/components/legacy-ui/select';
 import { ActivityFeed } from '@/components/task/ActivityFeed';
 import { LabelPicker } from '@/components/task/LabelPicker';
 import { SubtaskSection } from '@/components/task/SubtaskSection';

@@ -10,8 +10,8 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
+} from '@/components/legacy-ui/dropdown-menu';
+import { Input } from '@/components/legacy-ui/input';
 import { createLabelAction, deleteLabelAction, setTaskLabelsAction } from '@/server/labels/actions';
 import type { LabelRow } from '@/server/tasks/queries';
 

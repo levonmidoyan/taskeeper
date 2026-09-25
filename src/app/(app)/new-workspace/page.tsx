@@ -2,9 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/legacy-ui/button';
+import { Input } from '@/components/legacy-ui/input';
+import { Label } from '@/components/legacy-ui/label';
 import { createWorkspaceAction } from '@/server/workspaces/actions';
 
 export default function NewWorkspacePage() {

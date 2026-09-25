@@ -3,9 +3,9 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Suspense, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/legacy-ui/button';
+import { Input } from '@/components/legacy-ui/input';
+import { Label } from '@/components/legacy-ui/label';
 import { safeNextPath } from '@/lib/next-path';
 import { signUp } from '@/lib/auth-client';
 
