@@ -4,8 +4,6 @@
 /* Animation utilities (animate-in, fade-in-0, zoom-in-95, slide-in-from-*) used by Align's
    Modal, Drawer, Dropdown, Select and Tooltip (spec §10 A1). */
 @import "tw-animate-css";
-/* LEGACY — radix-nova variants for src/components/legacy-ui/*. Removed in Part 4. */
-@import "shadcn/tailwind.css";
 @import "../styles/align-tokens.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -22,41 +20,6 @@
   --shadow-button-primary-focus: 0 0 0 2px var(--color-bg-white-0), 0 0 0 4px var(--color-primary-base);
   --shadow-button-important-focus: 0 0 0 2px var(--color-bg-white-0), 0 0 0 4px var(--color-text-strong-950);
   --shadow-button-error-focus: 0 0 0 2px var(--color-bg-white-0), 0 0 0 4px var(--color-error-base);
-}
-
-/*
- * Bridge: shadcn token names → Align tokens (spec §3.3).
- * Kibo UI components (src/components/kibo-ui/*) are written against these names. Until
- * Part 4, the legacy components and not-yet-rebuilt screens use them too; Part 4 trims this
- * block to the names Kibo still uses. App code written from Part 1 on never uses them.
- */
-@theme inline {
-  --color-background: var(--color-bg-white-0);
-  --color-foreground: var(--color-text-strong-950);
-  --color-card: var(--color-bg-white-0);
-  --color-card-foreground: var(--color-text-strong-950);
-  --color-popover: var(--color-bg-white-0);
-  --color-popover-foreground: var(--color-text-strong-950);
-  --color-muted: var(--color-bg-weak-50);
-  --color-muted-foreground: var(--color-text-sub-600);
-  --color-secondary: var(--color-bg-weak-50);
-  --color-secondary-foreground: var(--color-text-strong-950);
-  --color-accent: var(--color-bg-weak-50);
-  --color-accent-foreground: var(--color-text-strong-950);
-  --color-border: var(--color-stroke-soft-200);
-  --color-input: var(--color-stroke-soft-200);
-  --color-ring: var(--color-primary-base);
-  --color-primary: var(--color-primary-base);
-  --color-primary-foreground: var(--color-static-white);
-  --color-destructive: var(--color-error-base);
-  --color-success: var(--color-success-base);
-}
-
-/* LEGACY — radii referenced via arbitrary-value rounded utilities by not-yet-rebuilt screens. Part 4 removes. */
-:root {
-  --radius-button: 0.5rem;
-  --radius-card: 0.625rem;
-  --radius-panel: 1rem;
 }
 
 @layer base {

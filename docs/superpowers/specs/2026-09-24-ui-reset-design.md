@@ -1,7 +1,7 @@
 # UI Reset — Align UI + Kibo UI — Design Spec
 
 **Date:** 2026-09-24
-**Status:** Approved for planning
+**Status:** Implemented on feat/ui-reset (Parts 1–4)
 **Branch:** `feat/ui-reset` (from `master` at `9bcb2e8`)
 **Scope:** Replace the shadcn/radix-nova UI layer with Align UI (base components) and
 Kibo UI (Kanban, Editor, Theme Switcher, Relative Time). Behaviour stays the same except
