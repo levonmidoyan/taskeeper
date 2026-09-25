@@ -23,6 +23,7 @@
 - Accessible names and roles from spec §4.1 are preserved exactly. The e2e specs are not edited.
 - Kibo copies carry a header comment naming the upstream path and commit and listing every adaptation.
 - Verification gate at the end of every task: `yarn typecheck && yarn lint && yarn test`, plus `yarn e2e` at the end of Tasks 2 and 3.
+- Align namespace values passed as props (`as={IconX}` on `*.Icon`, `icon=` on `Modal.Header`, `*Variants()` exports) only work inside `'use client'` files — Tabler icons are forwardRef objects and cannot cross the server→client boundary.
 
 ## Review Focus
 
