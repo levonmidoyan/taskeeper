@@ -5,7 +5,9 @@
  * a plain Extension + Suggestion instead of Kibo's inline "slash" Node (that node has no
  * Markdown form and is never kept in the document anyway); cmdk directly with Align styling
  * instead of shadcn's Command wrapper; arrow/enter navigation forwarded once (Kibo forwarded
- * from both editorProps and the suggestion, which moved the highlight twice).
+ * from both editorProps and the suggestion, which moved the highlight twice); the popup is
+ * mounted inside the surrounding dialog, if any, since a modal dialog makes everything outside
+ * it inert to the pointer and treats clicks there as dismissals.
  */
 
 import { type Editor, Extension, type Range } from '@tiptap/core';
@@ -60,6 +62,8 @@ function forwardToMenu(event: KeyboardEvent) {
   return true;
 }
 
+export const slashPluginKey = new PluginKey('slashCommand');
+
 export const SlashCommand = Extension.create({
   name: 'slashCommand',
 
@@ -68,7 +72,7 @@ export const SlashCommand = Extension.create({
       Suggestion<SlashItem, SlashItem>({
         editor: this.editor,
         char: '/',
-        pluginKey: new PluginKey('slashCommand'),
+        pluginKey: slashPluginKey,
         items: ({ query }) => filterSlashItems(query),
         command: ({ editor, range, props }) => props.command({ editor, range }),
         render: () => {
@@ -80,7 +84,7 @@ export const SlashCommand = Extension.create({
               component = new ReactRenderer(SlashMenu, { props, editor: props.editor });
               popup = tippy(document.body, {
                 getReferenceClientRect: () => props.clientRect?.() ?? new DOMRect(),
-                appendTo: () => document.body,
+                appendTo: () => props.editor.view.dom.closest('[role="dialog"]') ?? document.body,
                 content: component.element,
                 showOnCreate: true,
                 interactive: true,

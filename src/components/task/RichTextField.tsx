@@ -7,6 +7,8 @@ import {
 } from '@/components/kibo-ui/editor';
 import { cn } from '@/utils/cn';
 
+export { handleEditorEscape } from '@/components/kibo-ui/editor';
+
 type RichTextFieldProps = {
   /** Markdown shown at mount. Read once; remount with `key` to reset. */
   value: string;

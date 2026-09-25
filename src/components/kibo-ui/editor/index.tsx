@@ -14,6 +14,8 @@
  * - `useEditorState`'s overload for `Editor | null` types the selector result as
  *   `T | null` (the editor may not be ready yet), so `active` is `boolean | null`; coerced
  *   to `active ?? false` for `aria-pressed`, which only accepts boolean/"true"/"false"/"mixed".
+ * - handleEditorEscape: Radix dialogs catch Escape on the document in the capture phase, before
+ *   the editor sees it, so a host dialog hands it to the editor before closing.
  */
 
 import {
@@ -29,11 +31,12 @@ import {
   useEditorState,
 } from '@tiptap/react';
 import { BubbleMenu, type BubbleMenuProps } from '@tiptap/react/menus';
+import { exitSuggestion } from '@tiptap/suggestion';
 import { useMemo, useState } from 'react';
 import * as CompactButton from '@/components/ui/compact-button';
 import { markdownExtensions } from '@/components/kibo-ui/editor/extensions';
 import { normalizeLinkUrl } from '@/components/kibo-ui/editor/link';
-import { SlashCommand } from '@/components/kibo-ui/editor/slash';
+import { SlashCommand, slashPluginKey } from '@/components/kibo-ui/editor/slash';
 import { cn } from '@/utils/cn';
 
 export { loadMarkdown, readMarkdown } from '@/components/kibo-ui/editor/extensions';
@@ -65,6 +68,23 @@ export function EditorProvider({ className, placeholder, extensions, ...props }:
       <TiptapEditorProvider extensions={allExtensions} immediatelyRender={false} {...props} />
     </div>
   );
+}
+
+/**
+ * Lets Escape close the slash menu or the link field instead of a surrounding dialog. Call it
+ * from the dialog's onEscapeKeyDown and preventDefault when it returns true. The dialog sees
+ * Escape first (Radix listens on the document in the capture phase) and its preventDefault
+ * makes ProseMirror skip the key, so the slash menu is closed here rather than by the editor.
+ */
+export function handleEditorEscape(event: KeyboardEvent): boolean {
+  const target = event.target;
+  if (!(target instanceof Element)) return false;
+  // The link field closes itself from its own React onKeyDown.
+  if (target.closest('[data-editor-link-form]')) return true;
+  const dom = target.closest<HTMLElement & { editor?: Editor }>('.ProseMirror');
+  if (!dom?.editor || !slashPluginKey.getState(dom.editor.state)?.active) return false;
+  exitSuggestion(dom.editor.view, slashPluginKey);
+  return true;
 }
 
 export function EditorBubbleMenu({ className, children, ...props }: Omit<BubbleMenuProps, 'editor'>) {
@@ -163,6 +183,9 @@ export function EditorLinkControl() {
 
   function apply(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // The bubble menu is a portal, so React bubbles this submit to whatever form holds the
+    // editor — the comment composer would post the comment.
+    event.stopPropagation();
     const href = normalizeLinkUrl(url);
     if (!href) {
       setInvalid(true);
@@ -173,7 +196,7 @@ export function EditorLinkControl() {
   }
 
   return (
-    <form onSubmit={apply} className="flex items-center gap-1">
+    <form onSubmit={apply} data-editor-link-form className="flex items-center gap-1">
       <input
         autoFocus
         aria-label="Link URL"

@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { TextField } from '@/components/forms/TextField';
 import { ActivityFeed } from '@/components/task/ActivityFeed';
 import { LabelPicker } from '@/components/task/LabelPicker';
-import { RichTextField } from '@/components/task/RichTextField';
+import { handleEditorEscape, RichTextField } from '@/components/task/RichTextField';
 import { SubtaskSection } from '@/components/task/SubtaskSection';
 import * as Button from '@/components/ui/button';
 import * as Label from '@/components/ui/label';
@@ -94,7 +94,12 @@ export function TaskDetailDialog({
 
   return (
     <Modal.Root open onOpenChange={(open) => { if (!open) close(); }}>
-      <Modal.Content aria-describedby={undefined} className="max-h-[85vh] max-w-2xl overflow-y-auto">
+      <Modal.Content
+        aria-describedby={undefined}
+        className="max-h-[85vh] max-w-2xl overflow-y-auto"
+        // Escape that closes an editor's slash menu or link field stops there.
+        onEscapeKeyDown={(event) => { if (handleEditorEscape(event)) event.preventDefault(); }}
+      >
         <Modal.Title className="sr-only">Task details</Modal.Title>
 
         <div className="flex flex-col gap-5 p-5 pt-14 sm:pt-5">
