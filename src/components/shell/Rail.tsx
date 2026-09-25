@@ -5,7 +5,7 @@ import { useParams, usePathname } from 'next/navigation';
 import { Menu, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/legacy-ui/sheet';
-import { ThemeToggle } from '@/components/shell/ThemeToggle';
+import { ThemeControl } from '@/components/shell/ThemeControl';
 import { WorkspaceSwitcher } from '@/components/shell/WorkspaceSwitcher';
 import { NewProjectDialog } from '@/components/shell/NewProjectDialog';
 import type { ProjectSummary } from '@/server/projects/queries';
@@ -77,7 +77,7 @@ function RailBody({ workspaceSlug, workspaces, projects }: Props) {
             <Settings className="size-4" aria-hidden="true" />
             Settings
           </Link>
-          <ThemeToggle />
+          <ThemeControl />
         </div>
         <Link
           href={`/${workspaceSlug}/settings/general`}
