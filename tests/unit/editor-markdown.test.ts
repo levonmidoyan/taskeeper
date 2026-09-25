@@ -31,7 +31,10 @@ describe('editor Markdown round trip', () => {
   });
 
   it('is stable: saving what it loaded changes nothing further', () => {
-    for (const markdown of ['line one\nline two', 'a < b', 'use <div> tags', '- [ ] todo']) {
+    for (const markdown of [
+      'line one\nline two', 'a < b', 'use <div> tags', '- [ ] todo',
+      '| a | b |\n|---|---|\n| 1 | 2 |',
+    ]) {
       const once = readMarkdown(open(markdown));
       expect(readMarkdown(open(once))).toBe(once);
     }
@@ -41,6 +44,19 @@ describe('editor Markdown round trip', () => {
     expect(open('use <div> tags').getText()).toBe('use <div> tags');
     expect(open('<script>alert(1)</script>').getText()).toBe('<script>alert(1)</script>');
     expect(open('wrap <b>this</b>').getText()).toBe('wrap <b>this</b>');
+  });
+
+  // Marked parses these, but the editor has no node for them; dropping them would delete them
+  // from the row on the next save.
+  it.each([
+    ['a table', '| a | b |\n|---|---|\n| 1 | 2 |', '| a | b |\n|---|---|\n| 1 | 2 |'],
+    ['a link reference definition', '[ref]: https://x.com', '[ref]: https://x.com'],
+    ['an image', 'see ![logo](https://x.com/a.png) here', 'see ![logo](https://x.com/a.png) here'],
+  ])('keeps %s as literal text', (_, markdown, text) => {
+    const editor = open(markdown);
+    expect(editor.getText({ blockSeparator: '\n\n' })).toBe(text);
+    // And it survives a save and reload.
+    expect(open(readMarkdown(editor)).getText({ blockSeparator: '\n\n' })).toBe(text);
   });
 
   it('turns a single newline into a hard break', () => {
