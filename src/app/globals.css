@@ -13,6 +13,16 @@
 }
 
 /*
+ * Align's filled-button focus shadows use a 10-16% alpha ring, which is close to invisible
+ * against light surfaces. Override to solid rings, keeping Align's 2px surface gap.
+ */
+@theme {
+  --shadow-button-primary-focus: 0 0 0 2px var(--color-bg-white-0), 0 0 0 4px var(--color-primary-base);
+  --shadow-button-important-focus: 0 0 0 2px var(--color-bg-white-0), 0 0 0 4px var(--color-text-strong-950);
+  --shadow-button-error-focus: 0 0 0 2px var(--color-bg-white-0), 0 0 0 4px var(--color-error-base);
+}
+
+/*
  * Bridge: shadcn token names → Align tokens (spec §3.3).
  * Kibo UI components (src/components/kibo-ui/*) are written against these names. Until
  * Part 4, the legacy components and not-yet-rebuilt screens use them too; Part 4 trims this
