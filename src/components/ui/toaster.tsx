@@ -28,7 +28,7 @@ export function Toaster(props: ToasterProps) {
         unstyled: true,
         classNames: {
           toast:
-            'flex w-full items-start gap-3 rounded-2xl bg-bg-white-0 p-3.5 shadow-regular-md ring-1 ring-inset ring-stroke-soft-200 sm:w-[360px]',
+            'flex w-full items-start gap-3 rounded-2xl bg-bg-white-0 p-3.5 shadow-regular-md ring-1 ring-inset ring-stroke-soft-200 sm:w-(--width)',
           icon: 'mt-px shrink-0',
           content: 'flex min-w-0 flex-1 flex-col gap-1',
           title: 'text-label-sm text-text-strong-950',
