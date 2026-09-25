@@ -3,13 +3,16 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/legacy-ui/button';
-import { Input } from '@/components/legacy-ui/input';
-import { Label } from '@/components/legacy-ui/label';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/legacy-ui/select';
+import { FormError, TextField } from '@/components/forms/TextField';
+import * as Button from '@/components/ui/button';
+import * as Label from '@/components/ui/label';
+import * as Radio from '@/components/ui/radio';
 import { inviteMemberAction } from '@/server/members/actions';
+
+const ROLES = [
+  { value: 'member', label: 'Member' },
+  { value: 'admin', label: 'Admin' },
+] as const;
 
 export function InviteForm({ workspaceSlug }: { workspaceSlug: string }) {
   const router = useRouter();
@@ -39,41 +42,43 @@ export function InviteForm({ workspaceSlug }: { workspaceSlug: string }) {
   return (
     <form
       onSubmit={onSubmit}
-      className="space-y-4 rounded-[var(--radius-card)] border border-border bg-card p-4"
+      className="flex flex-col gap-4 rounded-2xl bg-bg-white-0 p-5 ring-1 ring-inset ring-stroke-soft-200"
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-        <div className="flex-1 space-y-2">
-          <Label htmlFor="invite-email">Invite by email</Label>
-          <Input
-            id="invite-email" name="email" type="email" required
-            autoComplete="off" placeholder="teammate@example.com"
-            aria-describedby={error ? 'invite-error' : undefined}
-            className="h-11 text-base"
-          />
-        </div>
+      <TextField
+        id="invite-email" label="Invite by email" name="email" type="email" required
+        autoComplete="off" placeholder="teammate@example.com"
+        aria-describedby={error ? 'invite-error' : undefined}
+      />
 
-        <div className="space-y-2">
-          <Label htmlFor="invite-role">Role</Label>
-          <Select value={role} onValueChange={(v) => setRole(v as 'admin' | 'member')}>
-            <SelectTrigger id="invite-role" className="h-11 w-full sm:w-36">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="member">Member</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Button type="submit" disabled={pending} className="h-11">
-          {pending ? 'Sending…' : 'Send invite'}
-        </Button>
+      <div className="flex flex-col gap-2">
+        <span id="invite-role-label" className="text-label-sm text-text-strong-950">Role</span>
+        <Radio.Group
+          aria-labelledby="invite-role-label"
+          value={role}
+          onValueChange={(v) => setRole(v as 'admin' | 'member')}
+          className="flex gap-5"
+        >
+          {ROLES.map(({ value, label }) => (
+            <div key={value} className="flex items-center gap-2">
+              <Radio.Item value={value} id={`invite-role-${value}`} />
+              <Label.Root htmlFor={`invite-role-${value}`} className="text-paragraph-sm">
+                {label}
+              </Label.Root>
+            </div>
+          ))}
+        </Radio.Group>
+        <p className="text-paragraph-xs text-text-sub-600">
+          Admins can invite and remove people. Members cannot.
+        </p>
       </div>
 
-      {error && <p id="invite-error" role="alert" className="text-sm text-destructive">{error}</p>}
-      <p className="text-xs text-muted-foreground">
-        Admins can invite and remove people. Members cannot.
-      </p>
+      {error && <FormError id="invite-error">{error}</FormError>}
+
+      <div>
+        <Button.Root type="submit" size="small" disabled={pending}>
+          {pending ? 'Sending…' : 'Send invite'}
+        </Button.Root>
+      </div>
     </form>
   );
 }
