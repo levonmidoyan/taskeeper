@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus } from 'lucide-react';
+import { IconPlus } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -54,7 +54,7 @@ export function QuickAddTask({
     // an unpositioned absolute label escapes the scroll container and stretches
     // the page itself sideways.
     <form onSubmit={onSubmit} className="relative flex items-center gap-2">
-      <Plus className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <IconPlus className="size-4 shrink-0 text-text-soft-400" aria-hidden="true" />
       <label htmlFor={`quick-add-${statusId ?? 'default'}`} className="sr-only">
         {placeholder}
       </label>
@@ -65,7 +65,7 @@ export function QuickAddTask({
         maxLength={200}
         aria-busy={pending}
         placeholder={placeholder}
-        className="h-11 w-full bg-transparent text-base text-foreground placeholder:text-muted-foreground focus:outline-none lg:text-sm"
+        className="h-11 w-full bg-transparent text-paragraph-md text-text-strong-950 placeholder:text-text-soft-400 lg:text-paragraph-sm"
       />
     </form>
   );

@@ -49,3 +49,19 @@ test('a comment survives a reload and priority changes show in the feed', async 
   await page.getByRole('option', { name: 'High' }).click();
   await expect(page.getByText('changed priority from none to high')).toBeVisible();
 });
+
+test('a comment is written with the editor and rendered as Markdown', async ({ page }) => {
+  await signUpWithTask(page, 'markdown');
+  await page.getByRole('button', { name: 'Talk about me', exact: true }).click();
+
+  // Typed key by key so the editor's **bold** input rule fires, as it does for a person.
+  await page.getByLabel('Comment').pressSequentially('Ship **today**');
+  await page.getByRole('button', { name: 'Comment' }).click();
+
+  // Scoped to the feed: the composer shows its own bold "today" until the post lands, and
+  // reloading before then would cancel it.
+  const posted = page.getByRole('listitem').locator('strong', { hasText: 'today' });
+  await expect(posted).toBeVisible();
+  await page.reload();
+  await expect(posted).toBeVisible();
+});

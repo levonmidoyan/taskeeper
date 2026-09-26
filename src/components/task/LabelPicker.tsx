@@ -1,19 +1,15 @@
 'use client';
 
-import { Check, Tag, Trash2 } from 'lucide-react';
+import { IconCheck, IconTag, IconTrash } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
+import { LabelChip } from '@/components/task/LabelChip';
+import * as Dropdown from '@/components/ui/dropdown';
+import * as Input from '@/components/ui/input';
 import { createLabelAction, deleteLabelAction, setTaskLabelsAction } from '@/server/labels/actions';
 import type { LabelRow } from '@/server/tasks/queries';
+import { cn } from '@/utils/cn';
 
 export function LabelPicker({
   workspaceSlug,
@@ -77,37 +73,47 @@ export function LabelPicker({
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="inline-flex h-9 items-center gap-1.5 rounded-[var(--radius-button)] px-2 text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground">
-        <Tag className="size-4" aria-hidden="true" />
-        {selected.length > 0 ? selected.map((l) => l.name).join(', ') : 'Add labels'}
-      </DropdownMenuTrigger>
+    <Dropdown.Root>
+      <Dropdown.Trigger className="inline-flex min-h-9 items-center gap-1.5 self-start rounded-lg px-2 text-paragraph-sm text-text-sub-600 transition-colors duration-150 hover:bg-bg-weak-50 hover:text-text-strong-950 data-[state=open]:bg-bg-weak-50">
+        <IconTag className="size-4 shrink-0" aria-hidden="true" />
+        {selected.length > 0
+          ? <span className="flex flex-wrap gap-1">{selected.map((l) => <LabelChip key={l.id} name={l.name} />)}</span>
+          : 'Add labels'}
+      </Dropdown.Trigger>
 
-      <DropdownMenuContent align="start" className="w-64">
-        <div className="p-2">
+      <Dropdown.Content align="start" className="w-64">
+        <div className="p-1">
           <label htmlFor="new-label" className="sr-only">New label name</label>
-          <Input
-            id="new-label"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={onCreate}
-            maxLength={32}
-            placeholder="Type a name, press Enter"
-            className="h-9 text-base lg:text-sm"
-          />
+          <Input.Root size="small">
+            <Input.Wrapper>
+              <Input.Input
+                id="new-label"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(event) => {
+                  // Radix menus treat printable keys as typeahead and move focus to a
+                  // matching item; keep them in the field. Escape still closes the menu.
+                  if (event.key !== 'Escape') event.stopPropagation();
+                  onCreate(event);
+                }}
+                maxLength={32}
+                placeholder="Type a name, press Enter"
+              />
+            </Input.Wrapper>
+          </Input.Root>
         </div>
 
-        {allLabels.length > 0 && <DropdownMenuSeparator />}
+        {allLabels.length > 0 && <Dropdown.Separator />}
 
         {allLabels.map((label) => (
-          <DropdownMenuItem
+          <Dropdown.Item
             key={label.id}
             onSelect={(event) => { event.preventDefault(); toggle(label.id); }}
             className="justify-between"
           >
             <span className="flex items-center gap-2">
-              <Check
-                className={`size-4 ${selectedIds.has(label.id) ? 'opacity-100' : 'opacity-0'}`}
+              <IconCheck
+                className={cn('size-4', selectedIds.has(label.id) ? 'opacity-100' : 'opacity-0')}
                 aria-hidden="true"
               />
               {label.name}
@@ -116,13 +122,13 @@ export function LabelPicker({
               type="button"
               aria-label={`Delete label ${label.name}`}
               onClick={(event) => { event.stopPropagation(); onDelete(label.id); }}
-              className="text-muted-foreground transition-colors duration-150 hover:text-destructive"
+              className="rounded-md p-1 text-text-soft-400 transition-colors duration-150 hover:text-error-base"
             >
-              <Trash2 className="size-4" aria-hidden="true" />
+              <IconTrash className="size-4" aria-hidden="true" />
             </button>
-          </DropdownMenuItem>
+          </Dropdown.Item>
         ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </Dropdown.Content>
+    </Dropdown.Root>
   );
 }

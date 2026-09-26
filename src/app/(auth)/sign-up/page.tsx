@@ -3,9 +3,9 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Suspense, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { AuthCard } from '@/components/auth/AuthCard';
+import { FormError, TextField } from '@/components/forms/TextField';
+import * as Button from '@/components/ui/button';
 import { safeNextPath } from '@/lib/next-path';
 import { signUp } from '@/lib/auth-client';
 
@@ -39,50 +39,32 @@ function SignUpForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5 rounded-[var(--radius-panel)] border border-border bg-card p-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Create your account</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Start organising your team&apos;s work.</p>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="name">Name</Label>
-        <Input id="name" name="name" required autoComplete="name" className="h-11 text-base" />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" required autoComplete="email" className="h-11 text-base" />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
-        <Input
-          id="password" name="password" type="password" required minLength={8}
-          autoComplete="new-password" aria-describedby="password-help"
-          className="h-11 text-base"
+    <AuthCard title="Create your account" description="Start organising your team's work.">
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <TextField id="name" label="Name" name="name" required autoComplete="name" />
+        <TextField id="email" label="Email" name="email" type="email" required autoComplete="email" />
+        <TextField
+          id="password" label="Password" name="password" type="password" required minLength={8}
+          autoComplete="new-password" hint="At least 8 characters."
         />
-        <p id="password-help" className="text-xs text-muted-foreground">At least 8 characters.</p>
-      </div>
 
-      {error && (
-        <p role="alert" className="text-sm text-destructive">{error}</p>
-      )}
+        {error && <FormError>{error}</FormError>}
 
-      <Button type="submit" disabled={pending} className="h-11 w-full">
-        {pending ? 'Creating account…' : 'Create account'}
-      </Button>
+        <Button.Root type="submit" disabled={pending} className="w-full">
+          {pending ? 'Creating account…' : 'Create account'}
+        </Button.Root>
 
-      <p className="text-center text-sm text-muted-foreground">
-        Already have an account?{' '}
-        <Link
-          href={next === '/' ? '/sign-in' : `/sign-in?next=${encodeURIComponent(next)}`}
-          className="text-primary underline-offset-4 hover:underline"
-        >
-          Sign in
-        </Link>
-      </p>
-    </form>
+        <p className="text-center text-paragraph-sm text-text-sub-600">
+          Already have an account?{' '}
+          <Link
+            href={next === '/' ? '/sign-in' : `/sign-in?next=${encodeURIComponent(next)}`}
+            className="text-label-sm text-primary-base underline-offset-4 hover:underline"
+          >
+            Sign in
+          </Link>
+        </p>
+      </form>
+    </AuthCard>
   );
 }
 

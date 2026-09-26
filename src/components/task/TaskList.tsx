@@ -19,12 +19,12 @@ export function TaskList({
   return (
     <div className="mx-auto max-w-3xl px-4 py-4 lg:px-6">
       {tasks.length === 0 ? (
-        <div className="rounded-[var(--radius-card)] border border-dashed border-border p-8 text-center">
-          <p className="text-sm font-medium text-foreground">No tasks yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">Type below to add the first one.</p>
+        <div className="rounded-2xl border border-dashed border-stroke-sub-300 p-8 text-center">
+          <p className="text-label-sm text-text-strong-950">No tasks yet</p>
+          <p className="mt-1 text-paragraph-sm text-text-sub-600">Type below to add the first one.</p>
         </div>
       ) : (
-        <ul className="rounded-[var(--radius-card)] border border-border bg-card">
+        <ul className="overflow-hidden rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200">
           {tasks.map((task) => (
             <TaskRow
               key={task.id}
@@ -37,7 +37,7 @@ export function TaskList({
         </ul>
       )}
 
-      <div className="mt-2 rounded-[var(--radius-card)] border border-border bg-card px-3">
+      <div className="mt-2 rounded-2xl bg-bg-white-0 px-3 ring-1 ring-inset ring-stroke-soft-200">
         <QuickAddTask workspaceSlug={workspaceSlug} projectId={projectId} />
       </div>
     </div>

@@ -1,18 +1,12 @@
 'use client';
 
-import { Plus } from 'lucide-react';
+import { IconFolderPlus, IconPlus } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { FormError, TextField } from '@/components/forms/TextField';
+import * as Button from '@/components/ui/button';
+import * as CompactButton from '@/components/ui/compact-button';
+import * as Modal from '@/components/ui/modal';
 import { createProjectAction } from '@/server/projects/actions';
 
 export function NewProjectDialog({ workspaceSlug }: { workspaceSlug: string }) {
@@ -39,36 +33,35 @@ export function NewProjectDialog({ workspaceSlug }: { workspaceSlug: string }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        aria-label="New project"
-        className="inline-flex size-8 items-center justify-center rounded-[var(--radius-button)] text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
-      >
-        <Plus className="size-4" aria-hidden="true" />
-      </DialogTrigger>
-      <DialogContent>
-        <DialogTitle>New project</DialogTitle>
-        <DialogDescription>
-          It starts with three columns: Todo, In Progress, and Done.
-        </DialogDescription>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="project-name">Project name</Label>
-            <Input
-              id="project-name"
-              name="name"
-              required
-              maxLength={64}
-              autoFocus
-              className="h-11 text-base"
-            />
-          </div>
-          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" disabled={pending} className="h-11 w-full">
-            {pending ? 'Creating…' : 'Create project'}
-          </Button>
+    <Modal.Root open={open} onOpenChange={setOpen}>
+      <Modal.Trigger asChild>
+        <CompactButton.Root variant="ghost" size="medium" aria-label="New project">
+          <CompactButton.Icon as={IconPlus} />
+        </CompactButton.Root>
+      </Modal.Trigger>
+      <Modal.Content>
+        <Modal.Header
+          icon={IconFolderPlus}
+          title="New project"
+          description="It starts with three columns: Todo, In Progress, and Done."
+        />
+        <form onSubmit={onSubmit}>
+          <Modal.Body className="flex flex-col gap-3">
+            <TextField id="project-name" label="Project name" name="name" required maxLength={64} autoFocus />
+            {error && <FormError>{error}</FormError>}
+          </Modal.Body>
+          <Modal.Footer>
+            <Modal.Close asChild>
+              <Button.Root type="button" variant="neutral" mode="stroke" size="small" className="w-full">
+                Cancel
+              </Button.Root>
+            </Modal.Close>
+            <Button.Root type="submit" size="small" disabled={pending} className="w-full">
+              {pending ? 'Creating…' : 'Create project'}
+            </Button.Root>
+          </Modal.Footer>
         </form>
-      </DialogContent>
-    </Dialog>
+      </Modal.Content>
+    </Modal.Root>
   );
 }

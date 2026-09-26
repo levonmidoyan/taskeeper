@@ -1,14 +1,15 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import { ThemeProvider } from '@/components/theme-provider';
-import { Toaster } from '@/components/ui/sonner';
+import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
 
-const jakarta = localFont({
-  src: './fonts/PlusJakartaSans-Variable.woff2',
-  variable: '--font-jakarta',
+// Self-hosted like the font it replaces (spec §10 A5): no build-time network fetch.
+const inter = localFont({
+  src: './fonts/InterVariable.woff2',
+  variable: '--font-inter',
   display: 'swap',
-  weight: '200 800',
+  weight: '100 900',
 });
 
 export const metadata: Metadata = {
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={jakarta.variable} suppressHydrationWarning>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body className="min-h-dvh antialiased">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           {children}

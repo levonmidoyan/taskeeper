@@ -1,15 +1,18 @@
 'use client';
 
-import { Circle, CircleCheck } from 'lucide-react';
+import { IconCircle, IconCircleCheckFilled } from '@tabler/icons-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
+import { AssigneeAvatar } from '@/components/task/AssigneeAvatar';
 import { DueChip } from '@/components/task/DueChip';
-import { doneToggleTarget } from '@/lib/task-done';
+import { LabelChip } from '@/components/task/LabelChip';
 import { PriorityDot } from '@/components/task/PriorityDot';
+import { doneToggleTarget } from '@/lib/task-done';
 import type { StatusRow } from '@/server/projects/queries';
 import type { TaskRow as TaskRowData } from '@/server/tasks/queries';
 import { updateTaskAction } from '@/server/tasks/actions';
+import { cn } from '@/utils/cn';
 
 export function TaskRow({
   task,
@@ -46,23 +49,25 @@ export function TaskRow({
   function openDetail() {
     const next = new URLSearchParams(searchParams);
     next.set('task', task.id);
-    // Deep-linkable and back-dismissable (spec §6.3).
+    // Deep-linkable and back-dismissable (v1 spec §6.3).
     router.push(`?${next.toString()}`, { scroll: false });
   }
 
   return (
-    <li className="flex items-center gap-3 border-b border-border px-2 transition-colors duration-150 last:border-b-0 hover:bg-muted/60">
+    <li className="flex items-center gap-2 border-b border-stroke-soft-200 px-2 transition-colors duration-150 last:border-b-0 hover:bg-bg-weak-50">
+      {/* A toggle button, not a checkbox: e2e and screen readers know it by this name
+          (spec §10 A2). */}
       <button
         type="button"
         onClick={toggleDone}
         disabled={pending}
         aria-pressed={done}
         aria-label={done ? `Mark "${task.title}" as not done` : `Mark "${task.title}" as done`}
-        className="inline-flex size-11 shrink-0 items-center justify-center text-muted-foreground transition-colors duration-150 hover:text-foreground disabled:opacity-50"
+        className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-text-soft-400 transition-colors duration-150 hover:text-text-strong-950 disabled:opacity-50"
       >
         {done
-          ? <CircleCheck className="size-5 text-success" aria-hidden="true" />
-          : <Circle className="size-5" aria-hidden="true" />}
+          ? <IconCircleCheckFilled className="size-5 text-success-base" aria-hidden="true" />
+          : <IconCircle className="size-5" aria-hidden="true" />}
       </button>
 
       <button
@@ -71,24 +76,20 @@ export function TaskRow({
         className="flex min-w-0 flex-1 items-center gap-3 py-3 text-left"
       >
         <span
-          className={`min-w-0 flex-1 truncate text-sm ${
-            done ? 'text-muted-foreground line-through' : 'text-foreground'
-          }`}
+          className={cn(
+            'min-w-0 flex-1 truncate text-paragraph-sm',
+            done ? 'text-text-soft-400 line-through' : 'text-text-strong-950',
+          )}
         >
           {task.title}
         </span>
 
         {task.labels.map((label) => (
-          <span
-            key={label.id}
-            className="hidden shrink-0 rounded-[var(--radius-button)] bg-muted px-1.5 py-0.5 text-xs text-muted-foreground sm:inline"
-          >
-            {label.name}
-          </span>
+          <LabelChip key={label.id} name={label.name} className="hidden shrink-0 sm:inline-flex" />
         ))}
 
         {task.subtaskCount > 0 && (
-          <span className="tabular hidden shrink-0 text-xs text-muted-foreground sm:inline">
+          <span className="tabular hidden shrink-0 text-paragraph-xs text-text-sub-600 sm:inline">
             {task.subtaskDoneCount}/{task.subtaskCount}
           </span>
         )}
@@ -97,12 +98,7 @@ export function TaskRow({
         <DueChip dueDate={task.dueDate} timezone={timezone} />
 
         {task.assigneeName && (
-          <span
-            aria-label={`Assigned to ${task.assigneeName}`}
-            className="hidden size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground sm:inline-flex"
-          >
-            {task.assigneeName.slice(0, 1).toUpperCase()}
-          </span>
+          <AssigneeAvatar name={task.assigneeName} className="hidden shrink-0 sm:flex" />
         )}
       </button>
     </li>

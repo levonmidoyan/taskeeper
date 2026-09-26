@@ -1,25 +1,34 @@
 'use client';
 
-import { ChevronLeft, Trash2 } from 'lucide-react';
+import { IconChevronLeft, IconTrash } from '@tabler/icons-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+import { TextField } from '@/components/forms/TextField';
 import { ActivityFeed } from '@/components/task/ActivityFeed';
 import { LabelPicker } from '@/components/task/LabelPicker';
+import { handleEditorEscape, RichTextField } from '@/components/task/RichTextField';
 import { SubtaskSection } from '@/components/task/SubtaskSection';
-import type { StatusRow } from '@/server/projects/queries';
+import * as Button from '@/components/ui/button';
+import * as Label from '@/components/ui/label';
+import * as Modal from '@/components/ui/modal';
+import * as Select from '@/components/ui/select';
+import type { FeedEntry } from '@/server/activity/queries';
 import type { MemberRow } from '@/server/labels/queries';
+import type { StatusRow } from '@/server/projects/queries';
 import { deleteTaskAction, updateTaskAction } from '@/server/tasks/actions';
 import type { LabelRow, Priority, TaskDetail } from '@/server/tasks/queries';
-import type { FeedEntry } from '@/server/activity/queries';
 
 const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
+
+function Field({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Label.Root htmlFor={id}>{label}</Label.Root>
+      {children}
+    </div>
+  );
+}
 
 export function TaskDetailDialog({
   task,
@@ -48,7 +57,6 @@ export function TaskDetailDialog({
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
   const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description);
 
   function openParent() {
     const next = new URLSearchParams(searchParams);
@@ -85,121 +93,107 @@ export function TaskDetailDialog({
   }
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) close(); }}>
-      <DialogContent className="max-h-[85vh] gap-0 overflow-y-auto p-0 sm:max-w-2xl">
-        <DialogTitle className="sr-only">Task details</DialogTitle>
+    <Modal.Root open onOpenChange={(open) => { if (!open) close(); }}>
+      <Modal.Content
+        aria-describedby={undefined}
+        className="max-h-[85vh] max-w-2xl overflow-y-auto"
+        // Escape that closes an editor's slash menu or link field stops there.
+        onEscapeKeyDown={(event) => { if (handleEditorEscape(event)) event.preventDefault(); }}
+      >
+        <Modal.Title className="sr-only">Task details</Modal.Title>
 
-        <div className="space-y-5 p-5">
+        <div className="flex flex-col gap-5 p-5 pt-14 sm:pt-5">
           {task.parentId && (
             <button
               type="button"
               onClick={openParent}
-              className="-ml-1 inline-flex items-center gap-1 rounded-[var(--radius-button)] px-1 py-1 text-xs text-muted-foreground transition-colors duration-150 hover:text-foreground"
+              className="-ml-1 inline-flex items-center gap-1 self-start rounded-lg px-1 py-1 text-paragraph-xs text-text-sub-600 transition-colors duration-150 hover:text-text-strong-950"
             >
-              <ChevronLeft className="size-3.5" aria-hidden="true" />
+              <IconChevronLeft className="size-3.5" aria-hidden="true" />
               {task.parentTitle}
             </button>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="task-title">Title</Label>
-            <Input
-              id="task-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              // Save on blur, not per keystroke, so one edit is one write.
-              onBlur={() =>
-                title.trim() && title !== task.title && patch({ taskId: task.id, title })
-              }
-              maxLength={200}
-              className="h-11 text-base"
-            />
-          </div>
+          <TextField
+            id="task-title"
+            label="Title"
+            className="sm:pr-10"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            // Save on blur, not per keystroke, so one edit is one write.
+            onBlur={() => title.trim() && title !== task.title && patch({ taskId: task.id, title })}
+            maxLength={200}
+          />
 
-          <div className="space-y-2">
-            <Label htmlFor="task-description">Description</Label>
-            <textarea
-              id="task-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              onBlur={() =>
-                description !== task.description && patch({ taskId: task.id, description })
-              }
-              rows={6}
-              maxLength={10000}
-              className="w-full rounded-[var(--radius-card)] border border-border bg-card p-3 text-base text-foreground lg:text-sm"
+          <div className="flex flex-col gap-1">
+            <span id="task-description-label" className="text-label-sm text-text-strong-950">
+              Description
+            </span>
+            <RichTextField
+              value={task.description}
+              labelledBy="task-description-label"
+              placeholder="Add details… Type / for headings, lists and more."
+              onCommit={(description) => patch({ taskId: task.id, description })}
             />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="task-status">Status</Label>
-              <Select
+            <Field id="task-status" label="Status">
+              <Select.Root
                 defaultValue={task.statusId}
                 onValueChange={(statusId) => patch({ taskId: task.id, statusId })}
               >
-                <SelectTrigger id="task-status" className="h-11"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {statuses.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <Select.Trigger id="task-status"><Select.Value /></Select.Trigger>
+                <Select.Content>
+                  {statuses.map((s) => <Select.Item key={s.id} value={s.id}>{s.name}</Select.Item>)}
+                </Select.Content>
+              </Select.Root>
+            </Field>
 
-            <div className="space-y-2">
-              <Label htmlFor="task-priority">Priority</Label>
-              <Select
+            <Field id="task-priority" label="Priority">
+              <Select.Root
                 defaultValue={task.priority}
-                onValueChange={(priority) =>
-                  patch({ taskId: task.id, priority: priority as Priority })
-                }
+                onValueChange={(priority) => patch({ taskId: task.id, priority: priority as Priority })}
               >
-                <SelectTrigger id="task-priority" className="h-11"><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <Select.Trigger id="task-priority"><Select.Value /></Select.Trigger>
+                <Select.Content>
                   {PRIORITIES.map((p) => (
-                    <SelectItem key={p} value={p}>
+                    <Select.Item key={p} value={p}>
                       {p === 'none' ? 'No priority' : p[0].toUpperCase() + p.slice(1)}
-                    </SelectItem>
+                    </Select.Item>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
+                </Select.Content>
+              </Select.Root>
+            </Field>
 
-            <div className="space-y-2">
-              <Label htmlFor="task-assignee">Assignee</Label>
-              <Select
+            <Field id="task-assignee" label="Assignee">
+              <Select.Root
                 defaultValue={task.assigneeId ?? 'unassigned'}
                 onValueChange={(value) =>
                   patch({ taskId: task.id, assigneeId: value === 'unassigned' ? null : value })
                 }
               >
-                <SelectTrigger id="task-assignee" className="h-11"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                  {members.map((m) => (
-                    <SelectItem key={m.userId} value={m.userId}>{m.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <Select.Trigger id="task-assignee"><Select.Value /></Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="unassigned">Unassigned</Select.Item>
+                  {members.map((m) => <Select.Item key={m.userId} value={m.userId}>{m.name}</Select.Item>)}
+                </Select.Content>
+              </Select.Root>
+            </Field>
 
-            <div className="space-y-2">
-              <Label htmlFor="task-due">Due date</Label>
-              <Input
-                id="task-due"
-                type="date"
-                defaultValue={task.dueDate ?? ''}
-                // A bare YYYY-MM-DD string, never a Date: the value is a calendar
-                // day in the workspace zone (spec §3.4).
-                onChange={(e) => patch({ taskId: task.id, dueDate: e.target.value || null })}
-                className="h-11 text-base"
-              />
-            </div>
+            <TextField
+              id="task-due"
+              label="Due date"
+              type="date"
+              defaultValue={task.dueDate ?? ''}
+              // A bare YYYY-MM-DD string, never a Date: the value is a calendar
+              // day in the workspace zone (v1 spec §3.4).
+              onChange={(e) => patch({ taskId: task.id, dueDate: e.target.value || null })}
+            />
           </div>
 
-          <div className="space-y-2">
-            <Label>Labels</Label>
+          <div className="flex flex-col gap-1">
+            <span className="text-label-sm text-text-strong-950">Labels</span>
             <LabelPicker
               workspaceSlug={workspaceSlug}
               taskId={task.id}
@@ -229,18 +223,14 @@ export function TaskDetailDialog({
             timezone={timezone}
           />
 
-          <div className="border-t border-border pt-4">
-            <button
-              type="button"
-              onClick={onDelete}
-              className="inline-flex h-11 items-center gap-2 rounded-[var(--radius-button)] px-3 text-sm text-destructive transition-colors duration-150 hover:bg-destructive/10"
-            >
-              <Trash2 className="size-4" aria-hidden="true" />
+          <div className="border-t border-stroke-soft-200 pt-4">
+            <Button.Root type="button" variant="error" mode="ghost" size="small" onClick={onDelete}>
+              <Button.Icon as={IconTrash} />
               Delete task
-            </button>
+            </Button.Root>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </Modal.Content>
+    </Modal.Root>
   );
 }

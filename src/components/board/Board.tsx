@@ -1,20 +1,27 @@
 'use client';
 
 import {
-  DndContext, KeyboardSensor, MeasuringStrategy, PointerSensor,
-  closestCenter, closestCorners, getFirstCollision, pointerWithin, rectIntersection,
-  useSensor, useSensors, type CollisionDetection, type DragEndEvent,
+  type CollisionDetection, closestCenter, closestCorners, type DragEndEvent, getFirstCollision,
+  KeyboardSensor, MeasuringStrategy, MouseSensor, pointerWithin, rectIntersection, TouchSensor,
+  useSensor, useSensors,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useOptimistic, useState, useTransition } from 'react';
+import { useCallback, useMemo, useOptimistic, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { BoardColumn } from '@/components/board/BoardColumn';
+import { columnId, isUnchanged, neighboursAfterMove } from '@/components/board/neighbours';
+import { KanbanProvider } from '@/components/kibo-ui/kanban';
 import type { StatusRow } from '@/server/projects/queries';
 import { moveTaskAction } from '@/server/tasks/actions';
 import type { TaskRow } from '@/server/tasks/queries';
 
+export type BoardItem = { id: string; name: string; column: string; task: TaskRow };
+
 type Move = { taskId: string; statusId: string; index: number };
+
+const toItems = (tasks: TaskRow[]): BoardItem[] =>
+  tasks.map((task) => ({ id: task.id, name: task.title, column: columnId(task.statusId), task }));
 
 export function Board({
   workspaceSlug,
@@ -34,7 +41,7 @@ export function Board({
   const [, startTransition] = useTransition();
   const [announcement, setAnnouncement] = useState('');
 
-  // The card moves the instant it is dropped; the server call follows.
+  // The card lands the instant it is dropped; the server call follows.
   const [optimisticTasks, applyMove] = useOptimistic(tasks, (current: TaskRow[], move: Move) => {
     const moving = current.find((t) => t.id === move.taskId);
     if (!moving) return current;
@@ -42,47 +49,82 @@ export function Board({
     const rest = current.filter((t) => t.id !== move.taskId);
     const target = rest.filter((t) => t.statusId === move.statusId);
     const others = rest.filter((t) => t.statusId !== move.statusId);
-    const updated = { ...moving, statusId: move.statusId };
-
-    target.splice(move.index, 0, updated);
+    target.splice(move.index, 0, { ...moving, statusId: move.statusId });
     return [...others, ...target];
   });
 
-  const sensors = useSensors(
-    // An 8px threshold so a click to open the detail panel is not read as a drag.
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  const baseItems = useMemo(() => toItems(optimisticTasks), [optimisticTasks]);
+  // Kibo's working copy exists only while a drag is in progress. Every other time the
+  // board shows the (optimistic) server list directly, so nothing has to be synced. Only
+  // drop and cancel clear it — never an async callback, which could land mid-way through
+  // the next drag.
+  const [dragItems, setDragItems] = useState<BoardItem[] | null>(null);
+  const items = dragItems ?? baseItems;
+
+  const columns = useMemo(
+    () => statuses.map((status) => ({ id: columnId(status.id), name: status.name, status })),
+    [statuses],
   );
 
-  const byStatus = (statusId: string) => optimisticTasks.filter((t) => t.statusId === statusId);
+  const sensors = useSensors(
+    // An 8px threshold so a click to open the task is not read as a drag.
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    // Press and hold, so a swipe still scrolls the board. Mouse + Touch rather than
+    // Pointer: a PointerSensor also answers touch and would start a drag on every swipe.
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+    // Space only: dnd-kit also lifts on Enter by default, which would turn Enter on a
+    // focused card into a drag instead of opening the task. Tab still drops (dnd-kit's
+    // default), so focus never leaves a card that is mid-drag.
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+      keyboardCodes: { start: ['Space'], cancel: ['Escape'], end: ['Space', 'Tab'] },
+    }),
+  );
 
   /**
-   * Plain closestCorners is wrong for a multi-column board: a column is tall, so
-   * its two far corners dominate the distance sum and it loses to the dragged
-   * card's own rect. The card then reads as "over itself" however far it travels,
-   * and a cross-column drop — every keyboard drop, which has no pointer to break
-   * the tie — silently lands back in the column it started in.
+   * With a pointer (mouse, touch), only what the pointer is inside counts; no pointer hit
+   * means the release is off the board, so no collision (`[]`) is reported and `onDragEnd`
+   * discards the drag (event.over is null). Rect overlap is deliberately not consulted
+   * here: the dragged card's rect can still overlap a column after the pointer has left
+   * every column, and that would save a drop the user threw away. Without a pointer
+   * (keyboard) there is no "off the board", so rect overlap, then closestCorners, pick the
+   * target — with every droppable measured (MeasuringStrategy.Always) closestCorners always
+   * finds one.
    *
-   * So: pointer first when there is one, rect overlap otherwise, and a hit on a
-   * column resolves to the nearest card inside it, so dropping into a gap between
-   * two cards keeps that gap instead of jumping to the end.
+   * The raw hit is then mapped:
+   * - The dragged card itself (the live preview has moved it into the hovered column)
+   *   resolves to its column flagged `data.self`, so dnd-kit keeps announcing the column
+   *   (board.spec.ts, spec §10 A3) and Kanban treats it as "stay put".
+   * - A column, with the pointer below its last card, resolves to the column unflagged:
+   *   Kanban moves the card to the end of that column. Mapping to the nearest card here
+   *   would let Kibo's arrayMove place the card before or after that card depending only
+   *   on flat-array order.
+   * - Any other column hit resolves to the nearest card inside it, so dropping into a gap
+   *   keeps that gap. An empty column stays the column (append).
    */
   const collisionDetection: CollisionDetection = useCallback(
     (args) => {
-      const pointerHits = pointerWithin(args);
-      const hits = pointerHits.length > 0 ? pointerHits : rectIntersection(args);
-      const overId = getFirstCollision(hits, 'id');
-      if (overId == null) return closestCorners(args);
+      const pointer = args.pointerCoordinates;
+      const overId = pointer
+        ? getFirstCollision(pointerWithin(args), 'id')
+        : getFirstCollision(rectIntersection(args), 'id') ?? getFirstCollision(closestCorners(args), 'id');
+      if (overId == null) return [];
 
       const id = String(overId);
-      if (id.startsWith('status:')) {
-        const cardIds = new Set(
-          optimisticTasks
-            .filter((t) => t.statusId === id.slice('status:'.length))
-            .map((t) => t.id)
-            .filter((cardId) => cardId !== String(args.active.id)),
-        );
-        if (cardIds.size > 0) {
+      const activeId = String(args.active.id);
+
+      if (id === activeId) {
+        const column = items.find((item) => item.id === activeId)?.column;
+        return column ? [{ id: column, data: { self: true } }] : [];
+      }
+
+      if (columns.some((column) => column.id === id)) {
+        const cards = items.filter((item) => item.column === id && item.id !== activeId);
+        if (cards.length > 0) {
+          const last = args.droppableRects.get(cards[cards.length - 1].id);
+          if (pointer && last && pointer.y > last.bottom) return [{ id }];
+
+          const cardIds = new Set(cards.map((item) => item.id));
           const inner = closestCenter({
             ...args,
             droppableContainers: args.droppableContainers.filter((c) => cardIds.has(String(c.id))),
@@ -94,7 +136,7 @@ export function Board({
 
       return [{ id: overId }];
     },
-    [optimisticTasks],
+    [items, columns],
   );
 
   function openTask(taskId: string) {
@@ -103,39 +145,24 @@ export function Board({
     router.push(`?${next.toString()}`, { scroll: false });
   }
 
-  function onDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over) return;
+  function onDragEnd(event: DragEndEvent, finalItems: BoardItem[]) {
+    setDragItems(null);
+    // Released outside every column: the live preview is discarded, nothing is saved.
+    if (!event.over) return;
 
-    const taskId = String(active.id);
-    const overId = String(over.id);
+    const taskId = String(event.active.id);
+    const after = neighboursAfterMove(finalItems, taskId);
+    if (!after || isUnchanged(baseItems, finalItems, taskId)) return;
 
-    // Dropping on a column drops at its end; dropping on a card inserts at that card.
-    const targetStatusId = overId.startsWith('status:')
-      ? overId.slice('status:'.length)
-      : optimisticTasks.find((t) => t.id === overId)?.statusId;
+    const statusName = statuses.find((s) => s.id === after.statusId)?.name ?? 'column';
+    setAnnouncement(`Moved to ${statusName}, position ${after.index + 1} of ${after.columnSize}.`);
 
-    if (!targetStatusId) return;
-
-    const column = byStatus(targetStatusId).filter((t) => t.id !== taskId);
-    const index = overId.startsWith('status:')
-      ? column.length
-      : Math.max(0, column.findIndex((t) => t.id === overId));
-
-    const beforeId = column[index - 1]?.id ?? null;
-    const afterId = column[index]?.id ?? null;
-
-    const statusName = statuses.find((s) => s.id === targetStatusId)?.name ?? 'column';
-    setAnnouncement(`Moved to ${statusName}, position ${index + 1} of ${column.length + 1}.`);
+    const input = { taskId, statusId: after.statusId, beforeId: after.beforeId, afterId: after.afterId };
 
     startTransition(async () => {
-      applyMove({ taskId, statusId: targetStatusId, index });
+      applyMove({ taskId, statusId: after.statusId, index: after.index });
 
-      // Neighbour ids, never a position: the server computes the key so two
-      // concurrent drags cannot land on the same one (spec §6.4).
-      const result = await moveTaskAction(workspaceSlug, {
-        taskId, statusId: targetStatusId, beforeId, afterId,
-      });
+      const result = await moveTaskAction(workspaceSlug, input);
 
       if (!result.ok) {
         toast.error(result.error, {
@@ -143,9 +170,7 @@ export function Board({
             label: 'Retry',
             onClick: () => {
               startTransition(async () => {
-                const retry = await moveTaskAction(workspaceSlug, {
-                  taskId, statusId: targetStatusId, beforeId, afterId,
-                });
+                const retry = await moveTaskAction(workspaceSlug, input);
                 if (!retry.ok) toast.error(retry.error);
                 router.refresh();
               });
@@ -160,36 +185,39 @@ export function Board({
   }
 
   return (
-    // An explicit id: dnd-kit otherwise numbers its aria-describedby targets from
-    // a module-level counter, which starts from a different value on the server
-    // than in the browser and trips a hydration mismatch.
-    <DndContext
-      id="project-board"
-      sensors={sensors}
-      collisionDetection={collisionDetection}
-      // Always, not the default WhileDragging: a keyboard drag can have its
-      // first arrow key handled before the columns have been measured, and an
-      // unmeasured droppable is not a collision candidate — so the card would
-      // travel nowhere and drop back into the column it started in.
-      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-      onDragEnd={onDragEnd}
-    >
-      {/* Horizontal scroll lives here, never on the page (spec §6.4). */}
-      <div className="flex flex-1 gap-3 overflow-x-auto px-4 pb-4 lg:px-6">
-        {statuses.map((status) => (
+    <>
+      <KanbanProvider
+        // An explicit id: dnd-kit otherwise numbers its aria-describedby targets from a
+        // module-level counter, which differs between server and browser (hydration).
+        id="project-board"
+        sensors={sensors}
+        collisionDetection={collisionDetection}
+        // Always, not WhileDragging: a keyboard drag can have its first arrow key handled
+        // before the columns have been measured, and an unmeasured droppable is not a
+        // collision candidate.
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+        columns={columns}
+        data={items}
+        onDataChange={setDragItems}
+        onDragEnd={onDragEnd}
+        onDragCancel={() => setDragItems(null)}
+        // Horizontal scroll lives here, never on the page (v1 spec §6.4).
+        className="flex flex-1 gap-3 overflow-x-auto px-4 pb-4 lg:px-6"
+      >
+        {(column) => (
           <BoardColumn
-            key={status.id}
-            status={status}
-            tasks={byStatus(status.id)}
+            key={column.id}
+            status={column.status}
+            count={items.filter((item) => item.column === column.id).length}
             workspaceSlug={workspaceSlug}
             projectId={projectId}
             timezone={timezone}
             onOpen={openTask}
           />
-        ))}
-      </div>
+        )}
+      </KanbanProvider>
 
       <p aria-live="polite" className="sr-only">{announcement}</p>
-    </DndContext>
+    </>
   );
 }

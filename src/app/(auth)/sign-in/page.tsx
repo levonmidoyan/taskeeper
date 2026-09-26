@@ -3,9 +3,9 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Suspense, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { AuthCard } from '@/components/auth/AuthCard';
+import { FormError, TextField } from '@/components/forms/TextField';
+import * as Button from '@/components/ui/button';
 import { safeNextPath } from '@/lib/next-path';
 import { signIn } from '@/lib/auth-client';
 
@@ -37,44 +37,31 @@ function SignInForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5 rounded-[var(--radius-panel)] border border-border bg-card p-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Sign in</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Welcome back to your team&apos;s work.</p>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" required autoComplete="email" className="h-11 text-base" />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
-        <Input
-          id="password" name="password" type="password" required
+    <AuthCard title="Sign in" description="Welcome back to your team's work.">
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <TextField id="email" label="Email" name="email" type="email" required autoComplete="email" />
+        <TextField
+          id="password" label="Password" name="password" type="password" required
           autoComplete="current-password"
-          className="h-11 text-base"
         />
-      </div>
 
-      {error && (
-        <p role="alert" className="text-sm text-destructive">{error}</p>
-      )}
+        {error && <FormError>{error}</FormError>}
 
-      <Button type="submit" disabled={pending} className="h-11 w-full">
-        {pending ? 'Signing in…' : 'Sign in'}
-      </Button>
+        <Button.Root type="submit" disabled={pending} className="w-full">
+          {pending ? 'Signing in…' : 'Sign in'}
+        </Button.Root>
 
-      <p className="text-center text-sm text-muted-foreground">
-        Don&apos;t have an account?{' '}
-        <Link
-          href={next === '/' ? '/sign-up' : `/sign-up?next=${encodeURIComponent(next)}`}
-          className="text-primary underline-offset-4 hover:underline"
-        >
-          Create one
-        </Link>
-      </p>
-    </form>
+        <p className="text-center text-paragraph-sm text-text-sub-600">
+          Don&apos;t have an account?{' '}
+          <Link
+            href={next === '/' ? '/sign-up' : `/sign-up?next=${encodeURIComponent(next)}`}
+            className="text-label-sm text-primary-base underline-offset-4 hover:underline"
+          >
+            Create one
+          </Link>
+        </p>
+      </form>
+    </AuthCard>
   );
 }
 

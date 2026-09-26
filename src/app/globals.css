@@ -1,141 +1,56 @@
 @import "tailwindcss";
+/* Keep Tailwind from scanning plan/spec markdown — wildcard class names in prose emit invalid CSS. */
+@source not "../../docs";
+/* Animation utilities (animate-in, fade-in-0, zoom-in-95, slide-in-from-*) used by Align's
+   Modal, Drawer, Dropdown, Select and Tooltip (spec §10 A1). */
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import "../styles/align-tokens.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-:root {
-  --background: #F8FAFC;
-  --card: #FFFFFF;
-  --foreground: #0F172A;
-  --muted: #F1F5F9;
-  --muted-foreground: #64748B;
-  --border: #E2E8F0;
-  --primary: #2563EB;
-  --primary-foreground: #FFFFFF;
-  --success: #059669;
-  --destructive: #DC2626;
-  --ring: #2563EB;
-  --radius-button: 6px;
-  --radius-card: 8px;
-  --radius-panel: 12px;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --input: oklch(0.922 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: #020617;
-  --card: #0E1223;
-  --foreground: #F8FAFC;
-  --muted: #1A1E2F;
-  --muted-foreground: #94A3B8;
-  --border: #334155;
-  --primary: #3B82F6;
-  --primary-foreground: #0B1220;
-  --success: #22C55E;
-  --destructive: #EF4444;
-  --ring: #3B82F6;
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --input: oklch(1 0 0 / 15%);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-card: var(--card);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-border: var(--border);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-success: var(--success);
-  --color-destructive: var(--destructive);
-  --color-ring: var(--ring);
-  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-input: var(--input);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
-body {
-  background-color: var(--background);
-  font-family: var(--font-sans);
-  line-height: 1.5;
+/*
+ * Align's filled-button focus shadows use a 10-16% alpha ring, which is close to invisible
+ * against light surfaces. Override to solid rings, keeping Align's 2px surface gap.
+ */
+@theme {
+  --shadow-button-primary-focus: 0 0 0 2px var(--color-bg-white-0), 0 0 0 4px var(--color-primary-base);
+  --shadow-button-important-focus: 0 0 0 2px var(--color-bg-white-0), 0 0 0 4px var(--color-text-strong-950);
+  --shadow-button-error-focus: 0 0 0 2px var(--color-bg-white-0), 0 0 0 4px var(--color-error-base);
 }
 
-/* Numeric columns must not jitter as values change (spec §6.2). */
+@layer base {
+  /* Tailwind v4 defaults borders to currentColor; Align and Kibo expect a soft stroke. */
+  *, ::before, ::after {
+    border-color: var(--color-stroke-soft-200);
+  }
+
+  body {
+    background-color: var(--color-bg-white-0);
+    color: var(--color-text-strong-950);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  /* Focus rings are never removed (v1 Global Constraints). In the base layer so Align
+     controls, which draw their own focus shadow, can replace it with outline-none. */
+  :focus-visible {
+    outline: 2px solid var(--color-primary-base);
+    outline-offset: 2px;
+  }
+}
+
+/* Numeric columns must not jitter as values change (v1 spec §6.2). */
 .tabular {
   font-variant-numeric: tabular-nums;
-}
-
-/* Focus rings are never removed (Global Constraints). */
-:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -145,14 +60,24 @@ body {
   }
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
+/* Markdown, rendered (components/task/Markdown.tsx) and edited (kibo-ui/editor). */
+@layer components {
+  .md-content {
+    @apply text-paragraph-sm text-text-strong-950 [overflow-wrap:anywhere];
   }
-  body {
-    @apply bg-background text-foreground;
-  }
-  html {
-    @apply font-sans;
-  }
+  .md-content > :where(* + *) { @apply mt-2; }
+  .md-content :where(h1) { @apply text-label-lg; }
+  .md-content :where(h2) { @apply text-label-md; }
+  .md-content :where(h3) { @apply text-label-sm; }
+  .md-content :where(ul) { @apply list-outside list-disc pl-5; }
+  .md-content :where(ol) { @apply list-outside list-decimal pl-5; }
+  .md-content :where(ul.contains-task-list, ul[data-type="taskList"]) { @apply list-none pl-0; }
+  .md-content :where(li[data-type="taskItem"], li.task-list-item) { @apply flex items-start gap-2; }
+  .md-content :where(li > p) { @apply m-0; }
+  .md-content :where(blockquote) { @apply border-l-2 border-stroke-soft-200 pl-3 text-text-sub-600; }
+  .md-content :where(code) { @apply rounded-md bg-bg-weak-50 px-1 py-0.5 font-mono text-[0.9em]; }
+  .md-content :where(pre) { @apply overflow-x-auto rounded-10 bg-bg-weak-50 p-3 font-mono text-paragraph-xs; }
+  .md-content :where(pre code) { @apply bg-transparent p-0; }
+  .md-content :where(a) { @apply text-primary-base underline underline-offset-2; }
+  .md-content :where(hr) { @apply border-stroke-soft-200; }
 }

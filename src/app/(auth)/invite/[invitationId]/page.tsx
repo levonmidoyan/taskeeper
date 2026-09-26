@@ -1,6 +1,8 @@
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { AuthCard } from '@/components/auth/AuthCard';
+import { FormError } from '@/components/forms/TextField';
 import { auth } from '@/lib/auth';
 import { acceptInvitation } from '@/server/members/service';
 
@@ -19,13 +21,14 @@ export default async function AcceptInvitePage({
   if (result.ok) redirect(`/${result.data.slug}`);
 
   return (
-    <div className="space-y-4 rounded-[var(--radius-panel)] border border-border bg-card p-6 text-center">
-      <h1 className="text-xl font-semibold text-foreground">This invitation cannot be used</h1>
-      <p role="alert" className="text-sm text-destructive">{result.error}</p>
-      <p className="text-sm text-muted-foreground">Ask whoever invited you to send a new one.</p>
-      <Link href="/" className="text-sm text-primary underline-offset-4 hover:underline">
-        Go to your workspaces
-      </Link>
-    </div>
+    <AuthCard title="This invitation cannot be used">
+      <div className="flex flex-col gap-3">
+        <FormError>{result.error}</FormError>
+        <p className="text-paragraph-sm text-text-sub-600">Ask whoever invited you to send a new one.</p>
+        <Link href="/" className="text-label-sm text-primary-base underline-offset-4 hover:underline">
+          Go to your workspaces
+        </Link>
+      </div>
+    </AuthCard>
   );
 }
