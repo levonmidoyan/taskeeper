@@ -15,7 +15,7 @@ export default async function WorkspaceLayout({
 }) {
   const { workspaceSlug } = await params;
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect('/sign-in');
+  if (!session) redirect('/auth/sign-in');
 
   const ctx = await requireWorkspace(workspaceSlug);
   const [projects, workspaces] = await Promise.all([

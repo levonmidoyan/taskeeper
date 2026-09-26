@@ -4,6 +4,7 @@ import { IconMenu2, IconSettings } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { useState } from 'react';
+import { UserButton } from '@/components/auth/user/user-button';
 import { NewProjectDialog } from '@/components/shell/NewProjectDialog';
 import { ThemeControl } from '@/components/shell/ThemeControl';
 import { WorkspaceSwitcher } from '@/components/shell/WorkspaceSwitcher';
@@ -94,6 +95,8 @@ function RailBody({ workspaceSlug, workspaces, projects }: Props) {
           <span className="text-paragraph-xs text-text-soft-400">Theme</span>
           <ThemeControl />
         </div>
+        {/* No account settings screen yet, so the built-in Settings link would dead-end. */}
+        <UserButton side="top" align="start" hideSettings className="mt-2 w-full justify-start px-2.5" />
       </div>
     </nav>
   );

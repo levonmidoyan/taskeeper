@@ -4,11 +4,11 @@ import { expect, test, type Page } from '@playwright/test';
 async function signUpWithTask(page: Page, prefix: string) {
   const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  await page.goto('/sign-up');
-  await page.getByLabel('Name').fill('Comment Tester');
-  await page.getByLabel('Email').fill(`${prefix}-${stamp}@example.com`);
-  await page.getByLabel('Password').fill('correct-horse-battery');
-  await page.getByRole('button', { name: 'Create account' }).click();
+  await page.goto('/auth/sign-up');
+  await page.getByLabel('Name', { exact: true }).fill('Comment Tester');
+  await page.getByLabel('Email', { exact: true }).fill(`${prefix}-${stamp}@example.com`);
+  await page.getByLabel('Password', { exact: true }).fill('correct-horse-battery');
+  await page.getByRole('button', { name: 'Sign Up' }).click();
 
   await page.getByLabel('Workspace name').fill(`Comments ${stamp}`);
   await page.getByRole('button', { name: 'Create workspace' }).click();

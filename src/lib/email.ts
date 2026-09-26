@@ -8,20 +8,39 @@ const apiKey = process.env.RESEND_API_KEY;
  * only delivers to the account owner's own address — useful before the real
  * domain is verified.
  */
-const from = process.env.EMAIL_FROM ?? 'Taskeeper <invites@taskeeper.app>';
+const from = process.env.EMAIL_FROM ?? 'Taskeeper <onboarding@resend.dev>';
 
 /**
- * Without an API key, invitations log their link to the server console instead
+ * Without an API key, emails log their link to the server console instead
  * of failing. Development and CI then work with no external account, and the
- * invite flow is still fully exercisable.
+ * invite and verification flows are still fully exercisable.
  */
 export async function sendInviteEmail(
   to: string,
   url: string,
   workspaceName: string,
 ): Promise<void> {
+  await send('invite', to, url, {
+    subject: `Join ${workspaceName} on Taskeeper`,
+    text: `You have been invited to join ${workspaceName}.\n\nAccept: ${url}\n\nThis link expires in 7 days.`,
+  });
+}
+
+export async function sendVerificationEmail(to: string, url: string): Promise<void> {
+  await send('verify-email', to, url, {
+    subject: 'Verify your email for Taskeeper',
+    text: `Confirm this is your email address to finish setting up your Taskeeper account.\n\nVerify: ${url}\n\nThis link expires in 1 hour. If you did not sign up, ignore this email.`,
+  });
+}
+
+async function send(
+  kind: string,
+  to: string,
+  url: string,
+  message: { subject: string; text: string },
+): Promise<void> {
   if (!apiKey) {
-    console.info(`[invite] ${to} -> ${url} (${workspaceName})`);
+    console.info(`[${kind}] ${to} -> ${url}`);
     return;
   }
 
@@ -29,14 +48,9 @@ export async function sendInviteEmail(
   // The SDK reports API failures (unverified domain, restricted key, rate
   // limit) in `error` rather than by throwing, so an unchecked call looks like
   // a successful send while nothing is delivered.
-  const { error } = await resend.emails.send({
-    from,
-    to,
-    subject: `Join ${workspaceName} on Taskeeper`,
-    text: `You have been invited to join ${workspaceName}.\n\nAccept: ${url}\n\nThis link expires in 7 days.`,
-  });
+  const { error } = await resend.emails.send({ from, to, ...message });
 
   if (error) {
-    throw new Error(`Resend rejected the invite to ${to}: ${error.name} — ${error.message}`);
+    throw new Error(`Resend rejected the ${kind} email to ${to}: ${error.name} — ${error.message}`);
   }
 }
