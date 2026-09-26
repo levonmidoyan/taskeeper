@@ -1,20 +1,13 @@
 import { IconArrowLeft } from '@tabler/icons-react';
 import { headers } from 'next/headers';
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { UserButton } from '@/components/auth/user/user-button';
 import { auth } from '@/lib/auth';
 
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect('/auth/sign-in');
-
-  // The admin API refuses non-admins on its own; this keeps the screen itself
-  // from existing for them. Same check the users table makes client-side.
-  const { success } = await auth.api.userHasPermission({
-    body: { userId: session.user.id, permissions: { user: ['list'] } },
-  });
-  if (!success) notFound();
+  if (!session) redirect('/auth/sign-in?redirectTo=/settings');
 
   return (
     <div className="min-h-dvh bg-bg-white-0">
@@ -28,7 +21,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </Link>
         <UserButton size="icon" align="end" />
       </header>
-      <main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">{children}</main>
+      <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6 sm:px-6">
+        <h1 className="text-title-h5 text-text-strong-950">Settings</h1>
+        {children}
+      </main>
     </div>
   );
 }

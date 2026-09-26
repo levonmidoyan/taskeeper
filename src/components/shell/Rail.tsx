@@ -96,7 +96,7 @@ function RailBody({ workspaceSlug, workspaces, projects }: Props) {
           <ThemeControl />
         </div>
         {/* No account settings screen yet, so the built-in Settings link would dead-end. */}
-        <UserButton side="top" align="start" hideSettings className="mt-2 w-full justify-start px-2.5" />
+        <UserButton side="top" align="start" className="mt-2 w-full justify-start px-2.5" />
       </div>
     </nav>
   );

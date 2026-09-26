@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { authClient } from '@/lib/auth-client';
 import { adminPlugin } from '@/lib/auth-ui/admin-plugin';
+import { deviceAuthorizationPlugin } from '@/lib/auth-ui/device-authorization-plugin';
 import { safeNextPath } from '@/lib/next-path';
 import { getQueryClient } from '@/lib/query-client';
 
@@ -24,7 +25,7 @@ export function Providers({
         authClient={authClient}
         queryClient={getQueryClient()}
         redirectTo="/"
-        plugins={[adminPlugin({ impersonationRedirectTo: '/' })]}
+        plugins={[adminPlugin({ impersonationRedirectTo: '/' }), deviceAuthorizationPlugin()]}
         emailAndPassword={{
           requireEmailVerification,
           // The server has no reset-password email yet, so the link would dead-end.

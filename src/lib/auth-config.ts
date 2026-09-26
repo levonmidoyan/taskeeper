@@ -19,3 +19,14 @@ export function adminUserIds(): string[] {
     .map((id) => id.trim())
     .filter(Boolean);
 }
+
+/**
+ * Client IDs allowed to start the device authorization flow. Comma-separated.
+ * Empty accepts any client ID, which is Better Auth's own default.
+ */
+export function deviceClientIds(): string[] {
+  return (process.env.AUTH_DEVICE_CLIENT_IDS ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+}

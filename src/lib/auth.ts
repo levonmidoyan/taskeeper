@@ -1,10 +1,10 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
-import { admin, organization } from 'better-auth/plugins';
+import { admin, deviceAuthorization, organization } from 'better-auth/plugins';
 import { db } from '@/db';
 import * as schema from '@/db/schema';
-import { adminUserIds, requireEmailVerification } from '@/lib/auth-config';
+import { adminUserIds, deviceClientIds, requireEmailVerification } from '@/lib/auth-config';
 import { sendVerificationEmail } from '@/lib/email';
 import { appUrl, trustedOrigins } from '@/lib/url';
 
@@ -20,6 +20,11 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: 8,
     requireEmailVerification: requireEmailVerification(),
+  },
+  user: {
+    // Settings → Account. Better Auth mails the new address a verification link
+    // (through sendVerificationEmail below) and switches only once it is clicked.
+    changeEmail: { enabled: true },
   },
   emailVerification: {
     sendVerificationEmail: ({ user, url }) => sendVerificationEmail(user.email, url),
@@ -39,6 +44,16 @@ export const auth = betterAuth({
     // App-wide admin (user management, bans, impersonation) — separate from the
     // per-workspace owner/admin/member roles, which live on `member`.
     admin({ adminUserIds: adminUserIds() }),
+    // OAuth 2.0 device flow (RFC 8628) for CLIs and TVs: the device shows a code,
+    // the user enters it at /auth/device and approves. Codes default to 8 chars,
+    // matching the UI plugin's userCodeLength.
+    deviceAuthorization({
+      verificationUri: '/auth/device',
+      validateClient: (clientId) => {
+        const allowed = deviceClientIds();
+        return allowed.length === 0 || allowed.includes(clientId);
+      },
+    }),
     // nextCookies must be last: it wraps the response so Server Actions can set
     // cookies. Any plugin after it would not have its cookies applied.
     nextCookies(),

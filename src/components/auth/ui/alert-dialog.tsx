@@ -28,6 +28,15 @@ export const AlertDialogContent = React.forwardRef<
 ));
 AlertDialogContent.displayName = 'AlertDialogContent';
 
+export function AlertDialogMedia({ className, ...props }: React.ComponentProps<'div'>) {
+  return (
+    <div
+      className={cn('mb-2 flex size-10 items-center justify-center rounded-full [&_svg]:size-5', className)}
+      {...props}
+    />
+  );
+}
+
 export function AlertDialogCancel({
   variant = 'outline',
   ...props
