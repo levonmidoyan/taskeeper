@@ -39,8 +39,13 @@ describe('UI dependency rules (spec §9)', () => {
 
   it('keeps hex colours out of app code', () => {
     // Vendored Align/Kibo source keeps upstream's literal SVG fills and masks (spec §9).
+    // Email templates get the Align palette as literal hex: mail clients
+    // understand neither CSS variables nor oklch.
     const vendored = [join('src', 'components', 'ui'), join('src', 'components', 'kibo-ui')];
-    const appFiles = files.filter((f) => /\.tsx?$/.test(f) && !vendored.some((v) => f.startsWith(v)));
+    const emails = join('src', 'lib', 'email.tsx');
+    const appFiles = files.filter(
+      (f) => /\.tsx?$/.test(f) && f !== emails && !vendored.some((v) => f.startsWith(v)),
+    );
     for (const file of appFiles) {
       expect(read(file), file).not.toMatch(/#[0-9a-fA-F]{3,8}\b(?![\w-])/);
     }

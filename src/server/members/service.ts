@@ -51,12 +51,18 @@ export async function inviteMember(
     const [ws] = await db
       .select({ name: organization.name })
       .from(organization).where(eq(organization.id, ctx.workspaceId)).limit(1);
+    const [inviter] = await db
+      .select({ name: user.name, email: user.email })
+      .from(user).where(eq(user.id, ctx.userId)).limit(1);
 
-    await sendInviteEmail(
-      parsed.data.email,
-      `${appUrl()}/invite/${id}`,
-      ws?.name ?? 'the workspace',
-    );
+    await sendInviteEmail({
+      to: parsed.data.email,
+      url: `${appUrl()}/invite/${id}`,
+      workspaceName: ws?.name ?? 'the workspace',
+      role: parsed.data.role,
+      inviter,
+      expiresInDays: INVITE_TTL_DAYS,
+    });
 
     return ok({ invitationId: id });
   });

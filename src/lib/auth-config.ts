@@ -30,3 +30,15 @@ export function deviceClientIds(): string[] {
     .map((id) => id.trim())
     .filter(Boolean);
 }
+
+/**
+ * Google OAuth client, or null when not configured — the Google button then
+ * stays hidden. Read on the server and handed to the client provider, like
+ * requireEmailVerification. Callback URL to register in Google Cloud:
+ * <BETTER_AUTH_URL>/api/auth/callback/google
+ */
+export function googleCredentials(): { clientId: string; clientSecret: string } | null {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  return clientId && clientSecret ? { clientId, clientSecret } : null;
+}

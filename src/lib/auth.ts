@@ -4,8 +4,18 @@ import { nextCookies } from 'better-auth/next-js';
 import { admin, deviceAuthorization, organization } from 'better-auth/plugins';
 import { db } from '@/db';
 import * as schema from '@/db/schema';
-import { adminUserIds, deviceClientIds, requireEmailVerification } from '@/lib/auth-config';
-import { sendVerificationEmail } from '@/lib/email';
+import {
+  adminUserIds,
+  deviceClientIds,
+  googleCredentials,
+  requireEmailVerification,
+} from '@/lib/auth-config';
+import {
+  sendChangeEmailConfirmation,
+  sendPasswordChangedEmail,
+  sendResetPasswordEmail,
+  sendVerificationEmail,
+} from '@/lib/email';
 import { appUrl, trustedOrigins } from '@/lib/url';
 
 export const auth = betterAuth({
@@ -20,11 +30,28 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: 8,
     requireEmailVerification: requireEmailVerification(),
+    sendResetPassword: ({ user, url }) => sendResetPasswordEmail(user.email, url),
+    onPasswordReset: ({ user }) => sendPasswordChangedEmail(user.email),
+    // A reset is how a locked-out owner takes the account back; sessions opened
+    // with the old password must not outlive it.
+    revokeSessionsOnPasswordReset: true,
   },
+  // Google sign-in and sign-up share one button: an unknown Google account gets
+  // a new user. Off until both credentials are set, so dev and CI need none.
+  socialProviders: (() => {
+    const google = googleCredentials();
+    return google ? { google } : {};
+  })(),
   user: {
-    // Settings → Account. Better Auth mails the new address a verification link
-    // (through sendVerificationEmail below) and switches only once it is clicked.
-    changeEmail: { enabled: true },
+    // Settings → Account. The current address approves the change first
+    // (sendChangeEmailConfirmation); Better Auth then mails the new address a
+    // verification link (sendVerificationEmail below) and switches only once
+    // it is clicked.
+    changeEmail: {
+      enabled: true,
+      sendChangeEmailConfirmation: ({ user, newEmail, url }) =>
+        sendChangeEmailConfirmation(user.email, newEmail, url),
+    },
   },
   emailVerification: {
     sendVerificationEmail: ({ user, url }) => sendVerificationEmail(user.email, url),
