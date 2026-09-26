@@ -1,6 +1,6 @@
 'use client';
 
-import { IconCheck, IconPlus, IconSelector } from '@tabler/icons-react';
+import { IconCheck, IconPlus, IconSelector, IconSettings, IconUsers } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import * as Dropdown from '@/components/ui/dropdown';
 import type { WorkspaceSummary } from '@/server/workspaces/queries';
@@ -32,6 +32,15 @@ export function WorkspaceSwitcher({
             <span className="truncate">{workspace.name}</span>
           </Dropdown.Item>
         ))}
+        <Dropdown.Separator />
+        <Dropdown.Item onSelect={() => router.push(`/${current}/settings/general`)}>
+          <Dropdown.ItemIcon as={IconSettings} />
+          Workspace settings
+        </Dropdown.Item>
+        <Dropdown.Item onSelect={() => router.push(`/${current}/settings/members`)}>
+          <Dropdown.ItemIcon as={IconUsers} />
+          Members
+        </Dropdown.Item>
         <Dropdown.Separator />
         <Dropdown.Item onSelect={() => router.push('/new-workspace')}>
           <Dropdown.ItemIcon as={IconPlus} />

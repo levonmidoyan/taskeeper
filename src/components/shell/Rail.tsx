@@ -1,8 +1,8 @@
 'use client';
 
-import { IconMenu2, IconSettings } from '@tabler/icons-react';
+import { IconMenu2 } from '@tabler/icons-react';
 import Link from 'next/link';
-import { useParams, usePathname } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { UserButton } from '@/components/auth/user/user-button';
 import { NewProjectDialog } from '@/components/shell/NewProjectDialog';
@@ -27,10 +27,7 @@ const navIdle = 'text-text-sub-600 hover:bg-bg-weak-50 hover:text-text-strong-95
 const navActive = 'bg-bg-weak-50 text-text-strong-950';
 
 function RailBody({ workspaceSlug, workspaces, projects }: Props) {
-  const pathname = usePathname();
   const params = useParams<{ projectId?: string }>();
-  const onMembers = pathname.endsWith('/settings/members');
-  const onGeneral = pathname.endsWith('/settings/general');
 
   return (
     <nav
@@ -76,21 +73,6 @@ function RailBody({ workspaceSlug, workspaces, projects }: Props) {
       </div>
 
       <div className="space-y-1 border-t border-stroke-soft-200 pt-3">
-        <Link
-          href={`/${workspaceSlug}/settings/members`}
-          aria-current={onMembers ? 'page' : undefined}
-          className={cn(navItem, 'h-10', onMembers ? navActive : navIdle)}
-        >
-          <IconSettings className="size-5" aria-hidden="true" />
-          Settings
-        </Link>
-        <Link
-          href={`/${workspaceSlug}/settings/general`}
-          aria-current={onGeneral ? 'page' : undefined}
-          className={cn(navItem, 'h-10 pl-9', onGeneral ? navActive : navIdle)}
-        >
-          General
-        </Link>
         <div className="flex items-center justify-between px-2.5 pt-2">
           <span className="text-paragraph-xs text-text-soft-400">Theme</span>
           <ThemeControl />

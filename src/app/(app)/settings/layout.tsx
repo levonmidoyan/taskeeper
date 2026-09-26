@@ -1,30 +1,35 @@
-import { IconArrowLeft } from '@tabler/icons-react';
-import { headers } from 'next/headers';
-import Link from 'next/link';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { UserButton } from '@/components/auth/user/user-button';
+import { WorkspaceShell } from '@/components/shell/WorkspaceShell';
 import { auth } from '@/lib/auth';
+import { LAST_WORKSPACE_COOKIE } from '@/lib/last-workspace';
+import { resolveWorkspace } from '@/lib/session';
+import { listMyWorkspaces } from '@/server/workspaces/queries';
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect('/auth/sign-in?redirectTo=/settings');
 
+  // Account settings have no workspace in the URL. Keep the rail of the one the
+  // user came from; the cookie is only a hint, so membership is checked again.
+  const remembered = (await cookies()).get(LAST_WORKSPACE_COOKIE)?.value;
+  let ctx = remembered ? await resolveWorkspace(session.user.id, remembered) : null;
+  if (!ctx) {
+    const [first] = await listMyWorkspaces(session.user.id);
+    if (!first) redirect('/new-workspace');
+    ctx = await resolveWorkspace(session.user.id, first.slug);
+    if (!ctx) redirect('/new-workspace');
+  }
+
   return (
-    <div className="min-h-dvh bg-bg-white-0">
-      <header className="flex items-center justify-between gap-3 border-b border-stroke-soft-200 px-4 py-2 sm:px-6">
-        <Link
-          href="/"
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-label-sm text-text-sub-600 transition-colors duration-150 hover:bg-bg-weak-50 hover:text-text-strong-950"
-        >
-          <IconArrowLeft className="size-4" aria-hidden="true" />
-          Back to app
-        </Link>
-        <UserButton size="icon" align="end" />
-      </header>
-      <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6 sm:px-6">
-        <h1 className="text-title-h5 text-text-strong-950">Settings</h1>
+    <WorkspaceShell ctx={ctx} userName={session.user.name}>
+      <main className="mx-auto max-w-3xl space-y-8 px-4 py-6 pl-16 lg:px-6 lg:pl-6">
+        <div>
+          <h1 className="text-title-h5 text-text-strong-950">Account</h1>
+          <p className="mt-1 text-paragraph-sm text-text-sub-600">Your profile, sign-in and sessions.</p>
+        </div>
         {children}
       </main>
-    </div>
+    </WorkspaceShell>
   );
 }
