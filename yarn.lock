@@ -212,6 +212,79 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@better-auth-ui/core@npm:1.7.26":
+  version: 1.7.26
+  resolution: "@better-auth-ui/core@npm:1.7.26"
+  dependencies:
+    libphonenumber-js: "npm:^1.13.11"
+    uqr: "npm:^0.1.3"
+  peerDependencies:
+    "@better-auth/agent-auth": ">=0.6.2"
+    "@better-auth/api-key": ">=1.7.0"
+    "@better-auth/infra": ">=0.4.1"
+    "@better-auth/oauth-provider": ">=1.7.0"
+    "@better-auth/passkey": ">=1.7.0"
+    "@better-auth/sso": ">=1.7.0"
+    "@better-auth/stripe": ">=1.7.0"
+    "@commet/better-auth": ">=8.1.0"
+    "@creem_io/better-auth": ">=1.1.4"
+    "@dodopayments/better-auth": ">=1.6.5"
+    "@mikkelscheike/email-provider-links": ">=5.2.1"
+    "@polar-sh/better-auth": ">=1.7.0"
+    "@tanstack/query-core": ">=5.101.2"
+    autumn-js: ">=1.2.53"
+    better-auth: ">=1.7.0"
+  peerDependenciesMeta:
+    "@better-auth/api-key":
+      optional: true
+    "@better-auth/infra":
+      optional: true
+    "@better-auth/oauth-provider":
+      optional: true
+    "@better-auth/passkey":
+      optional: true
+    "@better-auth/sso":
+      optional: true
+    "@better-auth/stripe":
+      optional: true
+    "@commet/better-auth":
+      optional: true
+    "@creem_io/better-auth":
+      optional: true
+    "@dodopayments/better-auth":
+      optional: true
+    "@polar-sh/better-auth":
+      optional: true
+    autumn-js:
+      optional: true
+  checksum: 10c0/24c3009ffd8d4af3c6463e75ae73a733b1d2d23c871c6d2ba664996b41a499886aff509d1b4f848342a049a441978526144d61901727eac56c76e4262c014564
+  languageName: node
+  linkType: hard
+
+"@better-auth-ui/react@npm:1.7.26":
+  version: 1.7.26
+  resolution: "@better-auth-ui/react@npm:1.7.26"
+  peerDependencies:
+    "@better-auth-ui/core": "*"
+    "@better-auth/api-key": ">=1.7.0"
+    "@better-auth/passkey": ">=1.7.0"
+    "@tanstack/query-core": ">=5.101.2"
+    "@tanstack/react-query": ">=5.101.2"
+    better-auth: ">=1.7.0"
+    clsx: ">=2.0.0"
+    react: ">=19.2.6"
+    react-dom: ">=19.2.6"
+    react-email: ">=6.0.0"
+    tailwind-merge: ">=3.5.0"
+    tailwindcss: ">=4.3.2"
+    zod: ">=4.4.3"
+  peerDependenciesMeta:
+    react-email:
+      optional: true
+  checksum: 10c0/071241b8926f5ba0fd37cf59f5b35d5b55f53c35187da8d65a4831b407880c948dab8016e1de5af24e2b1b9a31d93ab619636b7c8fd19f24abe91195239d33da
+  languageName: node
+  linkType: hard
+
 "@better-auth/core@npm:1.7.5":
   version: 1.7.5
   resolution: "@better-auth/core@npm:1.7.5"
@@ -1546,6 +1619,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@mikkelscheike/email-provider-links@npm:6.0.0":
+  version: 6.0.0
+  resolution: "@mikkelscheike/email-provider-links@npm:6.0.0"
+  checksum: 10c0/611cd7f2aae71e1ff52a11cba4360ba02a163af54034c35a6e5c5889983aeef2cfd004c0f5410fd3d85d29a0936cfe5775029a67e2119ca3e2d0bc0dc1cd1efd
+  languageName: node
+  linkType: hard
+
 "@napi-rs/wasm-runtime@npm:^1.1.4":
   version: 1.2.4
   resolution: "@napi-rs/wasm-runtime@npm:1.2.4"
@@ -2271,6 +2351,32 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@radix-ui/react-tabs@npm:1.1.21":
+  version: 1.1.21
+  resolution: "@radix-ui/react-tabs@npm:1.1.21"
+  dependencies:
+    "@radix-ui/primitive": "npm:1.1.7"
+    "@radix-ui/react-context": "npm:1.2.2"
+    "@radix-ui/react-direction": "npm:1.1.4"
+    "@radix-ui/react-id": "npm:1.1.4"
+    "@radix-ui/react-presence": "npm:1.1.10"
+    "@radix-ui/react-primitive": "npm:2.1.10"
+    "@radix-ui/react-roving-focus": "npm:1.1.19"
+    "@radix-ui/react-use-controllable-state": "npm:1.2.6"
+  peerDependencies:
+    "@types/react": "*"
+    "@types/react-dom": "*"
+    react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+  peerDependenciesMeta:
+    "@types/react":
+      optional: true
+    "@types/react-dom":
+      optional: true
+  checksum: 10c0/9ed747ec592b04efc57bc1b124b9b4b4bb80011167ea5d87ea99955a88fa3a84df2e78a8ffaa1a15e2ba3d9598b6d8a8c28664fc3712aa8627c0e37267389652
+  languageName: node
+  linkType: hard
+
 "@radix-ui/react-tooltip@npm:1.2.16":
   version: 1.2.16
   resolution: "@radix-ui/react-tooltip@npm:1.2.16"
@@ -2763,6 +2869,139 @@ __metadata:
     postcss: "npm:^8.5.16"
     tailwindcss: "npm:4.3.3"
   checksum: 10c0/50b33643a4ba50c0d2ea0fd769d16072b0b3d2f31180df667fe5ad4ef60464b5f00931cfd5f2de2116a91219edb7a2dbd4c073b5c2f23393eab6ef1163db8dbf
+  languageName: node
+  linkType: hard
+
+"@tanstack/devtools-event-client@npm:^0.4.1":
+  version: 0.4.4
+  resolution: "@tanstack/devtools-event-client@npm:0.4.4"
+  bin:
+    intent: ./bin/intent.js
+  checksum: 10c0/81884dc159fb30f896a804f2c0da2c3de75da1a7686850d3d59dedce4d583ea533a0396f9d27fb72f04134116a6193d9e52396674c29adb8be31fb331224e746
+  languageName: node
+  linkType: hard
+
+"@tanstack/devtools-event-client@npm:^0.5.0":
+  version: 0.5.0
+  resolution: "@tanstack/devtools-event-client@npm:0.5.0"
+  bin:
+    intent: ./bin/intent.js
+  checksum: 10c0/286ba434613c2663f2bf8bcd190d771d531464ee5f8bda87cf959f35213a1a92f7b0f29fffc4e581dd2019b2e40bd7dfa7bc70a60abb325dd0f35fc07a3cbc1a
+  languageName: node
+  linkType: hard
+
+"@tanstack/form-core@npm:1.33.5":
+  version: 1.33.5
+  resolution: "@tanstack/form-core@npm:1.33.5"
+  dependencies:
+    "@tanstack/devtools-event-client": "npm:^0.4.1"
+    "@tanstack/pacer-lite": "npm:^0.1.1"
+    "@tanstack/store": "npm:^0.11.0"
+  checksum: 10c0/626bb5555e1c654bba8eb3ea38a415de52ebdfcd2e8189f2e7c91cb4d8355d81194276bece3067ca0709acfb2d02bdca4393550d84ecfde11378ad57f2b60f5f
+  languageName: node
+  linkType: hard
+
+"@tanstack/pacer-lite@npm:^0.1.1":
+  version: 0.1.1
+  resolution: "@tanstack/pacer-lite@npm:0.1.1"
+  checksum: 10c0/c74c2e67dba3a14cd14134c27cff4856977c9019cf4dbe6a545a06960f4c9c8edad846e526595206aa01c42cc5cd5ee217761547ab6d2a3edec6fb3d69864686
+  languageName: node
+  linkType: hard
+
+"@tanstack/pacer@npm:0.22.0":
+  version: 0.22.0
+  resolution: "@tanstack/pacer@npm:0.22.0"
+  dependencies:
+    "@tanstack/devtools-event-client": "npm:^0.5.0"
+    "@tanstack/store": "npm:^0.11.1"
+  checksum: 10c0/cad4f473977d27ecebb423acb87dc87f6e38afa21e72d6e39cf466afd97258d98d5f6eb245eaff76aa9d8edba6d2409ec208b737f77390116bfbff7043280063
+  languageName: node
+  linkType: hard
+
+"@tanstack/query-core@npm:5.104.0":
+  version: 5.104.0
+  resolution: "@tanstack/query-core@npm:5.104.0"
+  checksum: 10c0/e080454f308dc41bf0e52e46aac455af3112f454519d369740aacaec4d260a3bfddde569204908ff7a6e1b1b84f8e065e0ac1375555e2bc1b023d398c0b44f96
+  languageName: node
+  linkType: hard
+
+"@tanstack/react-form@npm:1.33.5":
+  version: 1.33.5
+  resolution: "@tanstack/react-form@npm:1.33.5"
+  dependencies:
+    "@tanstack/form-core": "npm:1.33.5"
+    "@tanstack/react-store": "npm:^0.11.0"
+  peerDependencies:
+    react: ^17.0.0 || ^18.0.0 || ^19.0.0
+  peerDependenciesMeta:
+    "@tanstack/react-start":
+      optional: true
+  checksum: 10c0/035991b6589000f763dedcdf99a216d7eef2d58e7c98d9f6106738b14fe13e0141c4f515809f171107c80c432ba68d16ec72e9ebc8ad31dba8150db9fdc22a95
+  languageName: node
+  linkType: hard
+
+"@tanstack/react-pacer@npm:0.23.0":
+  version: 0.23.0
+  resolution: "@tanstack/react-pacer@npm:0.23.0"
+  dependencies:
+    "@tanstack/pacer": "npm:0.22.0"
+    "@tanstack/react-store": "npm:^0.11.1"
+  peerDependencies:
+    react: ">=16.8"
+    react-dom: ">=16.8"
+  checksum: 10c0/337bf279fc334017d7acf0d4589fed05189cb9d424f83a3ffdc2514a1167ae76d2dc45788bc3c696c04598e959f1b3c41a8847407413f48c2dca2e624faf98dd
+  languageName: node
+  linkType: hard
+
+"@tanstack/react-query@npm:5.104.0":
+  version: 5.104.0
+  resolution: "@tanstack/react-query@npm:5.104.0"
+  dependencies:
+    "@tanstack/query-core": "npm:5.104.0"
+  peerDependencies:
+    react: ^18 || ^19
+  checksum: 10c0/efcf6328c95847c99e4b41c6e68f74d303b8e9eef673473648643dd2fcc8d9d3368223f27a4e510526f3fa3fd5508554e804141a67a9cf37c90842f8639cb430
+  languageName: node
+  linkType: hard
+
+"@tanstack/react-store@npm:0.11.1, @tanstack/react-store@npm:^0.11.0, @tanstack/react-store@npm:^0.11.1":
+  version: 0.11.1
+  resolution: "@tanstack/react-store@npm:0.11.1"
+  dependencies:
+    "@tanstack/store": "npm:0.11.1"
+    use-sync-external-store: "npm:^1.6.0"
+  peerDependencies:
+    react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+  checksum: 10c0/9b43ea1b07cfed9100b9d037a339e6dbef17ff8e7fd4b8968ef76b75c97a20ec3627345adca94135664d6fccd88f48622e1e871c64738ff2f0b0ce24ce365dfd
+  languageName: node
+  linkType: hard
+
+"@tanstack/react-table@npm:9.2.4":
+  version: 9.2.4
+  resolution: "@tanstack/react-table@npm:9.2.4"
+  dependencies:
+    "@tanstack/react-store": "npm:^0.11.1"
+    "@tanstack/table-core": "npm:9.2.4"
+  peerDependencies:
+    react: ">=18"
+  checksum: 10c0/f68d6da9850e7783773a035186e11744dacaf5ca61075766ecc7d4b5266af2e4afec005f19ac664c1deba6bf5b7586fed90a67372c82127afd8fdaf0473e73b4
+  languageName: node
+  linkType: hard
+
+"@tanstack/store@npm:0.11.1, @tanstack/store@npm:^0.11.0, @tanstack/store@npm:^0.11.1":
+  version: 0.11.1
+  resolution: "@tanstack/store@npm:0.11.1"
+  checksum: 10c0/36e308f3a5037a4d79e2b2ea9f6f4015a617fcd7cb8ff541fe50869b015fb8753b267a8c24709ad197c4c3b5fd85207edc4f71eccaf9b0d311f62336a9cf7764
+  languageName: node
+  linkType: hard
+
+"@tanstack/table-core@npm:9.2.4":
+  version: 9.2.4
+  resolution: "@tanstack/table-core@npm:9.2.4"
+  dependencies:
+    "@tanstack/store": "npm:^0.11.1"
+  checksum: 10c0/fae9e7f3028f45eb2cd3e831365e398a92030d685acdd0458c3c2245eb8456176abd0d5ca208ea58eb9e7a4ccc666c26986269c93bc4ce25603866805bb837b9
   languageName: node
   linkType: hard
 
@@ -4034,6 +4273,13 @@ __metadata:
   dependencies:
     require-from-string: "npm:^2.0.2"
   checksum: 10c0/b608addec6bd6e5d1c0cc7b6116002d589c6e666966503aca2aa7b2f61717ecaaeb0ac1a16c1374d61ee757de4f2f24017312a70781f5c4b127ffab54a2f7187
+  languageName: node
+  linkType: hard
+
+"bowser@npm:2.14.1":
+  version: 2.14.1
+  resolution: "bowser@npm:2.14.1"
+  checksum: 10c0/bb69b55ba7f0456e3dc07d0cfd9467f985581f640ba8fd426b08754a6737ee0d6cf3b50607941e5255f04c83075b952ece0599f978dd4d20f1e95461104c5ffd
   languageName: node
   linkType: hard
 
@@ -5891,6 +6137,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"input-otp@npm:1.5.0":
+  version: 1.5.0
+  resolution: "input-otp@npm:1.5.0"
+  peerDependencies:
+    react: ^16.8 || ^17.0 || ^18.0 || ^19.0.0 || ^19.0.0-rc
+    react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0.0 || ^19.0.0-rc
+  checksum: 10c0/08e43da5f654a5b93051c92c83a9af6aed8313b218488de41ddb099947e2c9cf6c42e295beb9ad05473e8d1713af64f85fae9185ee0139368702f8a5527b8334
+  languageName: node
+  linkType: hard
+
 "internal-slot@npm:^1.1.0":
   version: 1.1.0
   resolution: "internal-slot@npm:1.1.0"
@@ -6401,6 +6657,13 @@ __metadata:
     prelude-ls: "npm:^1.2.1"
     type-check: "npm:~0.4.0"
   checksum: 10c0/effb03cad7c89dfa5bd4f6989364bfc79994c2042ec5966cb9b95990e2edee5cd8969ddf42616a0373ac49fac1403437deaf6e9050fbbaa3546093a59b9ac94e
+  languageName: node
+  linkType: hard
+
+"libphonenumber-js@npm:^1.13.11":
+  version: 1.13.14
+  resolution: "libphonenumber-js@npm:1.13.14"
+  checksum: 10c0/262100ad46f9507bf4087f6a00241eb628c1427d0b26b24442e3e39df61ffd2d42e9c65bfc35200c9e204b2e9b5d2b696e506022113d0e9b659a8c3fed096b2e
   languageName: node
   linkType: hard
 
@@ -9056,10 +9319,13 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "taskeeper@workspace:."
   dependencies:
+    "@better-auth-ui/core": "npm:1.7.26"
+    "@better-auth-ui/react": "npm:1.7.26"
     "@dnd-kit/core": "npm:6.3.1"
     "@dnd-kit/sortable": "npm:10.0.0"
     "@dnd-kit/utilities": "npm:3.2.2"
     "@floating-ui/dom": "npm:1.8.0"
+    "@mikkelscheike/email-provider-links": "npm:6.0.0"
     "@playwright/test": "npm:1.58.0"
     "@radix-ui/react-dialog": "npm:1.1.23"
     "@radix-ui/react-dropdown-menu": "npm:2.1.24"
@@ -9070,9 +9336,16 @@ __metadata:
     "@radix-ui/react-select": "npm:2.3.7"
     "@radix-ui/react-slot": "npm:1.3.3"
     "@radix-ui/react-switch": "npm:1.3.7"
+    "@radix-ui/react-tabs": "npm:1.1.21"
     "@radix-ui/react-tooltip": "npm:1.2.16"
     "@tabler/icons-react": "npm:3.48.0"
     "@tailwindcss/postcss": "npm:^4"
+    "@tanstack/query-core": "npm:5.104.0"
+    "@tanstack/react-form": "npm:1.33.5"
+    "@tanstack/react-pacer": "npm:0.23.0"
+    "@tanstack/react-query": "npm:5.104.0"
+    "@tanstack/react-store": "npm:0.11.1"
+    "@tanstack/react-table": "npm:9.2.4"
     "@tiptap/core": "npm:3.31.3"
     "@tiptap/extension-list": "npm:3.31.3"
     "@tiptap/extensions": "npm:3.31.3"
@@ -9087,6 +9360,7 @@ __metadata:
     "@types/react": "npm:^19"
     "@types/react-dom": "npm:^19"
     better-auth: "npm:1.7.5"
+    bowser: "npm:2.14.1"
     clsx: "npm:2.1.1"
     cmdk: "npm:1.1.1"
     dotenv: "npm:17.2.3"
@@ -9095,6 +9369,7 @@ __metadata:
     eslint: "npm:^9"
     eslint-config-next: "npm:16.3.5"
     fractional-indexing: "npm:3.2.0"
+    input-otp: "npm:1.5.0"
     jsdom: "npm:30.1.1"
     motion: "npm:13.4.3"
     nanoid: "npm:5.1.6"
@@ -9591,6 +9866,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"uqr@npm:^0.1.3":
+  version: 0.1.3
+  resolution: "uqr@npm:0.1.3"
+  checksum: 10c0/7e0ef173b736fb5c93179659b4fe0720c803d45fa8628aaf2715a399b33a15a3d26d9001e05e026421d544a814e971cf0fa66b481edb649d256e7a17d79777c0
+  languageName: node
+  linkType: hard
+
 "uri-js@npm:^4.2.2":
   version: 4.4.1
   resolution: "uri-js@npm:4.4.1"
@@ -9641,7 +9923,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"use-sync-external-store@npm:^1.2.2, use-sync-external-store@npm:^1.4.0":
+"use-sync-external-store@npm:^1.2.2, use-sync-external-store@npm:^1.4.0, use-sync-external-store@npm:^1.6.0":
   version: 1.7.0
   resolution: "use-sync-external-store@npm:1.7.0"
   peerDependencies:

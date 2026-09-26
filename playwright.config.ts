@@ -21,11 +21,13 @@ export default defineConfig({
     timeout: 180_000,
     // The e2e run uses the test database, not the development one. It also
     // turns off better-auth's rate limiter, which several sign-ups in a row
-    // from one address would otherwise trip.
+    // from one address would otherwise trip, and email verification, which
+    // needs an inbox the browser cannot reach.
     env: {
       DATABASE_URL: process.env.DATABASE_URL_TEST!,
       TZ: 'UTC',
       AUTH_RATE_LIMIT: 'off',
+      AUTH_EMAIL_VERIFICATION: 'off',
     },
   },
 });
