@@ -1,7 +1,13 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
-import { admin, deviceAuthorization, organization } from 'better-auth/plugins';
+import {
+  admin,
+  deviceAuthorization,
+  emailOTP,
+  organization,
+  twoFactor,
+} from 'better-auth/plugins';
 import { db } from '@/db';
 import * as schema from '@/db/schema';
 import {
@@ -11,11 +17,18 @@ import {
   requireEmailVerification,
 } from '@/lib/auth-config';
 import {
+  DELETE_ACCOUNT_LINK_EXPIRY_HOURS,
   sendChangeEmailConfirmation,
+  sendDeleteAccountEmail,
   sendPasswordChangedEmail,
   sendResetPasswordEmail,
+  sendSignInCodeEmail,
+  sendTwoFactorCodeEmail,
   sendVerificationEmail,
+  SIGN_IN_CODE_EXPIRY_MINUTES,
+  TWO_FACTOR_CODE_EXPIRY_MINUTES,
 } from '@/lib/email';
+import { assertAccountDeletable, prepareAccountDeletion } from '@/server/account/deletion';
 import { appUrl, trustedOrigins } from '@/lib/url';
 
 export const auth = betterAuth({
@@ -52,6 +65,18 @@ export const auth = betterAuth({
       sendChangeEmailConfirmation: ({ user, newEmail, url }) =>
         sendChangeEmailConfirmation(user.email, newEmail, url),
     },
+    // Settings → Security → Danger zone. Nothing is deleted until the emailed
+    // link is clicked. A last owner of a shared workspace is refused both when
+    // asking and when confirming; workspaces only they belong to go with them.
+    deleteUser: {
+      enabled: true,
+      deleteTokenExpiresIn: DELETE_ACCOUNT_LINK_EXPIRY_HOURS * 60 * 60,
+      sendDeleteAccountVerification: async ({ user, url }) => {
+        await assertAccountDeletable(user.id);
+        await sendDeleteAccountEmail(user.email, url);
+      },
+      beforeDelete: (user) => prepareAccountDeletion(user.id),
+    },
   },
   emailVerification: {
     sendVerificationEmail: ({ user, url }) => sendVerificationEmail(user.email, url),
@@ -79,6 +104,27 @@ export const auth = betterAuth({
       validateClient: (clientId) => {
         const allowed = deviceClientIds();
         return allowed.length === 0 || allowed.includes(clientId);
+      },
+    }),
+    // Second factor at sign-in, managed from Settings → Security: an
+    // authenticator app (TOTP), a code emailed at sign-in (OTP), and backup
+    // codes. Code lengths stay at the default 6, matching the UI plugin.
+    twoFactor({
+      issuer: 'Taskeeper',
+      otpOptions: {
+        period: TWO_FACTOR_CODE_EXPIRY_MINUTES, // minutes, unlike expiresIn below
+        sendOTP: ({ user, otp }) => sendTwoFactorCodeEmail(user.email, otp),
+      },
+    }),
+    // Passwordless sign-in with an emailed code ("Continue with Email Code").
+    // Sign-in only: verification, password reset and email change keep their
+    // link-based flows. disableSignUp matches the UI plugin's default, which
+    // does not collect a name — new accounts still go through /auth/sign-up.
+    emailOTP({
+      disableSignUp: true,
+      expiresIn: SIGN_IN_CODE_EXPIRY_MINUTES * 60,
+      sendVerificationOTP: async ({ email, otp, type }) => {
+        if (type === 'sign-in') await sendSignInCodeEmail(email, otp);
       },
     }),
     // nextCookies must be last: it wraps the response so Server Actions can set

@@ -6,7 +6,10 @@ import { useRouter } from 'next/navigation';
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { authClient } from '@/lib/auth-client';
 import { adminPlugin } from '@/lib/auth-ui/admin-plugin';
+import { deleteUserPlugin } from '@/lib/auth-ui/delete-user-plugin';
 import { deviceAuthorizationPlugin } from '@/lib/auth-ui/device-authorization-plugin';
+import { emailOtpPlugin } from '@/lib/auth-ui/email-otp-plugin';
+import { twoFactorPlugin } from '@/lib/auth-ui/two-factor-plugin';
 import { safeNextPath } from '@/lib/next-path';
 import { getQueryClient } from '@/lib/query-client';
 
@@ -28,7 +31,14 @@ export function Providers({
         authClient={authClient}
         queryClient={getQueryClient()}
         redirectTo="/"
-        plugins={[adminPlugin({ impersonationRedirectTo: '/' }), deviceAuthorizationPlugin()]}
+        plugins={[
+          adminPlugin({ impersonationRedirectTo: '/' }),
+          deviceAuthorizationPlugin(),
+          // Options mirror the server plugins in src/lib/auth.ts.
+          twoFactorPlugin(),
+          emailOtpPlugin(),
+          deleteUserPlugin({ sendDeleteAccountVerification: true }),
+        ]}
         emailAndPassword={{ requireEmailVerification }}
         socialProviders={google ? ['google'] : []}
         // better-auth-ui takes ?redirectTo= from the URL as-is. An invite link

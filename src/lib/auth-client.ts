@@ -1,10 +1,24 @@
 'use client';
 
-import { adminClient, deviceAuthorizationClient, organizationClient } from 'better-auth/client/plugins';
+import {
+  adminClient,
+  deviceAuthorizationClient,
+  emailOTPClient,
+  organizationClient,
+  twoFactorClient,
+} from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
 
 export const authClient = createAuthClient({
-  plugins: [organizationClient(), adminClient(), deviceAuthorizationClient()],
+  plugins: [
+    organizationClient(),
+    adminClient(),
+    deviceAuthorizationClient(),
+    // No onTwoFactorRedirect: better-auth-ui's sign-in continuation routes a
+    // twoFactorRedirect response to /auth/two-factor itself.
+    twoFactorClient(),
+    emailOTPClient(),
+  ],
 });
 
 export const { signIn, signUp, signOut, useSession } = authClient;

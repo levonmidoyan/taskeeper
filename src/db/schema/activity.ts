@@ -10,7 +10,8 @@ export const comment = pgTable(
     // predicate, never a join through task -> project.
     workspaceId: text('workspace_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
     taskId: text('task_id').notNull().references(() => task.id, { onDelete: 'cascade' }),
-    authorId: text('author_id').notNull().references(() => user.id),
+    // Null once the author deletes their account; the feed shows "Deleted user".
+    authorId: text('author_id').references(() => user.id, { onDelete: 'set null' }),
     body: text('body').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     // Null until the author edits; the UI shows "(edited)" off this, so it is a
@@ -26,7 +27,8 @@ export const taskActivity = pgTable(
     id: text('id').primaryKey(),
     workspaceId: text('workspace_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
     taskId: text('task_id').notNull().references(() => task.id, { onDelete: 'cascade' }),
-    actorId: text('actor_id').notNull().references(() => user.id),
+    // Null once the actor deletes their account; the feed shows "Deleted user".
+    actorId: text('actor_id').references(() => user.id, { onDelete: 'set null' }),
     // Plain text, not a pg enum: the kind list is owned by application code and
     // grows with features, and an enum would need a migration for each addition.
     // The reader validates against ACTIVITY_KINDS.

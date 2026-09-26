@@ -1,8 +1,10 @@
 import {
   ChangeEmailConfirmationEmail,
+  DeleteAccountVerificationEmail,
   type EmailColors,
   EmailVerificationEmail,
   OrganizationInvitationEmail,
+  OtpEmail,
   PasswordChangedEmail,
   ResetPasswordEmail,
 } from '@better-auth-ui/react/email';
@@ -55,6 +57,14 @@ const brand = { appName: 'Taskeeper', colors, darkMode: true, poweredBy: false }
 
 /** Better Auth's default token lifetime for verification and reset links. */
 const LINK_EXPIRY_MINUTES = 60;
+
+/**
+ * Lifetimes of the emailed one-time codes. Passed to the plugins in auth.ts as
+ * well, so the "expires in" line always matches what the server enforces.
+ */
+export const SIGN_IN_CODE_EXPIRY_MINUTES = 5;
+export const TWO_FACTOR_CODE_EXPIRY_MINUTES = 3;
+export const DELETE_ACCOUNT_LINK_EXPIRY_HOURS = 24;
 
 /**
  * Without an API key, emails log their link to the server console instead
@@ -156,6 +166,77 @@ export async function sendChangeEmailConfirmation(
       />
     ),
   });
+}
+
+/** Passwordless sign-in code (email OTP plugin). */
+export async function sendSignInCodeEmail(to: string, code: string): Promise<void> {
+  await sendCode('sign-in-code', to, code, {
+    subject: `${code} is your Taskeeper sign-in code`,
+    email: (
+      <OtpEmail
+        {...brand}
+        verificationCode={code}
+        email={to}
+        expirationMinutes={SIGN_IN_CODE_EXPIRY_MINUTES}
+        localization={{
+          VERIFY_YOUR_EMAIL: 'Sign in to Taskeeper',
+          WE_NEED_TO_VERIFY_YOUR_EMAIL_ADDRESS: 'Enter this code to sign in to {appName}.',
+        }}
+      />
+    ),
+  });
+}
+
+/** Second-factor code for accounts with two-factor authentication turned on. */
+export async function sendTwoFactorCodeEmail(to: string, code: string): Promise<void> {
+  await sendCode('two-factor-code', to, code, {
+    subject: `${code} is your Taskeeper verification code`,
+    email: (
+      <OtpEmail
+        {...brand}
+        verificationCode={code}
+        email={to}
+        expirationMinutes={TWO_FACTOR_CODE_EXPIRY_MINUTES}
+        localization={{
+          VERIFY_YOUR_EMAIL: 'Your verification code',
+          WE_NEED_TO_VERIFY_YOUR_EMAIL_ADDRESS:
+            'Enter this code to finish signing in to {appName}. If you did not just sign in, change your password.',
+        }}
+      />
+    ),
+  });
+}
+
+/** Account deletion only happens once this link is clicked. */
+export async function sendDeleteAccountEmail(to: string, url: string): Promise<void> {
+  await send('delete-account', to, url, {
+    subject: 'Confirm deleting your Taskeeper account',
+    email: (
+      <DeleteAccountVerificationEmail
+        {...brand}
+        url={url}
+        email={to}
+        expirationHours={DELETE_ACCOUNT_LINK_EXPIRY_HOURS}
+      />
+    ),
+  });
+}
+
+/**
+ * Codes are not links, so the console fallback in send() would print nothing
+ * useful; this logs the code itself instead.
+ */
+async function sendCode(
+  kind: string,
+  to: string,
+  code: string,
+  message: { subject: string; email: ReactElement },
+): Promise<void> {
+  if (!apiKey) {
+    console.info(`[${kind}] ${to} -> ${code}`);
+    return;
+  }
+  await send(kind, to, null, message);
 }
 
 async function send(

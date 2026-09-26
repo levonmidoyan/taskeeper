@@ -7,6 +7,7 @@ import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/co
 import { cn } from '@/utils/cn';
 
 export const AlertDialog = Modal.Root;
+export const AlertDialogTrigger = Modal.Trigger;
 export const AlertDialogHeader = DialogHeader;
 export const AlertDialogFooter = DialogFooter;
 export const AlertDialogTitle = DialogTitle;

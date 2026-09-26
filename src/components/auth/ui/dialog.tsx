@@ -5,6 +5,7 @@ import * as Modal from '@/components/ui/modal';
 import { cn } from '@/utils/cn';
 
 export const Dialog = Modal.Root;
+export const DialogClose = Modal.Close;
 
 export const DialogContent = React.forwardRef<
   React.ComponentRef<typeof Modal.Content>,
