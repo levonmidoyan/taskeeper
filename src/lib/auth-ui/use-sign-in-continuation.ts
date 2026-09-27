@@ -25,9 +25,12 @@ import {
  * installable without either the two-factor components or a matching release
  * of `@better-auth-ui/core`.
  *
+ * @param onSignedIn - Replaces the navigation to `redirectTo` once a session
+ *   exists, e.g. to reload after adding an account from a dialog. A second
+ *   factor still goes to the challenge view.
  * @returns A callback taking the resolved data of a sign-in mutation.
  */
-export function useSignInContinuation() {
+export function useSignInContinuation(onSignedIn?: () => void) {
   const { basePaths, navigate, plugins, redirectTo } = useAuth()
 
   const twoFactorPath = plugins.find(
@@ -45,8 +48,9 @@ export function useSignInContinuation() {
         return
       }
 
-      navigate({ to: redirectTo })
+      if (onSignedIn) onSignedIn()
+      else navigate({ to: redirectTo })
     },
-    [basePaths.auth, navigate, redirectTo, twoFactorPath]
+    [basePaths.auth, navigate, onSignedIn, redirectTo, twoFactorPath]
   )
 }

@@ -19,7 +19,13 @@ import {
 import { useIsMutating } from "@tanstack/react-query"
 import { IconEye as Eye, IconEyeOff as EyeOff } from "@tabler/icons-react"
 import { useMemo, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/auth/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from "@/components/auth/ui/card"
 import {
   Field,
   FieldDescription,
@@ -179,6 +185,7 @@ export function SignUp({
         <CardTitle>
           {localization.auth.signUp}
         </CardTitle>
+        <CardDescription>Create your account and get your team moving in minutes.</CardDescription>
       </CardHeader>
 
       <CardContent>

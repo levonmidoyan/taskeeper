@@ -12,6 +12,7 @@ import {
 } from "@/components/auth/ui/dropdown-menu"
 import { UserView } from "@/components/auth/user/user-view"
 import { multiSessionPlugin } from "@/lib/auth-ui/multi-session-plugin"
+import { openAddAccountDialog } from "./add-account-dialog"
 import { SwitchAccountSubmenuItem } from "./switch-account-submenu-item"
 
 /**
@@ -24,8 +25,7 @@ import { SwitchAccountSubmenuItem } from "./switch-account-submenu-item"
  * @returns The switch account submenu content as a JSX element
  */
 export function SwitchAccountSubmenuContent() {
-  const { authClient, basePaths, viewPaths, navigate } =
-    useAuth<MultiSessionAuthClient>()
+  const { authClient } = useAuth<MultiSessionAuthClient>()
   const { localization: multiSessionLocalization } =
     useAuthPlugin(multiSessionPlugin)
   const { data: session } = useSession(authClient)
@@ -52,11 +52,7 @@ export function SwitchAccountSubmenuContent() {
 
       <DropdownMenuSeparator />
 
-      <DropdownMenuItem
-        onClick={() =>
-          navigate({ to: `${basePaths.auth}/${viewPaths.auth.signIn}` })
-        }
-      >
+      <DropdownMenuItem onClick={openAddAccountDialog}>
         <CirclePlus />
 
         {multiSessionLocalization.addAccount}

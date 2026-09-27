@@ -7,7 +7,13 @@ import {
   useRequestPasswordReset
 } from "@better-auth-ui/react"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/auth/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from "@/components/auth/ui/card"
 import {
   Field,
   FieldDescription,
@@ -83,6 +89,7 @@ export function ForgotPassword({ className }: ForgotPasswordProps) {
         <CardTitle>
           {localization.auth.forgotPassword}
         </CardTitle>
+        <CardDescription>Enter your email and we&apos;ll send you a link to reset it.</CardDescription>
       </CardHeader>
 
       <CardContent>

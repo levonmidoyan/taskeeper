@@ -19,7 +19,13 @@ import { useIsMutating } from "@tanstack/react-query"
 import { IconEye as Eye, IconEyeOff as EyeOff } from "@tabler/icons-react"
 import { useState } from "react"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/auth/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from "@/components/auth/ui/card"
 import { Checkbox } from "@/components/auth/ui/checkbox"
 import {
   Field,
@@ -46,6 +52,8 @@ export type SignInProps = {
   className?: string
   socialLayout?: SocialLayout
   socialPosition?: "top" | "bottom"
+  /** Called instead of navigating to `redirectTo` once signed in. */
+  onSignedIn?: () => void
 }
 
 /**
@@ -54,12 +62,14 @@ export type SignInProps = {
  * @param className - Optional additional container class names
  * @param socialLayout - Layout style for social provider buttons
  * @param socialPosition - Position of social provider buttons; `"top"` or `"bottom"`. Defaults to `"bottom"`.
+ * @param onSignedIn - Called instead of navigating to `redirectTo` once signed in
  * @returns The rendered sign-in UI as a JSX element
  */
 export function SignIn({
   className,
   socialLayout,
-  socialPosition = "bottom"
+  socialPosition = "bottom",
+  onSignedIn
 }: SignInProps) {
   const {
     authClient,
@@ -74,7 +84,7 @@ export function SignIn({
   } = useAuth()
 
   const { fetchOptions, resetFetchOptions } = useFetchOptions()
-  const continueSignIn = useSignInContinuation()
+  const continueSignIn = useSignInContinuation(onSignedIn)
 
   const { mutateAsync: signInEmail, isPending: signInEmailPending } =
     useSignInEmail(authClient, {
@@ -132,6 +142,7 @@ export function SignIn({
         <CardTitle>
           {localization.auth.signIn}
         </CardTitle>
+        <CardDescription>Welcome back. Pick up right where your team left off.</CardDescription>
       </CardHeader>
 
       <CardContent>
