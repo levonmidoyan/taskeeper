@@ -1,6 +1,6 @@
 import { IconStar } from '@tabler/icons-react';
 import Link from 'next/link';
-import { tintDot } from '@/components/brand/tint';
+import { projectDot } from '@/components/brand/tint';
 import { StarButton } from '@/components/shell/StarButton';
 import { requireWorkspace } from '@/lib/session';
 import { listProjects } from '@/server/projects/queries';
@@ -45,7 +45,7 @@ export default async function StarredPage({
                 href={`/${workspaceSlug}/projects/${project.id}`}
                 className="flex min-w-0 flex-1 items-center gap-3 py-2"
               >
-                <span aria-hidden="true" className={cn('size-2.5 shrink-0 rounded-[3px]', tintDot(project.id))} />
+                <span aria-hidden="true" className={cn('size-2.5 shrink-0 rounded-[3px]', projectDot(project))} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-label-sm text-text-strong-950">{project.name}</span>
                   <span className="tabular block text-paragraph-xs text-text-sub-600">

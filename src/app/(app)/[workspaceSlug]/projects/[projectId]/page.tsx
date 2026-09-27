@@ -25,6 +25,7 @@ export default async function ProjectBoardPage({
   const basePath = `/${workspaceSlug}/projects/${projectId}`;
 
   const { task: openTaskId } = await searchParams;
+  const canEditColumns = ctx.role === 'owner' || ctx.role === 'admin';
 
   // Viewport minus the h-14 app header, so the board scrolls inside itself.
   return (
@@ -38,7 +39,7 @@ export default async function ProjectBoardPage({
           workspaceSlug={workspaceSlug}
           projectId={projectId}
           statuses={project.statuses}
-          canEdit={ctx.role === 'owner' || ctx.role === 'admin'}
+          canEdit={canEditColumns}
         />
       </ProjectHeader>
       <Board
@@ -47,6 +48,7 @@ export default async function ProjectBoardPage({
         statuses={project.statuses}
         tasks={tasks}
         timezone={ctx.timezone}
+        canEditColumns={canEditColumns}
       />
       <ProjectTaskDialog
         ctx={ctx}

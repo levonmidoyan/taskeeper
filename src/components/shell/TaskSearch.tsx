@@ -3,7 +3,7 @@
 import { IconCircleCheck, IconSearch } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
-import { tintDot } from '@/components/brand/tint';
+import { projectDot } from '@/components/brand/tint';
 import { ignoreShortcut } from '@/components/shell/shortcuts';
 import * as Input from '@/components/ui/input';
 import type { ProjectSummary } from '@/server/projects/queries';
@@ -12,7 +12,7 @@ import { searchTasksAction } from '@/server/tasks/actions';
 import { cn } from '@/utils/cn';
 
 type Hit =
-  | { kind: 'project'; id: string; label: string; href: string }
+  | { kind: 'project'; id: string; color: string; label: string; href: string }
   | { kind: 'task'; id: string; label: string; href: string; task: TaskSearchHit };
 
 /**
@@ -66,7 +66,7 @@ export function TaskSearch({
     ...projects
       .filter((p) => p.name.toLowerCase().includes(needle))
       .slice(0, 3)
-      .map((p): Hit => ({ kind: 'project', id: p.id, label: p.name, href: `/${workspaceSlug}/projects/${p.id}` })),
+      .map((p): Hit => ({ kind: 'project', id: p.id, color: p.color, label: p.name, href: `/${workspaceSlug}/projects/${p.id}` })),
     ...tasks.map((t): Hit => ({
       kind: 'task',
       id: t.id,
@@ -169,7 +169,7 @@ export function TaskSearch({
                 )}
               >
                 {hit.kind === 'project' ? (
-                  <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-[3px]', tintDot(hit.id))} />
+                  <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-[3px]', projectDot(hit))} />
                 ) : (
                   <IconCircleCheck
                     aria-hidden="true"

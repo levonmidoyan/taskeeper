@@ -29,12 +29,15 @@ export function Board({
   statuses,
   tasks,
   timezone,
+  canEditColumns,
 }: {
   workspaceSlug: string;
   projectId: string;
   statuses: StatusRow[];
   tasks: TaskRow[];
   timezone: string;
+  /** Owners and admins may rename a column from its header. */
+  canEditColumns: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -202,7 +205,7 @@ export function Board({
         onDragEnd={onDragEnd}
         onDragCancel={() => setDragItems(null)}
         // Horizontal scroll lives here, never on the page (v1 spec §6.4).
-        className="flex flex-1 gap-3 overflow-x-auto px-4 pb-4 lg:px-6"
+        className="flex flex-1 gap-3 overflow-x-auto px-4 pt-4 pb-4 lg:px-6"
       >
         {(column) => (
           <BoardColumn
@@ -212,6 +215,7 @@ export function Board({
             workspaceSlug={workspaceSlug}
             projectId={projectId}
             timezone={timezone}
+            canEdit={canEditColumns}
             onOpen={openTask}
           />
         )}

@@ -6,9 +6,9 @@ import type { Priority, TaskRow } from '@/server/tasks/queries';
 const YEREVAN = 'Asia/Yerevan';
 
 const statuses: StatusRow[] = [
-  { id: 'todo', name: 'Todo', color: 'muted', position: 'a0', isDone: false },
-  { id: 'doing', name: 'In Progress', color: 'primary', position: 'a1', isDone: false },
-  { id: 'done', name: 'Done', color: 'success', position: 'a2', isDone: true },
+  { id: 'todo', name: 'Todo', color: 'muted', position: 'a0', isDone: false, icon: null },
+  { id: 'doing', name: 'In Progress', color: 'primary', position: 'a1', isDone: false, icon: null },
+  { id: 'done', name: 'Done', color: 'success', position: 'a2', isDone: true, icon: null },
 ];
 
 function task(overrides: Partial<TaskRow> & { id: string }): TaskRow {

@@ -10,9 +10,9 @@ import type { StatusRow } from '@/server/projects/queries';
 import type { TaskRow } from '@/server/tasks/queries';
 
 const statuses: StatusRow[] = [
-  { id: 'done', name: 'Done', color: 'success', position: 'a2', isDone: true },
-  { id: 'todo', name: 'Todo', color: 'muted', position: 'a0', isDone: false },
-  { id: 'doing', name: 'In Progress', color: 'primary', position: 'a1', isDone: false },
+  { id: 'done', name: 'Done', color: 'success', position: 'a2', isDone: true, icon: null },
+  { id: 'todo', name: 'Todo', color: 'muted', position: 'a0', isDone: false, icon: null },
+  { id: 'doing', name: 'In Progress', color: 'primary', position: 'a1', isDone: false, icon: null },
 ];
 
 function task(id: string, statusId: string, position: string): TaskRow {

@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation';
-import { ManageColumnsDialog } from '@/components/board/ManageColumnsDialog';
 import { ProjectHeader } from '@/components/shell/ProjectHeader';
 import { StarButton } from '@/components/shell/StarButton';
 import { ProjectTaskDialog } from '@/components/task/ProjectTaskDialog';
@@ -32,14 +31,7 @@ export default async function ProjectListPage({
         name={project.name}
         basePath={basePath}
         star={<StarButton workspaceSlug={workspaceSlug} projectId={projectId} starred={project.starred} />}
-      >
-        <ManageColumnsDialog
-          workspaceSlug={workspaceSlug}
-          projectId={projectId}
-          statuses={project.statuses}
-          canEdit={ctx.role === 'owner' || ctx.role === 'admin'}
-        />
-      </ProjectHeader>
+      />
       <TaskTable
         tasks={tasks}
         statuses={project.statuses}

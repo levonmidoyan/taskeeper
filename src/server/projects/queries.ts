@@ -18,6 +18,7 @@ export type StatusRow = {
   color: string;
   position: string;
   isDone: boolean;
+  icon: string | null;
 };
 
 export type ProjectDetail = {
@@ -89,7 +90,7 @@ export async function getProject(
   const statuses = await db
     .select({
       id: taskStatus.id, name: taskStatus.name, color: taskStatus.color,
-      position: taskStatus.position, isDone: taskStatus.isDone,
+      position: taskStatus.position, isDone: taskStatus.isDone, icon: taskStatus.icon,
     })
     .from(taskStatus)
     .where(eq(taskStatus.projectId, projectId))

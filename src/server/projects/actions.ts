@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireWorkspace } from '@/lib/session';
 import { withAction, type Result } from '@/lib/result';
 import {
-  archiveProject, createProject, deleteProject, renameProject, setProjectStar,
+  archiveProject, createProject, deleteProject, renameProject, setProjectColor, setProjectStar,
 } from './service';
 
 /**
@@ -33,6 +33,17 @@ export async function renameProjectAction(
 ): Promise<Result<null>> {
   return withAction(async () => {
     const result = await renameProject(await requireWorkspace(workspaceSlug), input);
+    if (result.ok) revalidatePath(`/${workspaceSlug}`, 'layout');
+    return result;
+  });
+}
+
+export async function setProjectColorAction(
+  workspaceSlug: string,
+  input: { projectId: string; color: string },
+): Promise<Result<null>> {
+  return withAction(async () => {
+    const result = await setProjectColor(await requireWorkspace(workspaceSlug), input);
     if (result.ok) revalidatePath(`/${workspaceSlug}`, 'layout');
     return result;
   });

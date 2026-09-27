@@ -24,6 +24,8 @@ export const taskStatus = pgTable(
     color: text('color').notNull().default('muted'),
     position: text('position').notNull(),
     isDone: boolean('is_done').notNull().default(false),
+    // A STATUS_ICONS key; null keeps the glyph derived from color and isDone.
+    icon: text('icon'),
   },
   (t) => [index('task_status_project_position_idx').on(t.projectId, t.position)],
 );

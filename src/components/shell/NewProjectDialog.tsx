@@ -3,7 +3,9 @@
 import { IconFolderPlus, IconPlus } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { PROJECT_COLORS, type ProjectColor } from '@/components/brand/tint';
 import { FormError, TextField } from '@/components/forms/TextField';
+import { ColorSwatches } from '@/components/shell/ProjectColorPicker';
 import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Modal from '@/components/ui/modal';
@@ -14,6 +16,7 @@ export function NewProjectDialog({ workspaceSlug }: { workspaceSlug: string }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [color, setColor] = useState<ProjectColor>(PROJECT_COLORS[0].key);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -21,7 +24,7 @@ export function NewProjectDialog({ workspaceSlug }: { workspaceSlug: string }) {
     setError(null);
 
     const name = String(new FormData(event.currentTarget).get('name'));
-    const result = await createProjectAction(workspaceSlug, { name });
+    const result = await createProjectAction(workspaceSlug, { name, color });
 
     setPending(false);
     if (!result.ok) {
@@ -48,6 +51,10 @@ export function NewProjectDialog({ workspaceSlug }: { workspaceSlug: string }) {
         <form onSubmit={onSubmit}>
           <Modal.Body className="flex flex-col gap-3">
             <TextField id="project-name" label="Project name" name="name" required maxLength={64} autoFocus />
+            <div className="flex flex-col gap-1.5">
+              <span className="text-label-sm text-text-strong-950">Color</span>
+              <ColorSwatches value={color} onChange={setColor} />
+            </div>
             {error && <FormError>{error}</FormError>}
           </Modal.Body>
           <Modal.Footer>

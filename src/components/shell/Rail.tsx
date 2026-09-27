@@ -8,7 +8,7 @@ import { useParams, usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { UserButton } from '@/components/auth/user/user-button';
 import { NewProjectDialog } from '@/components/shell/NewProjectDialog';
-import { tintDot } from '@/components/brand/tint';
+import { ProjectColorButton } from '@/components/shell/ProjectColorPicker';
 import { ThemeControl } from '@/components/shell/ThemeControl';
 import { WorkspaceSwitcher } from '@/components/shell/WorkspaceSwitcher';
 import * as CompactButton from '@/components/ui/compact-button';
@@ -39,27 +39,25 @@ function ProjectLink({
   project: ProjectSummary;
   active: boolean;
 }) {
+  // The dot is its own button beside the link, not inside it: a button nested
+  // in an anchor is invalid and would navigate on every color change.
   return (
-    <Link
-      href={`/${workspaceSlug}/projects/${project.id}`}
-      aria-current={active ? 'page' : undefined}
-      className={cn(navItem, 'h-9', active ? navActive : navIdle)}
-    >
-      <span
-        aria-hidden="true"
-        className={cn(
-          'size-2 shrink-0 rounded-[3px] transition-transform duration-150',
-          tintDot(project.id),
-          active ? 'scale-125' : 'opacity-80',
+    <div className={cn(navItem, 'group relative h-9 pl-1', active ? navActive : navIdle)}>
+      <ProjectColorButton workspaceSlug={workspaceSlug} project={project} active={active} className="relative z-10" />
+      <Link
+        href={`/${workspaceSlug}/projects/${project.id}`}
+        aria-current={active ? 'page' : undefined}
+        // Stretched over the whole row so the gutter around the dot still navigates.
+        className="flex min-w-0 flex-1 items-center gap-2 self-stretch after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-primary-base"
+      >
+        <span className="truncate">{project.name}</span>
+        {project.openTaskCount > 0 && (
+          <span className="tabular ml-auto text-label-xs text-text-soft-400">
+            {project.openTaskCount}
+          </span>
         )}
-      />
-      <span className="truncate">{project.name}</span>
-      {project.openTaskCount > 0 && (
-        <span className="tabular ml-auto text-label-xs text-text-soft-400">
-          {project.openTaskCount}
-        </span>
-      )}
-    </Link>
+      </Link>
+    </div>
   );
 }
 

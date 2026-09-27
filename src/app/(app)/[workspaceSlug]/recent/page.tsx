@@ -1,6 +1,6 @@
 import { IconCircleCheckFilled, IconClock } from '@tabler/icons-react';
 import Link from 'next/link';
-import { tintDot } from '@/components/brand/tint';
+import { projectDot } from '@/components/brand/tint';
 import { DueChip } from '@/components/task/DueChip';
 import { PriorityChip } from '@/components/task/Priority';
 import { recencyBucket, type RecencyBucket } from '@/lib/dates';
@@ -75,7 +75,7 @@ export default async function RecentPage({
                       {task.title}
                     </span>
                     <span className="hidden shrink-0 items-center gap-1.5 text-paragraph-xs text-text-sub-600 sm:inline-flex">
-                      <span aria-hidden="true" className={cn('size-1.5 rounded-[2px]', tintDot(task.projectId))} />
+                      <span aria-hidden="true" className={cn('size-1.5 rounded-[2px]', projectDot({ id: task.projectId, color: task.projectColor }))} />
                       {task.projectName}
                     </span>
                     <PriorityChip priority={task.priority} />

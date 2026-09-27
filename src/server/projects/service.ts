@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
+import { PROJECT_COLOR_KEYS } from '@/components/brand/tint';
 import { db, project, projectStar, task, taskStatus } from '@/db';
 import { newId } from '@/lib/ids';
 import { positionsForCount } from '@/lib/position';
@@ -49,11 +50,13 @@ async function uniqueProjectSlug(workspaceId: string, base: string): Promise<str
 const nameSchema = z
   .string().trim().min(1, 'Name your project.').max(64, 'Keep it under 64 characters.');
 
+const colorSchema = z.enum(PROJECT_COLOR_KEYS, { error: 'Pick one of the listed colors.' });
+
 export async function createProject(
   ctx: WorkspaceContext,
   input: { name: string; color?: string },
 ): Promise<Result<{ id: string }>> {
-  const parsed = z.object({ name: nameSchema, color: z.string().optional() }).safeParse(input);
+  const parsed = z.object({ name: nameSchema, color: colorSchema.optional() }).safeParse(input);
   if (!parsed.success) return err(parsed.error.issues[0].message);
 
   const id = newId();
@@ -86,6 +89,24 @@ export async function renameProject(
   const updated = await db
     .update(project)
     .set({ name: parsed.data.name, updatedAt: new Date() })
+    .where(and(eq(project.id, parsed.data.projectId), eq(project.workspaceId, ctx.workspaceId)))
+    .returning({ id: project.id });
+
+  if (updated.length === 0) return err('Project not found.');
+
+  return ok(null);
+}
+
+export async function setProjectColor(
+  ctx: WorkspaceContext,
+  input: { projectId: string; color: string },
+): Promise<Result<null>> {
+  const parsed = z.object({ projectId: z.string(), color: colorSchema }).safeParse(input);
+  if (!parsed.success) return err(parsed.error.issues[0].message);
+
+  const updated = await db
+    .update(project)
+    .set({ color: parsed.data.color, updatedAt: new Date() })
     .where(and(eq(project.id, parsed.data.projectId), eq(project.workspaceId, ctx.workspaceId)))
     .returning({ id: project.id });
 

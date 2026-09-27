@@ -165,11 +165,11 @@ export async function getTaskDetail(
 
 export async function listMyOpenTasks(
   ctx: WorkspaceContext,
-): Promise<(TaskRow & { projectId: string; projectName: string; overdue: boolean })[]> {
+): Promise<(TaskRow & { projectId: string; projectName: string; projectColor: string; overdue: boolean })[]> {
   const rows = await db
     // projectId comes along so the caller can build a link back to the task's
     // project; it is not on TaskRow because the board already knows its project.
-    .select({ ...baseColumns, projectId: task.projectId, projectName: project.name })
+    .select({ ...baseColumns, projectId: task.projectId, projectName: project.name, projectColor: project.color })
     .from(task)
     .innerJoin(project, eq(project.id, task.projectId))
     .leftJoin(user, eq(user.id, task.assigneeId))
@@ -190,6 +190,7 @@ export async function listMyOpenTasks(
     ...row,
     projectId: rows[i].projectId,
     projectName: rows[i].projectName,
+    projectColor: rows[i].projectColor,
     // Overdue is computed in the workspace zone, never from the server clock (spec §3.4).
     overdue: row.dueDate ? isOverdue(row.dueDate, ctx.timezone) : false,
   }));
@@ -200,7 +201,7 @@ export async function listStatuses(ctx: WorkspaceContext, projectId: string) {
   return db
     .select({
       id: taskStatus.id, name: taskStatus.name, color: taskStatus.color,
-      position: taskStatus.position, isDone: taskStatus.isDone,
+      position: taskStatus.position, isDone: taskStatus.isDone, icon: taskStatus.icon,
     })
     .from(taskStatus)
     .innerJoin(project, eq(project.id, taskStatus.projectId))
@@ -213,6 +214,7 @@ export type TaskSearchHit = {
   title: string;
   projectId: string;
   projectName: string;
+  projectColor: string;
   completed: boolean;
 };
 
@@ -234,6 +236,7 @@ export async function searchTasks(
       title: task.title,
       projectId: task.projectId,
       projectName: project.name,
+      projectColor: project.color,
       completedAt: task.completedAt,
     })
     .from(task)
@@ -257,6 +260,7 @@ export type RecentTask = {
   title: string;
   projectId: string;
   projectName: string;
+  projectColor: string;
   priority: Priority;
   dueDate: string | null;
   completed: boolean;
@@ -301,6 +305,7 @@ export async function listRecentTasks(ctx: WorkspaceContext, limit = 30): Promis
       title: task.title,
       projectId: task.projectId,
       projectName: project.name,
+      projectColor: project.color,
       priority: task.priority,
       dueDate: task.dueDate,
       completedAt: task.completedAt,

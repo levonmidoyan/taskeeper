@@ -231,3 +231,48 @@ test('columns can be renamed, added, marked done and deleted with their tasks mo
   await page.reload();
   await expect(card(page, 'Review', 'Drag me')).toBeVisible();
 });
+
+test('columns reorder by dragging their handle in the dialog', async ({ page }) => {
+  await signUpWithProject(page, 'reorder');
+  await openBoard(page);
+
+  await page.getByRole('button', { name: 'Columns' }).click();
+  const dialog = page.getByRole('dialog');
+  const names = dialog.getByRole('listitem').getByRole('textbox');
+  await expect(names).toHaveValues(['Todo', 'In Progress', 'Done']);
+
+  // Keyboard drag: Space lifts, ArrowDown moves one slot, Space drops.
+  const handle = dialog.getByRole('button', { name: 'Reorder Todo' });
+  await handle.focus();
+  await page.keyboard.press('Space');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Space');
+  await expect(names).toHaveValues(['In Progress', 'Todo', 'Done']);
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 2 })).toHaveText(['In Progress', 'Todo', 'Done']);
+});
+
+test('a column is renamed from the pencil in its board header', async ({ page }) => {
+  await signUpWithProject(page, 'header-rename');
+  await openBoard(page);
+
+  const todo = column(page, 'Todo');
+  await todo.hover();
+  await todo.getByRole('button', { name: 'Rename Todo' }).click();
+  const field = todo.getByRole('textbox', { name: 'Rename Todo' });
+  await field.fill('Backlog');
+  await field.press('Enter');
+
+  await expect(column(page, 'Backlog').getByRole('heading', { name: 'Backlog' })).toBeVisible();
+  await page.reload();
+  await expect(column(page, 'Backlog')).toBeVisible();
+});
+
+test('the list view has no Columns button', async ({ page }) => {
+  await signUpWithProject(page, 'list-columns');
+  await page.getByRole('tab', { name: 'List' }).click();
+  await expect(page.getByRole('button', { name: 'Columns' })).toHaveCount(0);
+});

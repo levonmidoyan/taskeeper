@@ -4,7 +4,7 @@ import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
 import { getProject, listProjects } from '@/server/projects/queries';
 import {
-  archiveProject, createProject, deleteProject, renameProject,
+  archiveProject, createProject, deleteProject, renameProject, setProjectColor,
 } from '@/server/projects/service';
 import { task, taskStatus } from '@/db';
 import { ForbiddenError } from '@/lib/result';
@@ -137,6 +137,39 @@ describe('renameProject', () => {
 
     const detail = await getProject(b, created.data.id);
     expect(detail!.name).toBe('Private');
+  });
+});
+
+describe('setProjectColor', () => {
+  it('stores a picked color, and createProject takes one too', async () => {
+    const ctx = await ctxFor('color1@example.com', 'color-ws1');
+    const created = await createProject(ctx, { name: 'Paint', color: 'rose' });
+    if (!created.ok) throw new Error('setup failed');
+    expect((await getProject(ctx, created.data.id))!.color).toBe('rose');
+
+    const result = await setProjectColor(ctx, { projectId: created.data.id, color: 'teal' });
+    expect(result.ok).toBe(true);
+    expect((await getProject(ctx, created.data.id))!.color).toBe('teal');
+  });
+
+  it('rejects a color outside the palette', async () => {
+    const ctx = await ctxFor('color2@example.com', 'color-ws2');
+    const created = await createProject(ctx, { name: 'Paint' });
+    if (!created.ok) throw new Error('setup failed');
+
+    expect((await setProjectColor(ctx, { projectId: created.data.id, color: 'red; drop' })).ok).toBe(false);
+    expect((await createProject(ctx, { name: 'Other', color: 'bg-red-500' })).ok).toBe(false);
+  });
+
+  it('refuses to recolor a project in another workspace', async () => {
+    const a = await ctxFor('color-a@example.com', 'color-ws-a');
+    const b = await ctxFor('color-b@example.com', 'color-ws-b');
+    const created = await createProject(b, { name: 'Private', color: 'amber' });
+    if (!created.ok) throw new Error('setup failed');
+
+    const result = await setProjectColor(a, { projectId: created.data.id, color: 'sky' });
+    expect(result.ok).toBe(false);
+    expect((await getProject(b, created.data.id))!.color).toBe('amber');
   });
 });
 
