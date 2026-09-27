@@ -6,6 +6,7 @@ import {
   admin,
   deviceAuthorization,
   emailOTP,
+  multiSession,
   organization,
   twoFactor,
 } from 'better-auth/plugins';
@@ -129,6 +130,9 @@ export const auth = betterAuth({
         if (type === 'sign-in') await sendSignInCodeEmail(email, otp);
       },
     }),
+    // Several accounts signed in on one browser, switched from the UserButton
+    // menu and managed from Settings → Account. Up to 5 per device (default).
+    multiSession(),
     // Better Auth Infrastructure dashboard: user management, audit log and
     // analytics at dash.better-auth.com. Only with an API key; activity tracking
     // stamps user.lastActiveAt at most every 5 minutes per active user.

@@ -5,6 +5,7 @@ import {
   adminClient,
   deviceAuthorizationClient,
   emailOTPClient,
+  multiSessionClient,
   organizationClient,
   twoFactorClient,
 } from 'better-auth/client/plugins';
@@ -19,6 +20,7 @@ export const authClient = createAuthClient({
     // twoFactorRedirect response to /auth/two-factor itself.
     twoFactorClient(),
     emailOTPClient(),
+    multiSessionClient(),
     // Audit log reads for the signed-in user; needs the server dash plugin.
     dashClient(),
   ],

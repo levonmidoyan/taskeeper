@@ -9,6 +9,7 @@ import { adminPlugin } from '@/lib/auth-ui/admin-plugin';
 import { deleteUserPlugin } from '@/lib/auth-ui/delete-user-plugin';
 import { deviceAuthorizationPlugin } from '@/lib/auth-ui/device-authorization-plugin';
 import { emailOtpPlugin } from '@/lib/auth-ui/email-otp-plugin';
+import { multiSessionPlugin } from '@/lib/auth-ui/multi-session-plugin';
 import { twoFactorPlugin } from '@/lib/auth-ui/two-factor-plugin';
 import { safeNextPath } from '@/lib/next-path';
 import { getQueryClient } from '@/lib/query-client';
@@ -38,6 +39,7 @@ export function Providers({
           twoFactorPlugin(),
           emailOtpPlugin(),
           deleteUserPlugin({ sendDeleteAccountVerification: true }),
+          multiSessionPlugin(),
         ]}
         emailAndPassword={{ requireEmailVerification }}
         socialProviders={google ? ['google'] : []}
