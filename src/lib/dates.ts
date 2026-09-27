@@ -40,7 +40,7 @@ export function formatInZone(instant: Date, tz: string): string {
   return `${get('day')} ${get('month')} ${get('year')}, ${get('hour')}:${get('minute')}`;
 }
 
-function addDays(date: string, days: number): string {
+export function addDays(date: string, days: number): string {
   const [y, m, d] = date.split('-').map(Number);
   // Date.UTC keeps this arithmetic in a fixed zone; the result is only ever
   // formatted back out as a calendar date, never treated as an instant.
@@ -73,4 +73,16 @@ export function formatDueDate(dueDate: string, tz: string, now: Date = new Date(
   return sameYear
     ? `${get('day')} ${get('month')}`
     : `${get('day')} ${get('month')} ${get('year')}`;
+}
+
+export type RecencyBucket = 'Today' | 'Yesterday' | 'Past week' | 'Older';
+
+/** Groups an instant by calendar day in the workspace zone, for the Recent list. */
+export function recencyBucket(instant: Date, tz: string, now: Date = new Date()): RecencyBucket {
+  const day = todayInZone(tz, instant);
+  const today = todayInZone(tz, now);
+  if (day >= today) return 'Today';
+  if (day === addDays(today, -1)) return 'Yesterday';
+  if (day >= addDays(today, -7)) return 'Past week';
+  return 'Older';
 }

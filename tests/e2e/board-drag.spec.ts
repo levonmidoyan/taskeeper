@@ -20,14 +20,14 @@ async function signUpWithProject(page: Page, prefix: string) {
   await page.getByLabel('Project name').fill('Website');
   await page.getByRole('button', { name: 'Create project' }).click();
 
-  await page.getByPlaceholder('Add a task…').fill('Drag me');
-  await page.getByPlaceholder('Add a task…').press('Enter');
+  await page.getByPlaceholder('Add to Todo…').fill('Drag me');
+  await page.getByPlaceholder('Add to Todo…').press('Enter');
   await expect(page.getByText('Drag me')).toBeVisible();
 }
 
 async function openBoard(page: Page) {
   await page.getByRole('tab', { name: 'Board' }).click();
-  await expect(page).toHaveURL(/\/board$/);
+  await expect(page).toHaveURL(/\/projects\/[^/?]+$/);
 }
 
 const column = (page: Page, name: string) => page.getByRole('region', { name });
@@ -38,7 +38,7 @@ const card = (page: Page, columnName: string, title: string) =>
 function countMoves(page: Page) {
   const posts = { count: 0 };
   page.on('request', (r) => {
-    if (r.method() === 'POST' && r.url().includes('/board')) posts.count += 1;
+    if (r.method() === 'POST' && r.url().includes('/projects/')) posts.count += 1;
   });
   return posts;
 }
@@ -169,7 +169,7 @@ test('a card dropped below the last card of a column lands last', async ({ page 
     await page.mouse.move(to.x + to.width / 2, to.y + to.height - 120, { steps: 10 });
 
     const written = page.waitForResponse(
-      (r) => r.request().method() === 'POST' && r.url().includes('/board'),
+      (r) => r.request().method() === 'POST' && r.url().includes('/projects/'),
     );
     await page.mouse.up();
     return written;

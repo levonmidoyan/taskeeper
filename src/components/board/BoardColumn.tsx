@@ -5,6 +5,7 @@ import { columnId } from '@/components/board/neighbours';
 import { TaskCard } from '@/components/board/TaskCard';
 import { KanbanBoard, KanbanCards, KanbanHeader } from '@/components/kibo-ui/kanban';
 import { QuickAddTask } from '@/components/task/QuickAddTask';
+import { StatusIcon } from '@/components/task/StatusIcon';
 import type { StatusRow } from '@/server/projects/queries';
 
 export function BoardColumn({
@@ -28,6 +29,7 @@ export function BoardColumn({
     <KanbanBoard id={id} aria-label={status.name} className="w-[280px] shrink-0">
       <KanbanHeader>
         <h2 className="flex items-center gap-2 text-label-sm text-text-strong-950">
+          <StatusIcon status={status} />
           {status.name}
           <span className="tabular text-paragraph-xs text-text-soft-400">{count}</span>
         </h2>

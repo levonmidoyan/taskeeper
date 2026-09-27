@@ -7,6 +7,7 @@ export type MemberRow = {
   userId: string;
   name: string;
   email: string;
+  image: string | null;
   role: WorkspaceRole;
 };
 
@@ -21,7 +22,7 @@ export async function listLabels(ctx: WorkspaceContext): Promise<LabelRow[]> {
 /** Lives here rather than in members/ because the assignee picker needs it first. */
 export async function listWorkspaceMembers(ctx: WorkspaceContext): Promise<MemberRow[]> {
   const rows = await db
-    .select({ userId: user.id, name: user.name, email: user.email, role: member.role })
+    .select({ userId: user.id, name: user.name, email: user.email, image: user.image, role: member.role })
     .from(member)
     .innerJoin(user, eq(user.id, member.userId))
     .where(eq(member.organizationId, ctx.workspaceId))

@@ -23,8 +23,8 @@ test('a new user signs up, creates a workspace, and adds a task', async ({ page 
   await page.getByLabel('Project name').fill('Website');
   await page.getByRole('button', { name: 'Create project' }).click();
 
-  await page.getByPlaceholder('Add a task…').fill('Ship the landing page');
-  await page.getByPlaceholder('Add a task…').press('Enter');
+  await page.getByPlaceholder('Add to Todo…').fill('Ship the landing page');
+  await page.getByPlaceholder('Add to Todo…').press('Enter');
 
   await expect(page.getByText('Ship the landing page')).toBeVisible();
 });

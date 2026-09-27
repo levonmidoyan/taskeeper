@@ -16,17 +16,11 @@ async function signUpWithProject(page: Page, prefix: string) {
   await page.getByLabel('Project name').fill('Website');
   await page.getByRole('button', { name: 'Create project' }).click();
 
-  await page.getByPlaceholder('Add a task…').fill('Drag me');
-  await page.getByPlaceholder('Add a task…').press('Enter');
+  await page.getByPlaceholder('Add to Todo…').fill('Drag me');
+  await page.getByPlaceholder('Add to Todo…').press('Enter');
   await expect(page.getByText('Drag me')).toBeVisible();
 }
 
-/**
- * Opens the board and returns the card. Both steps matter: without waiting for
- * the URL the locator resolves against the list view, which is still on screen
- * and where the row carries two buttons whose name contains the title — the
- * checkbox and the title itself. Scoping to the column keeps it to the card.
- */
 /**
  * A Server Action posts back to the page's own URL. Waiting for that response
  * before reloading keeps the reload from racing the move that is still in
@@ -35,13 +29,18 @@ async function signUpWithProject(page: Page, prefix: string) {
  */
 function moveWritten(page: Page) {
   return page.waitForResponse(
-    (r) => r.request().method() === 'POST' && r.url().includes('/board'),
+    (r) => r.request().method() === 'POST' && r.url().includes('/projects/'),
   );
 }
 
+/**
+ * The board is the project's default view, so the tab click is a no-op here; it
+ * asserts the tab still lands on the board. Scoping to the column keeps the
+ * locator to the card.
+ */
 async function openBoard(page: Page, title: string) {
   await page.getByRole('tab', { name: 'Board' }).click();
-  await expect(page).toHaveURL(/\/board$/);
+  await expect(page).toHaveURL(/\/projects\/[^/?]+$/);
   return page.getByRole('region', { name: 'Todo' }).getByRole('button', { name: title, exact: true });
 }
 

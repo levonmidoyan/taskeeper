@@ -17,17 +17,15 @@ async function signUpWithTask(page: Page, prefix: string) {
   await page.getByLabel('Project name').fill('Website');
   await page.getByRole('button', { name: 'Create project' }).click();
 
-  await page.getByPlaceholder('Add a task…').fill('Talk about me');
-  await page.getByPlaceholder('Add a task…').press('Enter');
+  await page.getByPlaceholder('Add to Todo…').fill('Talk about me');
+  await page.getByPlaceholder('Add to Todo…').press('Enter');
   await expect(page.getByText('Talk about me')).toBeVisible();
 }
 
 test('a comment survives a reload and priority changes show in the feed', async ({ page }) => {
   await signUpWithTask(page, 'comments');
 
-  // exact: true, because the row also carries a checkbox button whose
-  // accessible name ("Mark \"Talk about me\" as done") contains the title —
-  // see the comment in board.spec.ts about the two buttons per row.
+  // The project opens on the board; the card's button is named by its title.
   await page.getByRole('button', { name: 'Talk about me', exact: true }).click();
   await expect(page).toHaveURL(/\?task=/);
 

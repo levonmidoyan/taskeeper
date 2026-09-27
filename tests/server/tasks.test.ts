@@ -3,8 +3,10 @@ import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
 import { createProject } from '@/server/projects/service';
 import { getProject } from '@/server/projects/queries';
-import { createTask, deleteTask, moveTask, updateTask } from '@/server/tasks/service';
-import { getTask, getTaskDetail, listMyOpenTasks, listProjectTasks } from '@/server/tasks/queries';
+import {
+  bulkDeleteTasks, bulkUpdateTasks, createTask, deleteTask, moveTask, updateTask,
+} from '@/server/tasks/service';
+import { getTask, getTaskDetail, listMyOpenTasks, listProjectTasks, searchTasks } from '@/server/tasks/queries';
 import { task } from '@/db';
 import type { WorkspaceContext } from '@/lib/session';
 
@@ -262,6 +264,7 @@ describe('getTaskDetail', () => {
 
     const detail = await getTaskDetail(ctx, parent.data.id);
     expect(detail).not.toBeNull();
+    expect(detail!.projectId).toBe(projectId);
     expect(detail!.parentId).toBeNull();
     expect(detail!.parentTitle).toBeNull();
     expect(detail!.subtasks.map((s) => s.title)).toEqual(['Child']);
@@ -281,5 +284,104 @@ describe('getTaskDetail', () => {
     if (!created.ok) throw new Error('setup failed');
 
     expect(await getTaskDetail(a.ctx, created.data.id)).toBeNull();
+  });
+});
+
+describe('searchTasks', () => {
+  it('matches titles case-insensitively, open work first', async () => {
+    const { ctx, projectId, statuses } = await setup('s1@example.com', 'search-a');
+    const done = await createTask(ctx, { projectId, title: 'Fix login bug' });
+    await createTask(ctx, { projectId, title: 'Write docs' });
+    await createTask(ctx, { projectId, title: 'LOGIN page copy' });
+    if (!done.ok) throw new Error('setup failed');
+    const doneColumn = statuses.find((s) => s.isDone)!;
+    await updateTask(ctx, { taskId: done.data.id, statusId: doneColumn.id });
+
+    const hits = await searchTasks(ctx, 'login');
+
+    expect(hits.map((h) => h.title)).toEqual(['LOGIN page copy', 'Fix login bug']);
+    expect(hits[0]).toMatchObject({ projectId, projectName: 'Website', completed: false });
+    expect(hits[1].completed).toBe(true);
+  });
+
+  it('treats LIKE wildcards literally', async () => {
+    const { ctx, projectId } = await setup('s2@example.com', 'search-b');
+    await createTask(ctx, { projectId, title: 'Grow 50% faster' });
+    await createTask(ctx, { projectId, title: 'Grow 500 users' });
+
+    expect((await searchTasks(ctx, '50%')).map((h) => h.title)).toEqual(['Grow 50% faster']);
+  });
+
+  it('never returns another workspace’s tasks', async () => {
+    const a = await setup('s3@example.com', 'search-c');
+    const b = await setup('s4@example.com', 'search-d');
+    await createTask(b.ctx, { projectId: b.projectId, title: 'Secret roadmap' });
+
+    expect(await searchTasks(a.ctx, 'roadmap')).toEqual([]);
+  });
+});
+
+describe('bulkUpdateTasks', () => {
+  it('applies one patch to every selected task', async () => {
+    const { ctx, projectId, statuses } = await setup('bulk1@example.com', 'bulk1');
+    const a = await createTask(ctx, { projectId, title: 'A' });
+    const b = await createTask(ctx, { projectId, title: 'B' });
+    if (!a.ok || !b.ok) throw new Error('setup failed');
+    const done = statuses.find((s) => s.isDone)!;
+
+    const result = await bulkUpdateTasks(ctx, {
+      taskIds: [a.data.id, b.data.id],
+      patch: { statusId: done.id, priority: 'high' },
+    });
+
+    expect(result).toEqual({ ok: true, data: { updated: 2 } });
+    const tasks = await listProjectTasks(ctx, projectId);
+    expect(tasks.every((t) => t.statusId === done.id && t.priority === 'high')).toBe(true);
+    expect(tasks.every((t) => t.completedAt !== null)).toBe(true);
+  });
+
+  it('rejects an empty patch', async () => {
+    const { ctx, projectId } = await setup('bulk2@example.com', 'bulk2');
+    const a = await createTask(ctx, { projectId, title: 'A' });
+    if (!a.ok) throw new Error('setup failed');
+
+    expect((await bulkUpdateTasks(ctx, { taskIds: [a.data.id], patch: {} })).ok).toBe(false);
+  });
+
+  it('leaves another workspace’s tasks alone', async () => {
+    const a = await setup('bulk3@example.com', 'bulk3');
+    const b = await setup('bulk4@example.com', 'bulk4');
+    const mine = await createTask(a.ctx, { projectId: a.projectId, title: 'Mine' });
+    const theirs = await createTask(b.ctx, { projectId: b.projectId, title: 'Theirs' });
+    if (!mine.ok || !theirs.ok) throw new Error('setup failed');
+
+    const result = await bulkUpdateTasks(a.ctx, {
+      taskIds: [mine.data.id, theirs.data.id],
+      patch: { priority: 'urgent' },
+    });
+
+    expect(result.ok).toBe(false);
+    const [row] = await listProjectTasks(b.ctx, b.projectId);
+    expect(row.priority).toBe('none');
+  });
+});
+
+describe('bulkDeleteTasks', () => {
+  it('deletes only this workspace’s tasks', async () => {
+    const a = await setup('bulk5@example.com', 'bulk5');
+    const b = await setup('bulk6@example.com', 'bulk6');
+    const one = await createTask(a.ctx, { projectId: a.projectId, title: 'One' });
+    const two = await createTask(a.ctx, { projectId: a.projectId, title: 'Two' });
+    const keep = await createTask(a.ctx, { projectId: a.projectId, title: 'Keep' });
+    const theirs = await createTask(b.ctx, { projectId: b.projectId, title: 'Theirs' });
+    if (!one.ok || !two.ok || !keep.ok || !theirs.ok) throw new Error('setup failed');
+
+    const result = await bulkDeleteTasks(a.ctx, {
+      taskIds: [one.data.id, two.data.id, theirs.data.id],
+    });
+
+    expect(result).toEqual({ ok: true, data: { deleted: 2 } });
+    expect((await listProjectTasks(a.ctx, a.projectId)).map((t) => t.title)).toEqual(['Keep']);
+    expect(await listProjectTasks(b.ctx, b.projectId)).toHaveLength(1);
   });
 });

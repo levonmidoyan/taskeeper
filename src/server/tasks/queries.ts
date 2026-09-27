@@ -1,6 +1,6 @@
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { db, label, project, task, taskLabel, taskStatus, user } from '@/db';
+import { comment, db, label, project, task, taskActivity, taskLabel, taskStatus, user } from '@/db';
 import { isOverdue } from '@/lib/dates';
 import type { WorkspaceContext } from '@/lib/session';
 
@@ -15,6 +15,7 @@ export type TaskRow = {
   priority: Priority;
   assigneeId: string | null;
   assigneeName: string | null;
+  assigneeImage: string | null;
   dueDate: string | null;
   position: string;
   completedAt: Date | null;
@@ -33,6 +34,7 @@ const baseColumns = {
   priority: task.priority,
   assigneeId: task.assigneeId,
   assigneeName: user.name,
+  assigneeImage: user.image,
   dueDate: task.dueDate,
   position: task.position,
   completedAt: task.completedAt,
@@ -106,6 +108,7 @@ export async function getTask(ctx: WorkspaceContext, taskId: string): Promise<Ta
 }
 
 export type TaskDetail = TaskRow & {
+  projectId: string;
   parentId: string | null;
   parentTitle: string | null;
   subtasks: TaskRow[];
@@ -123,7 +126,12 @@ export async function getTaskDetail(
   const parent = alias(task, 'parent_task');
 
   const rows = await db
-    .select({ ...baseColumns, parentId: task.parentTaskId, parentTitle: parent.title })
+    .select({
+      ...baseColumns,
+      projectId: task.projectId,
+      parentId: task.parentTaskId,
+      parentTitle: parent.title,
+    })
     .from(task)
     .leftJoin(user, eq(user.id, task.assigneeId))
     .leftJoin(parent, eq(parent.id, task.parentTaskId))
@@ -148,6 +156,7 @@ export async function getTaskDetail(
 
   return {
     ...withLabels,
+    projectId: rows[0].projectId,
     parentId: rows[0].parentId,
     parentTitle: rows[0].parentTitle,
     subtasks: await attachLabels(subtaskRows),
@@ -197,4 +206,117 @@ export async function listStatuses(ctx: WorkspaceContext, projectId: string) {
     .innerJoin(project, eq(project.id, taskStatus.projectId))
     .where(and(eq(taskStatus.projectId, projectId), eq(project.workspaceId, ctx.workspaceId)))
     .orderBy(asc(taskStatus.position));
+}
+
+export type TaskSearchHit = {
+  id: string;
+  title: string;
+  projectId: string;
+  projectName: string;
+  completed: boolean;
+};
+
+/**
+ * Title substring match across the workspace, for the header search. Open work
+ * ranks first, then recently updated. LIKE wildcards in the term are escaped so
+ * "50%" searches for the literal text.
+ */
+export async function searchTasks(
+  ctx: WorkspaceContext,
+  term: string,
+  limit = 8,
+): Promise<TaskSearchHit[]> {
+  const pattern = `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+  const rows = await db
+    .select({
+      id: task.id,
+      title: task.title,
+      projectId: task.projectId,
+      projectName: project.name,
+      completedAt: task.completedAt,
+    })
+    .from(task)
+    .innerJoin(project, eq(project.id, task.projectId))
+    .where(
+      and(
+        eq(task.workspaceId, ctx.workspaceId),
+        isNull(task.archivedAt),
+        isNull(project.archivedAt),
+        ilike(task.title, pattern),
+      ),
+    )
+    .orderBy(sql`${task.completedAt} is not null`, desc(task.updatedAt))
+    .limit(limit);
+
+  return rows.map(({ completedAt, ...r }) => ({ ...r, completed: completedAt !== null }));
+}
+
+export type RecentTask = {
+  id: string;
+  title: string;
+  projectId: string;
+  projectName: string;
+  priority: Priority;
+  dueDate: string | null;
+  completed: boolean;
+  /** Last time the caller created, changed or commented on the task. */
+  touchedAt: Date;
+};
+
+/**
+ * Tasks the caller recently worked on, newest first: ones they created,
+ * changed or commented on. Derived from the activity and comment history, so
+ * nothing extra is written as people browse. Every source filters on
+ * workspace_id, and archived tasks and projects drop out.
+ */
+export async function listRecentTasks(ctx: WorkspaceContext, limit = 30): Promise<RecentTask[]> {
+  const touches = db
+    .select({ taskId: taskActivity.taskId, at: taskActivity.createdAt })
+    .from(taskActivity)
+    .where(and(eq(taskActivity.workspaceId, ctx.workspaceId), eq(taskActivity.actorId, ctx.userId)))
+    .unionAll(
+      db
+        .select({ taskId: comment.taskId, at: comment.createdAt })
+        .from(comment)
+        .where(and(eq(comment.workspaceId, ctx.workspaceId), eq(comment.authorId, ctx.userId))),
+    )
+    .unionAll(
+      db
+        .select({ taskId: task.id, at: task.createdAt })
+        .from(task)
+        .where(and(eq(task.workspaceId, ctx.workspaceId), eq(task.createdBy, ctx.userId))),
+    )
+    .as('touches');
+
+  const latest = db
+    .select({ taskId: touches.taskId, touchedAt: sql<Date>`max(${touches.at})`.as('touched_at') })
+    .from(touches)
+    .groupBy(touches.taskId)
+    .as('latest');
+
+  const rows = await db
+    .select({
+      id: task.id,
+      title: task.title,
+      projectId: task.projectId,
+      projectName: project.name,
+      priority: task.priority,
+      dueDate: task.dueDate,
+      completedAt: task.completedAt,
+      touchedAt: latest.touchedAt,
+    })
+    .from(latest)
+    .innerJoin(task, and(eq(task.id, latest.taskId), eq(task.workspaceId, ctx.workspaceId)))
+    .innerJoin(project, eq(project.id, task.projectId))
+    .where(and(isNull(task.archivedAt), isNull(project.archivedAt)))
+    .orderBy(desc(latest.touchedAt))
+    .limit(limit);
+
+  return rows.map(({ completedAt, touchedAt, ...r }) => ({
+    ...r,
+    completed: completedAt !== null,
+    // A raw aggregate comes back from pg as a string, not through the column's mapper.
+    touchedAt: new Date(touchedAt),
+  }));
 }

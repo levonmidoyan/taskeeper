@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { db, project, task, taskStatus } from '@/db';
+import { db, project, projectStar, task, taskStatus } from '@/db';
 import { newId } from '@/lib/ids';
 import { positionsForCount } from '@/lib/position';
 import { err, ok, type Result } from '@/lib/result';
@@ -146,4 +146,45 @@ export async function deleteProject(
 
     return ok(null);
   });
+}
+
+/**
+ * Stars or unstars a project for the caller only. Idempotent both ways, so a
+ * double click or a stale button cannot fail. Any member may star: it changes
+ * nothing anyone else sees.
+ */
+export async function setProjectStar(
+  ctx: WorkspaceContext,
+  input: { projectId: string; starred: boolean },
+): Promise<Result<null>> {
+  const parsed = z.object({ projectId: z.string(), starred: z.boolean() }).safeParse(input);
+  if (!parsed.success) return err(parsed.error.issues[0].message);
+  const { projectId, starred } = parsed.data;
+
+  if (!starred) {
+    await db.delete(projectStar).where(
+      and(
+        eq(projectStar.userId, ctx.userId),
+        eq(projectStar.projectId, projectId),
+        eq(projectStar.workspaceId, ctx.workspaceId),
+      ),
+    );
+    return ok(null);
+  }
+
+  // The project must belong to this workspace, or a foreign id would plant a
+  // star row pointing across tenants.
+  const [owned] = await db
+    .select({ id: project.id })
+    .from(project)
+    .where(and(eq(project.id, projectId), eq(project.workspaceId, ctx.workspaceId)))
+    .limit(1);
+  if (!owned) return err('Project not found.');
+
+  await db
+    .insert(projectStar)
+    .values({ userId: ctx.userId, projectId, workspaceId: ctx.workspaceId })
+    .onConflictDoNothing();
+
+  return ok(null);
 }

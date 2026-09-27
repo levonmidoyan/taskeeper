@@ -1,52 +1,57 @@
-'use client';
-
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { IconArrowLeft } from '@tabler/icons-react';
+import { headers } from 'next/headers';
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/auth/ui/card';
-import { FormError, TextField } from '@/components/forms/TextField';
-import * as Button from '@/components/ui/button';
-import { createWorkspaceAction } from '@/server/workspaces/actions';
+import { AuthShell } from '@/components/brand/AuthShell';
+import { WorkspaceShell } from '@/components/shell/WorkspaceShell';
+import { NewWorkspaceForm } from '@/components/workspace/NewWorkspaceForm';
+import { auth } from '@/lib/auth';
+import { resolveShellWorkspace } from '@/lib/shell-workspace';
 
-export default function NewWorkspacePage() {
-  const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+export default async function NewWorkspacePage() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) redirect('/auth/sign-in?redirectTo=/new-workspace');
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setPending(true);
-    setError(null);
+  const ctx = await resolveShellWorkspace(session.user.id);
 
-    const name = String(new FormData(event.currentTarget).get('name'));
-    const result = await createWorkspaceAction({ name });
-
-    if (!result.ok) {
-      setError(result.error);
-      setPending(false);
-      return;
-    }
-    router.push(`/${result.data.slug}`);
-  }
-
-  return (
-    <main className="flex min-h-dvh items-center justify-center bg-bg-weak-50 px-4">
-      <div className="w-full max-w-sm">
+  // A first workspace is onboarding: there is no app to sit inside yet.
+  if (!ctx) {
+    return (
+      <AuthShell>
         <Card>
           <CardHeader>
             <CardTitle>Create a workspace</CardTitle>
             <CardDescription>A workspace holds your projects and your team.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={onSubmit} className="flex flex-col gap-4">
-              <TextField id="name" label="Workspace name" name="name" required maxLength={64} autoFocus />
-              {error && <FormError>{error}</FormError>}
-              <Button.Root type="submit" disabled={pending} className="w-full">
-                {pending ? 'Creating…' : 'Create workspace'}
-              </Button.Root>
-            </form>
+            <NewWorkspaceForm />
           </CardContent>
         </Card>
-      </div>
-    </main>
+      </AuthShell>
+    );
+  }
+
+  return (
+    <WorkspaceShell ctx={ctx} userName={session.user.name}>
+      <main className="mx-auto w-full max-w-5xl px-4 py-6 lg:px-6">
+        <Link
+          href={`/${ctx.slug}`}
+          className="-ml-2 inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-label-sm text-text-sub-600 transition-colors duration-150 hover:bg-bg-weak-50 hover:text-text-strong-950"
+        >
+          <IconArrowLeft className="size-4" aria-hidden="true" />
+          Back
+        </Link>
+        <div className="mt-4">
+          <h1 className="text-title-h5 text-text-strong-950">Create a workspace</h1>
+          <p className="mt-1 text-paragraph-sm text-text-sub-600">
+            A workspace holds your projects and your team. You can switch between them from the sidebar.
+          </p>
+        </div>
+        <div className="mt-6 max-w-md rounded-2xl bg-bg-white-0 p-5 ring-1 ring-inset ring-stroke-soft-200">
+          <NewWorkspaceForm />
+        </div>
+      </main>
+    </WorkspaceShell>
   );
 }

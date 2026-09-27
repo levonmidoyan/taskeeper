@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, member, project, task, taskStatus, user } from '@/db';
 import { newId } from '@/lib/ids';
@@ -288,5 +288,65 @@ export async function deleteTask(
     await db.delete(task).where(eq(task.id, input.taskId));
 
     return ok(null);
+  });
+}
+
+const taskIdsSchema = z.array(z.string().min(1)).min(1, 'Select at least one task.').max(200, 'Select at most 200 tasks.');
+
+const bulkUpdateSchema = z.object({
+  taskIds: taskIdsSchema,
+  // Title, description and assignee are per-task decisions; these fan out.
+  patch: updateSchema
+    .pick({ statusId: true, priority: true, dueDate: true })
+    .refine((p) => Object.values(p).some((v) => v !== undefined), 'Nothing to change.'),
+});
+
+export type BulkUpdateTasksInput = z.input<typeof bulkUpdateSchema>;
+
+/**
+ * The list view's bulk bar. Runs each task through updateTask so every row gets
+ * the same validation, completed_at handling and activity entries as a single
+ * edit. Ownership is checked for the whole set up front, so a foreign id fails
+ * the call before any task is touched.
+ */
+export async function bulkUpdateTasks(
+  ctx: WorkspaceContext,
+  input: BulkUpdateTasksInput,
+): Promise<Result<{ updated: number }>> {
+  return withAction(async () => {
+    const parsed = bulkUpdateSchema.safeParse(input);
+    if (!parsed.success) return err(parsed.error.issues[0].message);
+
+    const ids = [...new Set(parsed.data.taskIds)];
+    const owned = await db
+      .select({ id: task.id })
+      .from(task)
+      .where(and(inArray(task.id, ids), eq(task.workspaceId, ctx.workspaceId)));
+    if (owned.length !== ids.length) return err('Some of those tasks were not found.');
+
+    for (const taskId of ids) {
+      const result = await updateTask(ctx, { taskId, ...parsed.data.patch });
+      if (!result.ok) return result;
+    }
+
+    return ok({ updated: ids.length });
+  });
+}
+
+export async function bulkDeleteTasks(
+  ctx: WorkspaceContext,
+  input: { taskIds: string[] },
+): Promise<Result<{ deleted: number }>> {
+  return withAction(async () => {
+    const parsed = taskIdsSchema.safeParse(input.taskIds);
+    if (!parsed.success) return err(parsed.error.issues[0].message);
+
+    // Scoped by workspace in the WHERE, so a foreign id simply matches nothing.
+    const deleted = await db
+      .delete(task)
+      .where(and(inArray(task.id, parsed.data), eq(task.workspaceId, ctx.workspaceId)))
+      .returning({ id: task.id });
+
+    return ok({ deleted: deleted.length });
   });
 }

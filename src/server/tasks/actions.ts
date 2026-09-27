@@ -2,10 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireWorkspace } from '@/lib/session';
-import { withAction, type Result } from '@/lib/result';
+import { ok, withAction, type Result } from '@/lib/result';
+import { searchTasks, type TaskSearchHit } from './queries';
 import {
-  createTask, deleteTask, moveTask, updateTask,
-  type MoveTaskInput, type UpdateTaskInput,
+  bulkDeleteTasks, bulkUpdateTasks, createTask, deleteTask, moveTask, updateTask,
+  type BulkUpdateTasksInput, type MoveTaskInput, type UpdateTaskInput,
 } from './service';
 
 /**
@@ -64,5 +65,40 @@ export async function deleteTaskAction(
     const result = await deleteTask(await requireWorkspace(workspaceSlug), input);
     if (result.ok) revalidateWorkspace(workspaceSlug);
     return result;
+  });
+}
+
+export async function bulkUpdateTasksAction(
+  workspaceSlug: string,
+  input: BulkUpdateTasksInput,
+): Promise<Result<{ updated: number }>> {
+  return withAction(async () => {
+    const result = await bulkUpdateTasks(await requireWorkspace(workspaceSlug), input);
+    if (result.ok) revalidateWorkspace(workspaceSlug);
+    return result;
+  });
+}
+
+export async function bulkDeleteTasksAction(
+  workspaceSlug: string,
+  input: { taskIds: string[] },
+): Promise<Result<{ deleted: number }>> {
+  return withAction(async () => {
+    const result = await bulkDeleteTasks(await requireWorkspace(workspaceSlug), input);
+    if (result.ok) revalidateWorkspace(workspaceSlug);
+    return result;
+  });
+}
+
+/** Read-only, so nothing to revalidate. Terms under two characters match too much to be useful. */
+export async function searchTasksAction(
+  workspaceSlug: string,
+  term: string,
+): Promise<Result<TaskSearchHit[]>> {
+  return withAction(async () => {
+    const ctx = await requireWorkspace(workspaceSlug);
+    const trimmed = term.trim().slice(0, 100);
+    if (trimmed.length < 2) return ok([]);
+    return ok(await searchTasks(ctx, trimmed));
   });
 }

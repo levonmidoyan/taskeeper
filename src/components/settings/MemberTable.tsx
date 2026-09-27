@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
-import * as Avatar from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/task/AssigneeAvatar';
 import * as Button from '@/components/ui/button';
 import * as Select from '@/components/ui/select';
 import { changeMemberRoleAction, removeMemberAction } from '@/server/members/actions';
@@ -64,7 +64,7 @@ export function MemberTable({
             >
               <td className="px-4 py-3 max-sm:min-w-0 max-sm:basis-full">
                 <div className="flex min-w-0 items-center gap-3">
-                  <Avatar.Root size="32" color="blue">{member.name.slice(0, 1)}</Avatar.Root>
+                  <UserAvatar name={member.name} image={member.image} size="32" />
                   <div className="min-w-0">
                     <div className="truncate text-label-sm text-text-strong-950">{member.name}</div>
                     <div className="truncate text-paragraph-xs text-text-sub-600">{member.email}</div>

@@ -1,5 +1,5 @@
-import { and, asc, count, eq, isNull } from 'drizzle-orm';
-import { db, project, task, taskStatus } from '@/db';
+import { and, asc, count, eq, isNull, sql } from 'drizzle-orm';
+import { db, project, projectStar, task, taskStatus } from '@/db';
 import type { WorkspaceContext } from '@/lib/session';
 
 export type ProjectSummary = {
@@ -8,6 +8,8 @@ export type ProjectSummary = {
   slug: string;
   color: string;
   openTaskCount: number;
+  /** Starred by the caller; each member keeps their own stars. */
+  starred: boolean;
 };
 
 export type StatusRow = {
@@ -23,6 +25,7 @@ export type ProjectDetail = {
   name: string;
   slug: string;
   color: string;
+  starred: boolean;
   statuses: StatusRow[];
 };
 
@@ -34,8 +37,15 @@ export async function listProjects(ctx: WorkspaceContext): Promise<ProjectSummar
       slug: project.slug,
       color: project.color,
       openTaskCount: count(task.id),
+      // bool_or, since the star join is one row at most but sits beside the
+      // task join that the count groups over.
+      starred: sql<boolean>`coalesce(bool_or(${projectStar.userId} is not null), false)`,
     })
     .from(project)
+    .leftJoin(
+      projectStar,
+      and(eq(projectStar.projectId, project.id), eq(projectStar.userId, ctx.userId)),
+    )
     .leftJoin(
       task,
       and(
@@ -61,8 +71,15 @@ export async function getProject(
   projectId: string,
 ): Promise<ProjectDetail | null> {
   const [row] = await db
-    .select({ id: project.id, name: project.name, slug: project.slug, color: project.color })
+    .select({
+      id: project.id, name: project.name, slug: project.slug, color: project.color,
+      starred: sql<boolean>`${projectStar.userId} is not null`,
+    })
     .from(project)
+    .leftJoin(
+      projectStar,
+      and(eq(projectStar.projectId, project.id), eq(projectStar.userId, ctx.userId)),
+    )
     // Both conditions, always: the id alone would read across tenants.
     .where(and(eq(project.id, projectId), eq(project.workspaceId, ctx.workspaceId)))
     .limit(1);
