@@ -1,5 +1,6 @@
 'use client';
 
+import { dashClient } from '@better-auth/infra/client';
 import {
   adminClient,
   deviceAuthorizationClient,
@@ -18,6 +19,8 @@ export const authClient = createAuthClient({
     // twoFactorRedirect response to /auth/two-factor itself.
     twoFactorClient(),
     emailOTPClient(),
+    // Audit log reads for the signed-in user; needs the server dash plugin.
+    dashClient(),
   ],
 });
 

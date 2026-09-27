@@ -43,6 +43,13 @@
       "when": 1790426941610,
       "tag": "0005_stale_magus",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790427420307,
+      "tag": "0006_red_the_hand",
+      "breakpoints": true
     }
   ]
 }

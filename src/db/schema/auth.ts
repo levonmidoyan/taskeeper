@@ -13,6 +13,8 @@ export const user = pgTable('user', {
   banExpires: timestamp('ban_expires', { withTimezone: true }),
   // Better Auth two-factor plugin.
   twoFactorEnabled: boolean('two_factor_enabled').default(false),
+  // Better Auth dash plugin activity tracking. Stays null while dash is off.
+  lastActiveAt: timestamp('last_active_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

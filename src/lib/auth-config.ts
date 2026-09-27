@@ -42,3 +42,12 @@ export function googleCredentials(): { clientId: string; clientSecret: string } 
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   return clientId && clientSecret ? { clientId, clientSecret } : null;
 }
+
+/**
+ * Better Auth Infrastructure key for the dash plugin (dashboard, audit log,
+ * activity tracking), or null when not configured — the plugin is then left
+ * out, so dev and CI send nothing to dash.better-auth.com.
+ */
+export function dashApiKey(): string | null {
+  return process.env.BETTER_AUTH_API_KEY?.trim() || null;
+}
