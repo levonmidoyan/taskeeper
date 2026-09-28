@@ -2,23 +2,26 @@ import { expect, type Page } from '@playwright/test';
 
 /**
  * Adds a task through the header's Create dialog, the only way in now that the
- * board and list have no quick add. It lands in the project's first column and
- * opens the task's detail dialog; `status` picks another column from there
- * before the dialog is closed again.
- *
- * A status change keeps the task's position, and positions are keyed per
- * column, so a task created after another has left Todo can tie with it. Create
- * every task first, then move them, when the order inside a column matters.
+ * board and list have no quick add. `status` picks its column in the form;
+ * otherwise it lands in the project's first one. The dialog closes and the
+ * view refreshes behind it.
  */
 export async function createTask(page: Page, title: string, status?: string) {
   await page.getByRole('button', { name: 'Create task' }).click();
   const create = page.getByRole('dialog', { name: 'New task' });
   await create.getByLabel('Title').fill(title);
-  await create.getByRole('button', { name: 'Create task' }).click();
-  await expect(page).toHaveURL(/[?&]task=/);
+  // The columns load per project; the submit waits for them.
+  const submit = create.getByRole('button', { name: 'Create task' });
+  await expect(submit).toBeEnabled();
 
-  if (status) await setStatus(page, status);
-  await closeTask(page);
+  if (status) {
+    await create.getByLabel('Status').click();
+    await page.getByRole('option', { name: status, exact: true }).click();
+    await expect(page.getByRole('listbox')).toBeHidden();
+  }
+
+  await submit.click();
+  await expect(create).toBeHidden();
 }
 
 /** Moves the task open in the detail dialog to another column. */

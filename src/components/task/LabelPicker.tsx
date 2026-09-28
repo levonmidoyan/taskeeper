@@ -2,7 +2,7 @@
 
 import { IconCheck, IconTag, IconTrash } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useId, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { LabelChip } from '@/components/task/LabelChip';
 import * as Dropdown from '@/components/ui/dropdown';
@@ -11,6 +11,7 @@ import { createLabelAction, deleteLabelAction, setTaskLabelsAction } from '@/ser
 import type { LabelRow } from '@/server/tasks/queries';
 import { cn } from '@/utils/cn';
 
+/** Attaches labels to an existing task, saving each change as it is made. */
 export function LabelPicker({
   workspaceSlug,
   taskId,
@@ -24,8 +25,6 @@ export function LabelPicker({
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [draft, setDraft] = useState('');
-  const selectedIds = new Set(selected.map((l) => l.id));
 
   function apply(labelIds: string[]) {
     startTransition(async () => {
@@ -35,11 +34,51 @@ export function LabelPicker({
     });
   }
 
+  return (
+    <LabelSelect
+      workspaceSlug={workspaceSlug}
+      allLabels={allLabels}
+      value={selected.map((l) => l.id)}
+      onChange={apply}
+      onLabelDeleted={() => router.refresh()}
+    />
+  );
+}
+
+/**
+ * The label menu on its own: picks ids and leaves saving them to the caller,
+ * so the create form can use it before the task exists. Creating and deleting
+ * labels themselves still happens here, workspace-wide.
+ */
+export function LabelSelect({
+  workspaceSlug,
+  allLabels,
+  value,
+  onChange,
+  onLabelDeleted,
+}: {
+  workspaceSlug: string;
+  allLabels: LabelRow[];
+  value: string[];
+  onChange: (labelIds: string[]) => void;
+  onLabelDeleted?: (labelId: string) => void;
+}) {
+  const [, startTransition] = useTransition();
+  const inputId = useId();
+  const [draft, setDraft] = useState('');
+  // Labels made from this menu, shown until the caller's list catches up.
+  const [created, setCreated] = useState<LabelRow[]>([]);
+  const [deleted, setDeleted] = useState<string[]>([]);
+  const labels = [...allLabels, ...created.filter((c) => !allLabels.some((l) => l.id === c.id))]
+    .filter((l) => !deleted.includes(l.id));
+  const selectedIds = new Set(value);
+  const selected = labels.filter((l) => selectedIds.has(l.id));
+
   function toggle(labelId: string) {
     const next = selectedIds.has(labelId)
       ? [...selectedIds].filter((id) => id !== labelId)
       : [...new Set([...selectedIds, labelId])];
-    apply(next);
+    onChange(next);
   }
 
   function onCreate(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -52,23 +91,29 @@ export function LabelPicker({
     startTransition(async () => {
       // Creating an existing name returns that label, so typing a duplicate
       // simply attaches it.
-      const created = await createLabelAction(workspaceSlug, { name });
-      if (!created.ok) {
-        toast.error(created.error);
+      const result = await createLabelAction(workspaceSlug, { name });
+      if (!result.ok) {
+        toast.error(result.error);
         return;
       }
       setDraft('');
-      // A Set: typing the name of a label the task already carries returns that
-      // same id, and sending it twice is not a selection change.
-      apply([...new Set([...selectedIds, created.data.id])]);
+      setCreated((prev) => [...prev, result.data]);
+      // A Set: typing the name of a label already selected returns that same
+      // id, and sending it twice is not a selection change.
+      onChange([...new Set([...selectedIds, result.data.id])]);
     });
   }
 
   function onDelete(labelId: string) {
     startTransition(async () => {
       const result = await deleteLabelAction(workspaceSlug, { labelId });
-      if (!result.ok) toast.error(result.error);
-      router.refresh();
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      setDeleted((prev) => [...prev, labelId]);
+      if (selectedIds.has(labelId)) onChange([...selectedIds].filter((id) => id !== labelId));
+      onLabelDeleted?.(labelId);
     });
   }
 
@@ -83,11 +128,11 @@ export function LabelPicker({
 
       <Dropdown.Content align="start" className="w-64">
         <div className="p-1">
-          <label htmlFor="new-label" className="sr-only">New label name</label>
+          <label htmlFor={inputId} className="sr-only">New label name</label>
           <Input.Root size="small">
             <Input.Wrapper>
               <Input.Input
-                id="new-label"
+                id={inputId}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(event) => {
@@ -103,9 +148,9 @@ export function LabelPicker({
           </Input.Root>
         </div>
 
-        {allLabels.length > 0 && <Dropdown.Separator />}
+        {labels.length > 0 && <Dropdown.Separator />}
 
-        {allLabels.map((label) => (
+        {labels.map((label) => (
           <Dropdown.Item
             key={label.id}
             onSelect={(event) => { event.preventDefault(); toggle(label.id); }}

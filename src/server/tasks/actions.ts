@@ -2,11 +2,13 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireWorkspace } from '@/lib/session';
-import { ok, withAction, type Result } from '@/lib/result';
-import { searchTasks, type TaskSearchHit } from './queries';
+import { err, ok, withAction, type Result } from '@/lib/result';
+import { listLabels, listWorkspaceMembers, type MemberRow } from '@/server/labels/queries';
+import { getProject, type StatusRow } from '@/server/projects/queries';
+import { searchTasks, type LabelRow, type TaskSearchHit } from './queries';
 import {
   bulkDeleteTasks, bulkUpdateTasks, createTask, deleteTask, moveTask, updateTask,
-  type BulkUpdateTasksInput, type MoveTaskInput, type UpdateTaskInput,
+  type BulkUpdateTasksInput, type CreateTaskInput, type MoveTaskInput, type UpdateTaskInput,
 } from './service';
 
 /**
@@ -26,7 +28,7 @@ function revalidateWorkspace(workspaceSlug: string): void {
 
 export async function createTaskAction(
   workspaceSlug: string,
-  input: { projectId: string; title: string; statusId?: string; parentTaskId?: string },
+  input: CreateTaskInput,
 ): Promise<Result<{ id: string }>> {
   return withAction(async () => {
     const result = await createTask(await requireWorkspace(workspaceSlug), input);
@@ -100,5 +102,30 @@ export async function searchTasksAction(
     const trimmed = term.trim().slice(0, 100);
     if (trimmed.length < 2) return ok([]);
     return ok(await searchTasks(ctx, trimmed));
+  });
+}
+
+export type CreateTaskOptions = {
+  statuses: StatusRow[];
+  members: MemberRow[];
+  labels: LabelRow[];
+  timezone: string;
+};
+
+/**
+ * What the create form's fields pick from. Read-only, and fetched per project
+ * because the columns belong to the project, not the workspace.
+ */
+export async function getCreateTaskOptionsAction(
+  workspaceSlug: string,
+  projectId: string,
+): Promise<Result<CreateTaskOptions>> {
+  return withAction(async () => {
+    const ctx = await requireWorkspace(workspaceSlug);
+    const [detail, members, labels] = await Promise.all([
+      getProject(ctx, projectId), listWorkspaceMembers(ctx), listLabels(ctx),
+    ]);
+    if (!detail) return err('Project not found.');
+    return ok({ statuses: detail.statuses, members, labels, timezone: ctx.timezone });
   });
 }
