@@ -449,8 +449,10 @@ export function TaskTable({
             <TaskTableSettings settings={settings} onChange={onSettingsChange} onReset={resetSettings} />
           </div>
           {/* The table scrolls sideways inside its own box on narrow screens, with
-              Title pinned, so the page itself never scrolls horizontally. */}
-          <div className="overflow-x-auto">
+              Title pinned, so the page itself never scrolls horizontally. relative
+              so absolute children (the sr-only header label) are clipped here too,
+              not placed against the page. */}
+          <div className="relative overflow-x-auto">
             {/* border-separate so the end cells can round: the header is a pill and
                 each row lights up as one on hover. Rows split by divider rows. */}
             <table className="w-full border-separate border-spacing-0 text-left">
