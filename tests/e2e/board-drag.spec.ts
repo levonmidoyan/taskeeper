@@ -197,7 +197,7 @@ test('columns can be renamed, added, marked done and deleted with their tasks mo
   await signUpWithProject(page, 'columns');
   await openBoard(page);
 
-  await page.getByRole('button', { name: 'Columns' }).click();
+  await page.getByRole('button', { name: 'Columns', exact: true }).click();
   const dialog = page.getByRole('dialog');
 
   // Rename, committed with Enter.
@@ -236,18 +236,31 @@ test('columns reorder by dragging their handle in the dialog', async ({ page }) 
   await signUpWithProject(page, 'reorder');
   await openBoard(page);
 
-  await page.getByRole('button', { name: 'Columns' }).click();
+  await page.getByRole('button', { name: 'Columns', exact: true }).click();
   const dialog = page.getByRole('dialog');
   const names = dialog.getByRole('listitem').getByRole('textbox');
-  await expect(names).toHaveValues(['Todo', 'In Progress', 'Done']);
+  // toHaveValues is for one multi-select; these are separate inputs.
+  const values = () => names.evaluateAll((els) => els.map((el) => (el as HTMLInputElement).value));
+  await expect.poll(values).toEqual(['Todo', 'In Progress', 'Done']);
 
   // Keyboard drag: Space lifts, ArrowDown moves one slot, Space drops.
   const handle = dialog.getByRole('button', { name: 'Reorder Todo' });
+  // Each key waits on dnd-kit's live region and its measuring pass, as in the
+  // board's keyboard test: pressed together, the drop lands where it started.
+  // The board behind the dialog has its own live region; the dialog's is last.
+  const announcer = page.locator('[id^="DndLiveRegion"]').last();
+  const frames = () => page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
   await handle.focus();
   await page.keyboard.press('Space');
+  await expect(announcer).toContainText('Draggable item');
+  await frames();
   await page.keyboard.press('ArrowDown');
+  await frames();
   await page.keyboard.press('Space');
-  await expect(names).toHaveValues(['In Progress', 'Todo', 'Done']);
+  await expect(announcer).toContainText('was dropped');
+  await expect.poll(values).toEqual(['In Progress', 'Todo', 'Done']);
 
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
@@ -274,5 +287,5 @@ test('a column is renamed from the pencil in its board header', async ({ page })
 test('the list view has no Columns button', async ({ page }) => {
   await signUpWithProject(page, 'list-columns');
   await page.getByRole('tab', { name: 'List' }).click();
-  await expect(page.getByRole('button', { name: 'Columns' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Columns', exact: true })).toHaveCount(0);
 });

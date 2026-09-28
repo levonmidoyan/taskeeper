@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  IconClock, IconClockFilled, IconMenu2, IconSparkles, IconStar, IconStarFilled,
+  IconChecklist, IconClock, IconClockFilled, IconMenu2, IconSparkles, IconStar, IconStarFilled,
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
@@ -74,6 +74,7 @@ function RailBody({ workspaceSlug, workspaces, projects }: Props) {
     { href: `/${workspaceSlug}`, label: 'For you', icon: IconSparkles, activeIcon: IconSparkles },
     { href: `/${workspaceSlug}/recent`, label: 'Recent', icon: IconClock, activeIcon: IconClockFilled },
     { href: `/${workspaceSlug}/starred`, label: 'Starred', icon: IconStar, activeIcon: IconStarFilled },
+    { href: `/${workspaceSlug}/todo`, label: 'To-do', icon: IconChecklist, activeIcon: IconChecklist },
   ];
 
   return (
