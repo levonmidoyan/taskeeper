@@ -78,3 +78,31 @@ test('row menu changes one task without opening it', async ({ page }) => {
   await expect(row(page, 'Solo')).toContainText('Urgent');
   await expect(page).not.toHaveURL(/task=/);
 });
+
+test('row menu sets a due date from the calendar', async ({ page }) => {
+  await signUpWithListTasks(page, ['Dated']);
+
+  await row(page, 'Dated').hover();
+  await page.getByRole('button', { name: 'Actions for Dated' }).click();
+  await page.getByRole('menuitem', { name: 'Due date' }).click();
+
+  // The 15th of next month: never today or tomorrow, so it shows as "15 Mon".
+  // Glide into the submenu like a real pointer: a jump off its trigger reads
+  // to Radix as leaving the submenu, which closes it.
+  const next = page.getByRole('button', { name: /next month/i });
+  const box = (await next.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 20 });
+  await next.click();
+  await page.locator('td[data-day] button').getByText('15', { exact: true }).click();
+
+  const now = new Date();
+  const picked = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 15, 12));
+  const month = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short' }).format(picked);
+  const label =
+    picked.getUTCFullYear() === now.getUTCFullYear()
+      ? `15 ${month}`
+      : `15 ${month} ${picked.getUTCFullYear()}`;
+
+  await expect(page.getByRole('menu', { name: 'Actions for Dated' })).toBeHidden();
+  await expect(row(page, 'Dated')).toContainText(label);
+});
