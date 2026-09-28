@@ -59,8 +59,9 @@ test('bulk-deletes the selected rows', async ({ page }) => {
   await page.getByLabel('Select Drop one').check();
   await page.getByLabel('Select Drop two').check();
 
-  page.once('dialog', (d) => d.accept());
   await page.getByRole('toolbar', { name: 'Bulk actions' }).getByRole('button', { name: 'Delete' }).click();
+  const confirm = page.getByRole('alertdialog', { name: 'Delete 2 tasks?' });
+  await confirm.getByRole('button', { name: 'Delete', exact: true }).click();
 
   await expect(page.getByText('Deleted 2 tasks')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Drop one', exact: true })).toBeHidden();

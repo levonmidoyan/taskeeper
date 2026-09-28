@@ -21,6 +21,7 @@ import * as CompactButton from '@/components/ui/compact-button';
 import * as Label from '@/components/ui/label';
 import * as Modal from '@/components/ui/modal';
 import * as Select from '@/components/ui/select';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import type { FeedEntry } from '@/server/activity/queries';
 import type { MemberRow } from '@/server/labels/queries';
 import type { StatusRow } from '@/server/projects/queries';
@@ -73,6 +74,7 @@ export function TaskDetailView({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
+  const confirm = useConfirm();
   const [title, setTitle] = useState(task.title);
   const [assigneeId, setAssigneeId] = useState(task.assigneeId);
 
@@ -108,8 +110,12 @@ export function TaskDetailView({
     });
   }
 
-  function onDelete() {
-    if (!confirm(`Delete "${task.title}"? This also deletes its subtasks.`)) return;
+  async function onDelete() {
+    const ok = await confirm({
+      title: `Delete "${task.title}"?`,
+      description: 'This also deletes its subtasks. It can’t be undone.',
+    });
+    if (!ok) return;
     startTransition(async () => {
       const result = await deleteTaskAction(workspaceSlug, { taskId: task.id });
       if (!result.ok) {

@@ -25,6 +25,7 @@ import type { TaskPatch } from '@/components/task/TaskFieldItems';
 import { TaskRowActions } from '@/components/task/TaskRowActions';
 import { StatusIcon } from '@/components/task/StatusIcon';
 import * as StatusBadge from '@/components/ui/status-badge';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import {
   PRIORITY_RANK,
   boardOrder,
@@ -251,6 +252,7 @@ export function TaskTable({
   // The shift-click anchor: the last row toggled on its own.
   const anchorId = useRef<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const confirm = useConfirm();
 
   function clearSelection() {
     setSelection(new Set());
@@ -301,11 +303,19 @@ export function TaskTable({
     });
   }
 
-  function deleteTasks(taskIds: string[]) {
-    const question = taskIds.length === 1
-      ? `Delete "${tasks.find((t) => t.id === taskIds[0])?.title ?? 'this task'}"? This also deletes its subtasks.`
-      : `Delete ${taskIds.length} tasks? This also deletes their subtasks.`;
-    if (!confirm(question)) return;
+  async function deleteTasks(taskIds: string[]) {
+    const ok = await confirm(
+      taskIds.length === 1
+        ? {
+            title: `Delete "${tasks.find((t) => t.id === taskIds[0])?.title ?? 'this task'}"?`,
+            description: 'This also deletes its subtasks. It can’t be undone.',
+          }
+        : {
+            title: `Delete ${taskIds.length} tasks?`,
+            description: 'This also deletes their subtasks. It can’t be undone.',
+          },
+    );
+    if (!ok) return;
     startTransition(async () => {
       const result = await bulkDeleteTasksAction(workspaceSlug, { taskIds });
       if (!result.ok) {

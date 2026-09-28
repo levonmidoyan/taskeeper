@@ -9,6 +9,7 @@ import { RichTextField } from '@/components/task/RichTextField';
 import * as Avatar from '@/components/ui/avatar';
 import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { describeActivity } from '@/lib/activity-text';
 import { formatInZone } from '@/lib/dates';
 import type { FeedEntry } from '@/server/activity/queries';
@@ -33,6 +34,7 @@ export function ActivityFeed({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const confirm = useConfirm();
   const [draft, setDraft] = useState('');
   // Bumped after a successful post: remounting the editor is how it is cleared.
   const [composerKey, setComposerKey] = useState(0);
@@ -73,8 +75,8 @@ export function ActivityFeed({
     });
   }
 
-  function onDelete(commentId: string) {
-    if (!confirm('Delete this comment?')) return;
+  async function onDelete(commentId: string) {
+    if (!(await confirm({ title: 'Delete this comment?', description: 'This can’t be undone.' }))) return;
     startTransition(async () => {
       const result = await deleteCommentAction(workspaceSlug, { commentId });
       if (!result.ok) {

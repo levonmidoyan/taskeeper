@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { UserAvatar } from '@/components/task/AssigneeAvatar';
 import * as Button from '@/components/ui/button';
 import * as Select from '@/components/ui/select';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { changeMemberRoleAction, removeMemberAction } from '@/server/members/actions';
 import type { MemberRow } from '@/server/labels/queries';
 import type { WorkspaceRole } from '@/lib/session';
@@ -23,6 +24,7 @@ export function MemberTable({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const confirm = useConfirm();
 
   function onRoleChange(userId: string, role: WorkspaceRole) {
     startTransition(async () => {
@@ -32,8 +34,13 @@ export function MemberTable({
     });
   }
 
-  function onRemove(member: MemberRow) {
-    if (!confirm(`Remove ${member.name} from this workspace?`)) return;
+  async function onRemove(member: MemberRow) {
+    const ok = await confirm({
+      title: `Remove ${member.name}?`,
+      description: 'They lose access to this workspace and its projects.',
+      confirmLabel: 'Remove',
+    });
+    if (!ok) return;
     startTransition(async () => {
       const result = await removeMemberAction(workspaceSlug, { userId: member.userId });
       if (!result.ok) toast.error(result.error);
