@@ -19,7 +19,6 @@ import { AssigneeAvatar } from '@/components/task/AssigneeAvatar';
 import { DueChip } from '@/components/task/DueChip';
 import { LabelChip } from '@/components/task/LabelChip';
 import { PriorityChip } from '@/components/task/Priority';
-import { QuickAddTask } from '@/components/task/QuickAddTask';
 import { TaskBulkBar } from '@/components/task/TaskBulkBar';
 import type { TaskPatch } from '@/components/task/TaskFieldItems';
 import { TaskRowActions } from '@/components/task/TaskRowActions';
@@ -36,6 +35,7 @@ import {
 import type { StatusRow } from '@/server/projects/queries';
 import { bulkDeleteTasksAction, bulkUpdateTasksAction } from '@/server/tasks/actions';
 import type { TaskRow } from '@/server/tasks/queries';
+import { formatDueDate, formatInZone, todayInZone } from '@/lib/dates';
 import { cn } from '@/utils/cn';
 
 const features = tableFeatures({
@@ -46,6 +46,19 @@ const features = tableFeatures({
 const column = createColumnHelper<typeof features, TaskRow>();
 
 const VISIBLE_LABELS = 2;
+
+/** A timestamp cell: the day at a glance, the exact time on hover. */
+function InstantCell({ instant, timezone }: { instant: Date; timezone: string }) {
+  return (
+    <time
+      dateTime={instant.toISOString()}
+      title={formatInZone(instant, timezone)}
+      className="tabular whitespace-nowrap text-paragraph-sm text-text-sub-600"
+    >
+      {formatDueDate(todayInZone(timezone, instant), timezone)}
+    </time>
+  );
+}
 
 function buildColumns(statusById: Map<string, StatusRow>, timezone: string) {
   return column.columns([
@@ -130,6 +143,18 @@ function buildColumns(statusById: Map<string, StatusRow>, timezone: string) {
           ? <DueChip dueDate={row.original.dueDate} timezone={timezone} />
           : <span className="text-paragraph-xs text-text-soft-400">—</span>,
     }),
+    column.accessor((task) => task.createdAt.getTime(), {
+      id: 'created',
+      header: 'Created',
+      sortFn: (a, b, id) => a.getValue<number>(id) - b.getValue<number>(id),
+      cell: ({ row }) => <InstantCell instant={row.original.createdAt} timezone={timezone} />,
+    }),
+    column.accessor((task) => task.updatedAt.getTime(), {
+      id: 'updated',
+      header: 'Updated',
+      sortFn: (a, b, id) => a.getValue<number>(id) - b.getValue<number>(id),
+      cell: ({ row }) => <InstantCell instant={row.original.updatedAt} timezone={timezone} />,
+    }),
     column.display({
       id: 'labels',
       header: 'Labels',
@@ -163,6 +188,8 @@ const COLUMN_WIDTH: Record<string, string> = {
   priority: 'w-32',
   assignee: 'w-44',
   due: 'w-36',
+  created: 'w-32',
+  updated: 'w-32',
   labels: 'w-48',
 };
 
@@ -197,13 +224,11 @@ export function TaskTable({
   tasks,
   statuses,
   workspaceSlug,
-  projectId,
   timezone,
 }: {
   tasks: TaskRow[];
   statuses: StatusRow[];
   workspaceSlug: string;
-  projectId: string;
   timezone: string;
 }) {
   const router = useRouter();
@@ -486,10 +511,6 @@ export function TaskTable({
           </table>
         </div>
       )}
-
-      <div className="mt-2 rounded-2xl bg-bg-white-0 px-3 ring-1 ring-inset ring-stroke-soft-200">
-        <QuickAddTask workspaceSlug={workspaceSlug} projectId={projectId} />
-      </div>
 
       {selectedIds.length > 0 && (
         <TaskBulkBar

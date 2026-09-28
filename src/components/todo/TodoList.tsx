@@ -11,6 +11,7 @@ import { useOptimistic, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { SortableTodoItem, TodoItem, type TodoItemHandlers } from '@/components/todo/TodoItem';
 import { TodoQuickAdd } from '@/components/todo/TodoQuickAdd';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import type { Result } from '@/lib/result';
 import { applyTodoOp, dropTarget, type TodoOp } from '@/lib/todo-list';
 import {
@@ -31,6 +32,7 @@ export function TodoList({
   const [view, apply] = useOptimistic(lists, applyTodoOp);
   const [, startTransition] = useTransition();
   const [showDone, setShowDone] = useState(false);
+  const confirm = useConfirm();
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -62,9 +64,11 @@ export function TodoList({
     onDue: (item, dueDate) =>
       run({ kind: 'edit', id: item.id, dueDate },
         () => updateTodoAction(workspaceSlug, { todoId: item.id, dueDate })),
-    onDelete: (item) =>
+    onDelete: async (item) => {
+      if (!(await confirm({ title: `Delete "${item.title}"?`, description: 'This can’t be undone.' }))) return;
       run({ kind: 'delete', id: item.id },
-        () => deleteTodoAction(workspaceSlug, { todoId: item.id })),
+        () => deleteTodoAction(workspaceSlug, { todoId: item.id }));
+    },
   };
 
   function onDragEnd({ active, over }: DragEndEvent) {

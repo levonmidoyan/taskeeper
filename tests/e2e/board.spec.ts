@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { createTask } from './tasks';
 
 async function signUpWithProject(page: Page, prefix: string) {
   const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -16,8 +17,7 @@ async function signUpWithProject(page: Page, prefix: string) {
   await page.getByLabel('Project name').fill('Website');
   await page.getByRole('button', { name: 'Create project' }).click();
 
-  await page.getByPlaceholder('Add to Todo…').fill('Drag me');
-  await page.getByPlaceholder('Add to Todo…').press('Enter');
+  await createTask(page, 'Drag me');
   await expect(page.getByText('Drag me')).toBeVisible();
 }
 

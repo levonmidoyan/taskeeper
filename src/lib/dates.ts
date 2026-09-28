@@ -48,6 +48,18 @@ export function addDays(date: string, days: number): string {
   return shifted.toISOString().slice(0, 10);
 }
 
+// Date pickers work in local Date objects, but only ever as a calendar day:
+// these two helpers are the whole boundary with the YYYY-MM-DD strings.
+export function dayToDate(day: string): Date {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+export function dateToDay(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 /** Human label for a due date, relative to today in the workspace zone. */
 export function formatDueDate(dueDate: string, tz: string, now: Date = new Date()): string {
   const today = todayInZone(tz, now);

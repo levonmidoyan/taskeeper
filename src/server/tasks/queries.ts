@@ -19,6 +19,8 @@ export type TaskRow = {
   dueDate: string | null;
   position: string;
   completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
   labels: LabelRow[];
   subtaskCount: number;
   subtaskDoneCount: number;
@@ -38,6 +40,8 @@ const baseColumns = {
   dueDate: task.dueDate,
   position: task.position,
   completedAt: task.completedAt,
+  createdAt: task.createdAt,
+  updatedAt: task.updatedAt,
 };
 
 async function attachLabels(rows: BaseRow[]): Promise<TaskRow[]> {

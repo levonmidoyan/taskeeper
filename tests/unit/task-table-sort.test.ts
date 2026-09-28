@@ -18,7 +18,7 @@ const statuses: StatusRow[] = [
 function task(id: string, statusId: string, position: string): TaskRow {
   return {
     id, title: id, description: '', statusId, priority: 'none', assigneeId: null,
-    assigneeName: null, assigneeImage: null, dueDate: null, position, completedAt: null, labels: [],
+    assigneeName: null, assigneeImage: null, dueDate: null, position, completedAt: null, createdAt: new Date(0), updatedAt: new Date(0), labels: [],
     subtaskCount: 0, subtaskDoneCount: 0,
   };
 }

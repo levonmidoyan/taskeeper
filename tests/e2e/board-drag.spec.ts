@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { closeTask, createTask, setStatus } from './tasks';
 
 /**
  * Drag edge cases and the column manager. board.spec.ts covers the happy paths and stays
@@ -20,8 +21,7 @@ async function signUpWithProject(page: Page, prefix: string) {
   await page.getByLabel('Project name').fill('Website');
   await page.getByRole('button', { name: 'Create project' }).click();
 
-  await page.getByPlaceholder('Add to Todo…').fill('Drag me');
-  await page.getByPlaceholder('Add to Todo…').press('Enter');
+  await createTask(page, 'Drag me');
   await expect(page.getByText('Drag me')).toBeVisible();
 }
 
@@ -63,11 +63,19 @@ async function lift(page: Page, target: Locator) {
   return { x, y };
 }
 
-async function addToColumn(page: Page, columnName: string, title: string) {
-  const input = page.getByPlaceholder(`Add to ${columnName}…`);
-  await input.fill(title);
-  await input.press('Enter');
-  await expect(card(page, columnName, title)).toBeVisible();
+/**
+ * Creates each task in Todo, then moves them in the same order. A move keeps the
+ * task's position, so creating them all first keeps the positions distinct and
+ * each column in the order given.
+ */
+async function addToColumns(page: Page, tasks: [columnName: string, title: string][]) {
+  for (const [, title] of tasks) await createTask(page, title);
+  for (const [columnName, title] of tasks) {
+    await card(page, 'Todo', title).click();
+    await setStatus(page, columnName);
+    await closeTask(page);
+    await expect(card(page, columnName, title)).toBeVisible();
+  }
 }
 
 test('Escape mid-drag puts a previewed card back and saves nothing', async ({ page }) => {
@@ -154,11 +162,13 @@ test('a card dropped below the last card of a column lands last', async ({ page 
   // board's flat list: "Drag me" (Todo) sorts before Second, "Mover" (Done, behind two
   // cards) after it. Mapping "below the last card" to that card made the result depend on
   // which side of it the mover sat — one of the two drags below landed in the middle.
-  await addToColumn(page, 'In Progress', 'First');
-  await addToColumn(page, 'In Progress', 'Second');
-  await addToColumn(page, 'Done', 'Done one');
-  await addToColumn(page, 'Done', 'Done two');
-  await addToColumn(page, 'Done', 'Mover');
+  await addToColumns(page, [
+    ['In Progress', 'First'],
+    ['In Progress', 'Second'],
+    ['Done', 'Done one'],
+    ['Done', 'Done two'],
+    ['Done', 'Mover'],
+  ]);
 
   const inProgress = column(page, 'In Progress');
 

@@ -2,7 +2,7 @@ import type { StatusRow } from '@/server/projects/queries';
 import type { Priority, TaskRow } from '@/server/tasks/queries';
 
 /** The List table's sortable columns, which are also the ids written to ?sort=. */
-export const SORTABLE_COLUMNS = ['title', 'status', 'priority', 'assignee', 'due'] as const;
+export const SORTABLE_COLUMNS = ['title', 'status', 'priority', 'assignee', 'due', 'created', 'updated'] as const;
 export type SortableColumn = (typeof SORTABLE_COLUMNS)[number];
 export type TableSort = { id: SortableColumn; desc: boolean };
 

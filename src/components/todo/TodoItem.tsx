@@ -132,7 +132,7 @@ export function TodoItem({
         </Dropdown.Trigger>
         <Dropdown.Content align="end" className="w-40">
           <Dropdown.Item onSelect={() => onDelete(item)} className="text-error-base">
-            <Dropdown.ItemIcon as={IconTrash} />
+            <Dropdown.ItemIcon as={IconTrash} className="text-error-base" />
             Delete
           </Dropdown.Item>
         </Dropdown.Content>

@@ -36,7 +36,6 @@ export default async function ProjectListPage({
         tasks={tasks}
         statuses={project.statuses}
         workspaceSlug={workspaceSlug}
-        projectId={projectId}
         timezone={ctx.timezone}
       />
       <ProjectTaskDialog

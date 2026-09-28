@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { createTask } from './tasks';
 
 async function signUpWithListTasks(page: Page, titles: string[]) {
   const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -19,10 +20,8 @@ async function signUpWithListTasks(page: Page, titles: string[]) {
   await page.getByRole('tab', { name: 'List' }).click();
   await expect(page).toHaveURL(/\/list$/);
 
-  const add = page.getByPlaceholder('Add a task…');
   for (const title of titles) {
-    await add.fill(title);
-    await add.press('Enter');
+    await createTask(page, title);
     await expect(page.getByRole('button', { name: title, exact: true })).toBeVisible();
   }
 }

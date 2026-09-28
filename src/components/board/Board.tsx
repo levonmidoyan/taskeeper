@@ -25,14 +25,12 @@ const toItems = (tasks: TaskRow[]): BoardItem[] =>
 
 export function Board({
   workspaceSlug,
-  projectId,
   statuses,
   tasks,
   timezone,
   canEditColumns,
 }: {
   workspaceSlug: string;
-  projectId: string;
   statuses: StatusRow[];
   tasks: TaskRow[];
   timezone: string;
@@ -213,7 +211,6 @@ export function Board({
             status={column.status}
             count={items.filter((item) => item.column === column.id).length}
             workspaceSlug={workspaceSlug}
-            projectId={projectId}
             timezone={timezone}
             canEdit={canEditColumns}
             onOpen={openTask}

@@ -133,6 +133,14 @@
     outline: 2px solid var(--color-primary-base);
     outline-offset: 2px;
   }
+
+  /* Text-entry fields show the caret once focused; the global ring on inline inputs
+     (quick-add, inline titles, editor) is just noise. Checkboxes/radios keep it. */
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]):focus-visible,
+  textarea:focus-visible,
+  [contenteditable]:focus-visible {
+    outline: none;
+  }
 }
 
 /* Numeric columns must not jitter as values change (v1 spec §6.2). */
