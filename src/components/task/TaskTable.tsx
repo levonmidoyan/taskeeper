@@ -1,9 +1,9 @@
 'use client';
 
 import {
-  IconArrowDown,
-  IconArrowUp,
-  IconArrowsSort,
+  IconCaretDownFilled,
+  IconCaretUpDownFilled,
+  IconCaretUpFilled,
   IconChevronLeft,
   IconChevronRight,
 } from '@tabler/icons-react';
@@ -23,7 +23,7 @@ import {
   type Updater,
 } from '@tanstack/react-table';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState, useTransition, type MouseEvent } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition, type MouseEvent } from 'react';
 import { toast } from 'sonner';
 import { ignoreShortcut } from '@/components/shell/shortcuts';
 import { UserView } from '@/components/auth/user/user-view';
@@ -36,6 +36,7 @@ import { TaskRowActions } from '@/components/task/TaskRowActions';
 import { TaskTableSettings } from '@/components/task/TaskTableSettings';
 import { StatusIcon } from '@/components/task/StatusIcon';
 import * as Button from '@/components/ui/button';
+import * as Divider from '@/components/ui/divider';
 import * as StatusBadge from '@/components/ui/status-badge';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useTableSettings } from '@/hooks/use-table-settings';
@@ -449,14 +450,16 @@ export function TaskTable({
           </div>
           {/* The table scrolls sideways inside its own box on narrow screens, with
               Title pinned, so the page itself never scrolls horizontally. */}
-          <div className="overflow-x-auto rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200">
+          <div className="overflow-x-auto">
+            {/* border-separate so the end cells can round: the header is a pill and
+                each row lights up as one on hover. Rows split by divider rows. */}
             <table className="w-full border-separate border-spacing-0 text-left">
               <thead>
                 {table.getHeaderGroups().map((group) => (
                   <tr key={group.id}>
                     <th
                       scope="col"
-                      className="sticky left-0 z-10 h-10 w-10 min-w-10 border-b border-stroke-soft-200 bg-bg-weak-50 pl-3 pr-0"
+                      className="sticky left-0 z-10 h-9 w-10 min-w-10 rounded-l-lg bg-bg-weak-50 pl-3 pr-0"
                     >
                       <span className="flex items-center">
                         <SelectBox
@@ -477,7 +480,7 @@ export function TaskTable({
                           scope="col"
                           aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}
                           className={cn(
-                            'h-10 border-b border-stroke-soft-200 bg-bg-weak-50 px-3 text-label-xs font-medium text-text-sub-600 whitespace-nowrap',
+                            'h-9 bg-bg-weak-50 px-3 text-paragraph-sm font-normal text-text-sub-600 whitespace-nowrap',
                             COLUMN_WIDTH[col.id],
                             col.id === 'title' && 'sticky left-10 z-10',
                           )}
@@ -486,15 +489,15 @@ export function TaskTable({
                             <button
                               type="button"
                               onClick={col.getToggleSortingHandler()}
-                              className="-mx-1 inline-flex items-center gap-1 rounded-md px-1 py-0.5 transition-colors duration-150 hover:text-text-strong-950"
+                              className="-mx-1 inline-flex items-center gap-0.5 rounded-md px-1 py-0.5 transition-colors duration-150 hover:text-text-strong-950"
                             >
                               <table.FlexRender header={header} />
                               {sorted === 'asc' ? (
-                                <IconArrowUp className="size-3.5" aria-hidden="true" />
+                                <IconCaretUpFilled className="size-4 text-text-sub-600" aria-hidden="true" />
                               ) : sorted === 'desc' ? (
-                                <IconArrowDown className="size-3.5" aria-hidden="true" />
+                                <IconCaretDownFilled className="size-4 text-text-sub-600" aria-hidden="true" />
                               ) : (
-                                <IconArrowsSort className="size-3.5 opacity-40" aria-hidden="true" />
+                                <IconCaretUpDownFilled className="size-4 text-text-soft-400" aria-hidden="true" />
                               )}
                             </button>
                           ) : (
@@ -503,25 +506,37 @@ export function TaskTable({
                         </th>
                       );
                     })}
-                    <th scope="col" className="h-10 w-12 border-b border-stroke-soft-200 bg-bg-weak-50 px-2">
+                    <th scope="col" className="h-9 w-12 rounded-r-lg bg-bg-weak-50 px-2">
                       <span className="sr-only">Actions</span>
                     </th>
                   </tr>
                 ))}
               </thead>
               <tbody>
-                {rows.map((row) => {
+                {/* Breathing room between the header pill and the first row. */}
+                <tr aria-hidden="true">
+                  <td colSpan={999} className="h-1 p-0" />
+                </tr>
+                {rows.map((row, i) => {
                   const selected = selection.has(row.id);
+                  // Opaque even at rest: the pinned columns slide over the others.
                   const cellBg = selected
                     ? 'bg-primary-lighter'
                     : 'bg-bg-white-0 group-hover:bg-bg-weak-50';
                   const cellBase = cn(
-                    density === 'compact' ? 'h-9' : 'h-11',
-                    'border-b border-stroke-soft-200 transition-colors duration-150 group-last:border-b-0',
+                    density === 'compact' ? 'h-10' : 'h-12',
+                    'transition-colors duration-150',
                   );
                   return (
+                  <Fragment key={row.id}>
+                  {i > 0 && (
+                    <tr aria-hidden="true">
+                      <td colSpan={999} className="py-1">
+                        <Divider.Root variant="line-spacing" />
+                      </td>
+                    </tr>
+                  )}
                   <tr
-                    key={row.id}
                     // The mouse can hit anywhere on the row; keyboard and screen
                     // readers use the title button, so the row needs no tab stop.
                     onClick={() => openTask(row.original.id)}
@@ -529,7 +544,7 @@ export function TaskTable({
                     className="group cursor-pointer"
                   >
                     <td
-                      className={cn(cellBase, cellBg, 'sticky left-0 z-10 w-10 min-w-10 pl-3 pr-0')}
+                      className={cn(cellBase, cellBg, 'sticky left-0 z-10 w-10 min-w-10 rounded-l-xl pl-3 pr-0')}
                       // A near-miss on the checkbox must not open the task.
                       onClick={(e) => {
                         e.stopPropagation();
@@ -575,7 +590,7 @@ export function TaskTable({
                         )}
                       </td>
                     ))}
-                    <td className={cn(cellBase, cellBg, 'w-12 px-2')}>
+                    <td className={cn(cellBase, cellBg, 'w-12 rounded-r-xl px-2')}>
                       <TaskRowActions
                         task={row.original}
                         statuses={statuses}
@@ -587,6 +602,7 @@ export function TaskTable({
                       />
                     </td>
                   </tr>
+                  </Fragment>
                   );
                 })}
               </tbody>
