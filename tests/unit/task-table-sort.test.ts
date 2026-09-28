@@ -4,6 +4,7 @@ import {
   boardOrder,
   compareKeys,
   formatSortParam,
+  parsePageParam,
   parseSortParam,
 } from '@/lib/task-table-sort';
 import type { StatusRow } from '@/server/projects/queries';
@@ -76,5 +77,18 @@ describe('sort param', () => {
     expect(formatSortParam(parseSortParam('title.desc'))).toBe('title.desc');
     expect(formatSortParam([])).toBeNull();
     expect(formatSortParam([{ id: 'labels', desc: false }])).toBeNull();
+  });
+});
+
+describe('parsePageParam', () => {
+  it('turns a 1-based page into a page index', () => {
+    expect(parsePageParam('1')).toBe(0);
+    expect(parsePageParam('3')).toBe(2);
+  });
+
+  it('falls back to the first page for anything malformed', () => {
+    for (const param of [null, undefined, '', '0', '-2', '1.5', 'abc', '2x']) {
+      expect(parsePageParam(param)).toBe(0);
+    }
   });
 });

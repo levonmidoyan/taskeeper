@@ -46,3 +46,12 @@ export function formatSortParam(sorting: readonly { id: string; desc: boolean }[
   if (!first || !(SORTABLE_COLUMNS as readonly string[]).includes(first.id)) return null;
   return `${first.id}.${first.desc ? 'desc' : 'asc'}`;
 }
+
+/** Rows per page of the List table. */
+export const LIST_PAGE_SIZE = 50;
+
+/** `?page=` is 1-based; anything malformed means the first page. Returns the page index. */
+export function parsePageParam(param: string | null | undefined): number {
+  const page = Number(param);
+  return Number.isInteger(page) && page >= 1 ? page - 1 : 0;
+}

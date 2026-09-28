@@ -1,13 +1,22 @@
 'use client';
 
-import { IconArrowDown, IconArrowUp, IconArrowsSort } from '@tabler/icons-react';
+import {
+  IconArrowDown,
+  IconArrowUp,
+  IconArrowsSort,
+  IconChevronLeft,
+  IconChevronRight,
+} from '@tabler/icons-react';
 import {
   createColumnHelper,
+  createPaginatedRowModel,
   createSortedRowModel,
   functionalUpdate,
+  rowPaginationFeature,
   rowSortingFeature,
   tableFeatures,
   useTable,
+  type PaginationState,
   type SortingState,
   type Updater,
 } from '@tanstack/react-table';
@@ -23,13 +32,16 @@ import { TaskBulkBar } from '@/components/task/TaskBulkBar';
 import type { TaskPatch } from '@/components/task/TaskFieldItems';
 import { TaskRowActions } from '@/components/task/TaskRowActions';
 import { StatusIcon } from '@/components/task/StatusIcon';
+import * as Button from '@/components/ui/button';
 import * as StatusBadge from '@/components/ui/status-badge';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import {
+  LIST_PAGE_SIZE,
   PRIORITY_RANK,
   boardOrder,
   compareKeys,
   formatSortParam,
+  parsePageParam,
   parseSortParam,
 } from '@/lib/task-table-sort';
 import type { StatusRow } from '@/server/projects/queries';
@@ -40,7 +52,9 @@ import { cn } from '@/utils/cn';
 
 const features = tableFeatures({
   rowSortingFeature,
+  rowPaginationFeature,
   sortedRowModel: createSortedRowModel(),
+  paginatedRowModel: createPaginatedRowModel(),
 });
 
 const column = createColumnHelper<typeof features, TaskRow>();
@@ -251,8 +265,31 @@ export function TaskTable({
     const param = formatSortParam(functionalUpdate(updater, sorting));
     if (param) next.set('sort', param);
     else next.delete('sort');
+    // A new order makes the old page meaningless.
+    next.delete('page');
     const query = next.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
+  // The URL owns the page too. A page past the end (rows deleted, a stale link)
+  // shows the last one rather than an empty table.
+  const pageCount = Math.max(1, Math.ceil(data.length / LIST_PAGE_SIZE));
+  const pagination: PaginationState = useMemo(
+    () => ({
+      pageIndex: Math.min(parsePageParam(searchParams.get('page')), pageCount - 1),
+      pageSize: LIST_PAGE_SIZE,
+    }),
+    [searchParams, pageCount],
+  );
+
+  // push, unlike sort: paging is a step Back should undo.
+  function onPaginationChange(updater: Updater<PaginationState>) {
+    const next = new URLSearchParams(searchParams);
+    const { pageIndex } = functionalUpdate(updater, pagination);
+    if (pageIndex > 0) next.set('page', String(pageIndex + 1));
+    else next.delete('page');
+    const query = next.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
   const table = useTable({
@@ -260,12 +297,15 @@ export function TaskTable({
     columns,
     data,
     getRowId: (task) => task.id,
-    state: { sorting },
+    state: { sorting, pagination },
     onSortingChange,
+    onPaginationChange,
+    autoResetPageIndex: false,
     enableMultiSort: false,
     sortDescFirst: false,
   });
 
+  // The current page only; selection can still span pages.
   const rows = table.getRowModel().rows;
   const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
   // Rows deleted elsewhere drop out of the selection without an effect.
@@ -273,7 +313,9 @@ export function TaskTable({
     () => data.filter((t) => selection.has(t.id)).map((t) => t.id),
     [data, selection],
   );
-  const allSelected = rows.length > 0 && selectedIds.length === rows.length;
+  // The header box speaks for the page on screen, as in Gmail.
+  const pageSelectedCount = rows.filter((r) => selection.has(r.id)).length;
+  const allSelected = rows.length > 0 && pageSelectedCount === rows.length;
   // The shift-click anchor: the last row toggled on its own.
   const anchorId = useRef<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -285,7 +327,12 @@ export function TaskTable({
   }
 
   function toggleAll() {
-    setSelection(allSelected ? new Set() : new Set(rows.map((r) => r.id)));
+    const next = new Set(selectedIds);
+    for (const r of rows) {
+      if (allSelected) next.delete(r.id);
+      else next.add(r.id);
+    }
+    setSelection(next);
     anchorId.current = null;
   }
 
@@ -361,7 +408,9 @@ export function TaskTable({
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-4 lg:px-6">
+    // Room below the table while the floating bulk bar is up, so it never hides
+    // the last row or the pager.
+    <div className={cn('mx-auto w-full max-w-400 px-4 py-4 lg:px-6', selectedIds.length > 0 && 'pb-24')}>
       {tasks.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-stroke-sub-300 p-8 text-center">
           <p className="text-label-sm text-text-strong-950">No tasks yet</p>
@@ -381,9 +430,9 @@ export function TaskTable({
                   >
                     <span className="flex items-center">
                       <SelectBox
-                        label="Select all tasks"
+                        label="Select all tasks on this page"
                         checked={allSelected}
-                        indeterminate={selectedIds.length > 0 && !allSelected}
+                        indeterminate={pageSelectedCount > 0 && !allSelected}
                         onClick={toggleAll}
                       />
                     </span>
@@ -510,6 +559,43 @@ export function TaskTable({
             </tbody>
           </table>
         </div>
+      )}
+
+      {pageCount > 1 && (
+        <nav
+          aria-label="Pagination"
+          className="mt-3 flex items-center justify-between gap-3 text-paragraph-sm text-text-sub-600"
+        >
+          <span>
+            {pagination.pageIndex * LIST_PAGE_SIZE + 1}–
+            {Math.min(data.length, (pagination.pageIndex + 1) * LIST_PAGE_SIZE)} of {data.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <span>
+              Page {pagination.pageIndex + 1} of {pageCount}
+            </span>
+            <Button.Root
+              variant="neutral"
+              mode="stroke"
+              size="xxsmall"
+              aria-label="Previous page"
+              disabled={!table.getCanPreviousPage()}
+              onClick={() => table.previousPage()}
+            >
+              <Button.Icon as={IconChevronLeft} />
+            </Button.Root>
+            <Button.Root
+              variant="neutral"
+              mode="stroke"
+              size="xxsmall"
+              aria-label="Next page"
+              disabled={!table.getCanNextPage()}
+              onClick={() => table.nextPage()}
+            >
+              <Button.Icon as={IconChevronRight} />
+            </Button.Root>
+          </div>
+        </nav>
       )}
 
       {selectedIds.length > 0 && (
