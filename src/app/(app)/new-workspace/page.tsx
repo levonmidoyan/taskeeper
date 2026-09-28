@@ -33,7 +33,7 @@ export default async function NewWorkspacePage() {
   }
 
   return (
-    <WorkspaceShell ctx={ctx} userName={session.user.name}>
+    <WorkspaceShell ctx={ctx}>
       <main className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-6">
         <Link
           href={`/${ctx.slug}`}

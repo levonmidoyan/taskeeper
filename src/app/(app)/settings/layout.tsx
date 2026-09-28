@@ -16,7 +16,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   if (!ctx) redirect('/new-workspace');
 
   return (
-    <WorkspaceShell ctx={ctx} userName={session.user.name}>
+    <WorkspaceShell ctx={ctx}>
       <main className="mx-auto w-full max-w-6xl space-y-8 px-4 py-6 lg:px-6">
         <div>
           <AccountBreadcrumb className="mb-3" workspaceSlug={ctx.slug} />

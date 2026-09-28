@@ -10,6 +10,8 @@ import { UserAvatar } from "./user-avatar"
 
 export type UserViewProps = {
   className?: string
+  /** Classes for the avatar, e.g. to resize it. */
+  avatarClassName?: string
   isPending?: boolean
   /**
    * When true, the subtitle line (email when name/username is shown) is hidden.
@@ -28,12 +30,14 @@ export type UserViewProps = {
  *
  * @param isPending - If true and no `user` prop is provided, renders a loading skeleton instead of user details
  * @param className - Additional CSS classes applied to the outer container
+ * @param avatarClassName - Additional CSS classes applied to the avatar
  * @param hideSubtitle - When true, omits the muted subtitle row under the primary label
  * @param user - Optional user object to display; when omitted the current session user is used
  * @returns A React element showing the user's avatar with their identifying information
  */
 export function UserView({
   className,
+  avatarClassName,
   isPending,
   hideSubtitle = false,
   user
@@ -48,7 +52,7 @@ export function UserView({
   if ((isPending || sessionPending) && !user) {
     return (
       <div className={cn("flex items-center gap-2 min-w-0", className)}>
-        <UserAvatar isPending />
+        <UserAvatar isPending className={avatarClassName} />
 
         <div className="grid flex-1 gap-1 text-left text-paragraph-sm">
           <Skeleton className="h-4 w-24" />
@@ -61,7 +65,7 @@ export function UserView({
 
   return (
     <div className={cn("flex items-center gap-2 min-w-0", className)}>
-      <UserAvatar user={resolvedUser as User | undefined} />
+      <UserAvatar user={resolvedUser} className={avatarClassName} />
 
       <div className="grid min-w-0 flex-1 text-left text-paragraph-sm leading-tight">
         <span className="truncate font-medium text-text-strong-950">

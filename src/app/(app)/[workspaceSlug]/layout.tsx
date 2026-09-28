@@ -18,7 +18,7 @@ export default async function WorkspaceLayout({
   const ctx = await requireWorkspace(workspaceSlug);
 
   return (
-    <WorkspaceShell ctx={ctx} userName={session.user.name}>
+    <WorkspaceShell ctx={ctx}>
       {children}
     </WorkspaceShell>
   );

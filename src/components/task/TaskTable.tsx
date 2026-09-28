@@ -26,7 +26,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition, type MouseEvent } from 'react';
 import { toast } from 'sonner';
 import { ignoreShortcut } from '@/components/shell/shortcuts';
-import { AssigneeAvatar } from '@/components/task/AssigneeAvatar';
+import { UserView } from '@/components/auth/user/user-view';
 import { DueChip } from '@/components/task/DueChip';
 import { LabelChip } from '@/components/task/LabelChip';
 import { PriorityChip } from '@/components/task/Priority';
@@ -145,10 +145,11 @@ function buildColumns(statusById: Map<string, StatusRow>, timezone: string) {
         const name = row.original.assigneeName;
         if (!name) return <span className="text-paragraph-xs text-text-soft-400">Unassigned</span>;
         return (
-          <span className="flex min-w-0 items-center gap-2">
-            <AssigneeAvatar name={name} image={row.original.assigneeImage} className="shrink-0" />
-            <span className="truncate text-paragraph-sm text-text-sub-600">{name}</span>
-          </span>
+          <UserView
+            user={{ name, image: row.original.assigneeImage }}
+            hideSubtitle
+            avatarClassName="size-6 text-[0.625rem]"
+          />
         );
       },
     }),

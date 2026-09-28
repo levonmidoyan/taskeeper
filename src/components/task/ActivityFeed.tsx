@@ -6,7 +6,7 @@ import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { Markdown } from '@/components/task/Markdown';
 import { RichTextField } from '@/components/task/RichTextField';
-import * as Avatar from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/auth/user/user-avatar';
 import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -135,9 +135,11 @@ export function ActivityFeed({
             </li>
           ) : (
             <li key={entry.id} className="flex gap-3">
-              <Avatar.Root size="24" color="blue" aria-hidden="true" className="mt-0.5 shrink-0">
-                {entry.authorName.slice(0, 1)}
-              </Avatar.Root>
+              <UserAvatar
+                user={{ name: entry.authorName, image: entry.authorImage }}
+                aria-hidden="true"
+                className="mt-0.5 size-6 text-[0.625rem]"
+              />
               <div className="min-w-0 flex-1 rounded-10 bg-bg-weak-50 p-3">
                 <div className="flex items-baseline gap-2">
                   <span className="text-label-sm text-text-strong-950">{entry.authorName}</span>

@@ -8,11 +8,9 @@ import { listMyWorkspaces } from '@/server/workspaces/queries';
 /** Rail plus content column under the app header. Shared by workspace pages and account settings so both look like one app. */
 export async function WorkspaceShell({
   ctx,
-  userName,
   children,
 }: {
   ctx: WorkspaceContext;
-  userName: string;
   children: React.ReactNode;
 }) {
   const [projects, workspaces] = await Promise.all([
@@ -20,7 +18,7 @@ export async function WorkspaceShell({
     listMyWorkspaces(ctx.userId),
   ]);
 
-  const railProps = { workspaceSlug: ctx.slug, workspaces, projects, userName };
+  const railProps = { workspaceSlug: ctx.slug, workspaces, projects };
 
   return (
     <div className="flex min-h-dvh bg-bg-white-0">

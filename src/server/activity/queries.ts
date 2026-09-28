@@ -11,6 +11,7 @@ export type FeedEntry =
       /** Null once the author has deleted their account. */
       authorId: string | null;
       authorName: string;
+      authorImage: string | null;
       body: string;
       editedAt: Date | null;
     }
@@ -50,6 +51,7 @@ export async function listTaskFeed(
         createdAt: comment.createdAt,
         authorId: comment.authorId,
         authorName: user.name,
+        authorImage: user.image,
         body: comment.body,
         editedAt: comment.editedAt,
       })
