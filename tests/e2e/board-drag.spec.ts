@@ -7,11 +7,11 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 async function signUpWithProject(page: Page, prefix: string) {
   const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  await page.goto('/sign-up');
-  await page.getByLabel('Name').fill('Board Tester');
-  await page.getByLabel('Email').fill(`${prefix}-${stamp}@example.com`);
-  await page.getByLabel('Password').fill('correct-horse-battery');
-  await page.getByRole('button', { name: 'Create account' }).click();
+  await page.goto('/auth/sign-up');
+  await page.getByLabel('Name', { exact: true }).fill('Board Tester');
+  await page.getByLabel('Email', { exact: true }).fill(`${prefix}-${stamp}@example.com`);
+  await page.getByLabel('Password', { exact: true }).fill('correct-horse-battery');
+  await page.getByRole('button', { name: 'Sign Up' }).click();
 
   await page.getByLabel('Workspace name').fill(`Board ${stamp}`);
   await page.getByRole('button', { name: 'Create workspace' }).click();
@@ -20,14 +20,14 @@ async function signUpWithProject(page: Page, prefix: string) {
   await page.getByLabel('Project name').fill('Website');
   await page.getByRole('button', { name: 'Create project' }).click();
 
-  await page.getByPlaceholder('Add a task…').fill('Drag me');
-  await page.getByPlaceholder('Add a task…').press('Enter');
+  await page.getByPlaceholder('Add to Todo…').fill('Drag me');
+  await page.getByPlaceholder('Add to Todo…').press('Enter');
   await expect(page.getByText('Drag me')).toBeVisible();
 }
 
 async function openBoard(page: Page) {
   await page.getByRole('tab', { name: 'Board' }).click();
-  await expect(page).toHaveURL(/\/board$/);
+  await expect(page).toHaveURL(/\/projects\/[^/?]+$/);
 }
 
 const column = (page: Page, name: string) => page.getByRole('region', { name });
@@ -38,7 +38,7 @@ const card = (page: Page, columnName: string, title: string) =>
 function countMoves(page: Page) {
   const posts = { count: 0 };
   page.on('request', (r) => {
-    if (r.method() === 'POST' && r.url().includes('/board')) posts.count += 1;
+    if (r.method() === 'POST' && r.url().includes('/projects/')) posts.count += 1;
   });
   return posts;
 }
@@ -169,7 +169,7 @@ test('a card dropped below the last card of a column lands last', async ({ page 
     await page.mouse.move(to.x + to.width / 2, to.y + to.height - 120, { steps: 10 });
 
     const written = page.waitForResponse(
-      (r) => r.request().method() === 'POST' && r.url().includes('/board'),
+      (r) => r.request().method() === 'POST' && r.url().includes('/projects/'),
     );
     await page.mouse.up();
     return written;
@@ -230,4 +230,49 @@ test('columns can be renamed, added, marked done and deleted with their tasks mo
 
   await page.reload();
   await expect(card(page, 'Review', 'Drag me')).toBeVisible();
+});
+
+test('columns reorder by dragging their handle in the dialog', async ({ page }) => {
+  await signUpWithProject(page, 'reorder');
+  await openBoard(page);
+
+  await page.getByRole('button', { name: 'Columns' }).click();
+  const dialog = page.getByRole('dialog');
+  const names = dialog.getByRole('listitem').getByRole('textbox');
+  await expect(names).toHaveValues(['Todo', 'In Progress', 'Done']);
+
+  // Keyboard drag: Space lifts, ArrowDown moves one slot, Space drops.
+  const handle = dialog.getByRole('button', { name: 'Reorder Todo' });
+  await handle.focus();
+  await page.keyboard.press('Space');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Space');
+  await expect(names).toHaveValues(['In Progress', 'Todo', 'Done']);
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 2 })).toHaveText(['In Progress', 'Todo', 'Done']);
+});
+
+test('a column is renamed from the pencil in its board header', async ({ page }) => {
+  await signUpWithProject(page, 'header-rename');
+  await openBoard(page);
+
+  const todo = column(page, 'Todo');
+  await todo.hover();
+  await todo.getByRole('button', { name: 'Rename Todo' }).click();
+  const field = todo.getByRole('textbox', { name: 'Rename Todo' });
+  await field.fill('Backlog');
+  await field.press('Enter');
+
+  await expect(column(page, 'Backlog').getByRole('heading', { name: 'Backlog' })).toBeVisible();
+  await page.reload();
+  await expect(column(page, 'Backlog')).toBeVisible();
+});
+
+test('the list view has no Columns button', async ({ page }) => {
+  await signUpWithProject(page, 'list-columns');
+  await page.getByRole('tab', { name: 'List' }).click();
+  await expect(page.getByRole('button', { name: 'Columns' })).toHaveCount(0);
 });

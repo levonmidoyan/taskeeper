@@ -1,15 +1,14 @@
 import { notFound } from 'next/navigation';
+import { Board } from '@/components/board/Board';
 import { ManageColumnsDialog } from '@/components/board/ManageColumnsDialog';
 import { ProjectHeader } from '@/components/shell/ProjectHeader';
-import { TaskDetailDialog } from '@/components/task/TaskDetailDialog';
-import { TaskList } from '@/components/task/TaskList';
+import { StarButton } from '@/components/shell/StarButton';
+import { ProjectTaskDialog } from '@/components/task/ProjectTaskDialog';
 import { requireWorkspace } from '@/lib/session';
-import { listTaskFeed } from '@/server/activity/queries';
-import { listLabels, listWorkspaceMembers } from '@/server/labels/queries';
 import { getProject } from '@/server/projects/queries';
-import { getTaskDetail, listProjectTasks } from '@/server/tasks/queries';
+import { listProjectTasks } from '@/server/tasks/queries';
 
-export default async function ProjectListPage({
+export default async function ProjectBoardPage({
   params,
   searchParams,
 }: {
@@ -25,48 +24,39 @@ export default async function ProjectListPage({
   const tasks = await listProjectTasks(ctx, projectId);
   const basePath = `/${workspaceSlug}/projects/${projectId}`;
 
-  // The panel is driven by ?task=<id>, so it is deep-linkable and the browser's
-  // back button closes it (spec §6.3).
   const { task: openTaskId } = await searchParams;
-  const openTask = openTaskId ? await getTaskDetail(ctx, openTaskId) : null;
-  const [members, allLabels, feed] = openTask
-    ? await Promise.all([listWorkspaceMembers(ctx), listLabels(ctx), listTaskFeed(ctx, openTask.id)])
-    : [[], [], []];
+  const canEditColumns = ctx.role === 'owner' || ctx.role === 'admin';
 
+  // Viewport minus the h-14 app header, so the board scrolls inside itself.
   return (
-    <main>
-      <ProjectHeader name={project.name} basePath={basePath}>
+    <main className="flex h-[calc(100dvh-3.5rem)] flex-col">
+      <ProjectHeader
+        name={project.name}
+        basePath={basePath}
+        star={<StarButton workspaceSlug={workspaceSlug} projectId={projectId} starred={project.starred} />}
+      >
         <ManageColumnsDialog
           workspaceSlug={workspaceSlug}
           projectId={projectId}
           statuses={project.statuses}
-          canEdit={ctx.role === 'owner' || ctx.role === 'admin'}
+          canEdit={canEditColumns}
         />
       </ProjectHeader>
-      <TaskList
-        tasks={tasks}
-        statuses={project.statuses}
+      <Board
         workspaceSlug={workspaceSlug}
         projectId={projectId}
+        statuses={project.statuses}
+        tasks={tasks}
         timezone={ctx.timezone}
+        canEditColumns={canEditColumns}
       />
-      {openTask && (
-        <TaskDetailDialog
-          // Remounted per task, so the title and description fields reset when
-          // the dialog swaps between a parent and one of its subtasks.
-          key={openTask.id}
-          task={openTask}
-          projectId={projectId}
-          statuses={project.statuses}
-          members={members}
-          allLabels={allLabels}
-          workspaceSlug={workspaceSlug}
-          feed={feed}
-          currentUserId={ctx.userId}
-          canModerate={ctx.role === 'owner' || ctx.role === 'admin'}
-          timezone={ctx.timezone}
-        />
-      )}
+      <ProjectTaskDialog
+        ctx={ctx}
+        taskId={openTaskId}
+        projectId={projectId}
+        statuses={project.statuses}
+        workspaceSlug={workspaceSlug}
+      />
     </main>
   );
 }

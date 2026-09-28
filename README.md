@@ -46,7 +46,7 @@ Set these under **Settings -> Environment Variables** for Production and Preview
 | `DATABASE_POOL_MAX` | `1` — every serverless instance opens its own pool |
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32` |
 | `BETTER_AUTH_URL` | Public origin of the deployment |
-| `RESEND_API_KEY` | Resend key, or empty to log invitation emails |
+| `RESEND_API_KEY` | Resend key, or empty to log invitation and verification emails |
 | `TZ` | `UTC` |
 
 `DATABASE_URL` must point at the provider's *pooled* endpoint (`-pooler` in a Neon host, port

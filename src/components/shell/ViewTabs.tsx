@@ -1,17 +1,19 @@
 'use client';
 
-import { IconLayoutKanban, IconList } from '@tabler/icons-react';
+import { IconChartPie, IconLayoutKanban, IconList } from '@tabler/icons-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/utils/cn';
 
 export function ViewTabs({ basePath }: { basePath: string }) {
   const pathname = usePathname();
-  const onBoard = pathname.endsWith('/board');
+  const onSummary = pathname.endsWith('/summary');
+  const onList = pathname.endsWith('/list');
 
   const views = [
-    { href: basePath, label: 'List', icon: IconList, active: !onBoard },
-    { href: `${basePath}/board`, label: 'Board', icon: IconLayoutKanban, active: onBoard },
+    { href: `${basePath}/summary`, label: 'Summary', icon: IconChartPie, active: onSummary },
+    { href: basePath, label: 'Board', icon: IconLayoutKanban, active: !onSummary && !onList },
+    { href: `${basePath}/list`, label: 'List', icon: IconList, active: onList },
   ];
 
   return (

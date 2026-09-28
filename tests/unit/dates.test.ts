@@ -4,6 +4,7 @@ import {
   formatDueDate,
   formatInZone,
   isOverdue,
+  recencyBucket,
   todayInZone,
 } from '@/lib/dates';
 
@@ -81,5 +82,18 @@ describe('formatDueDate', () => {
 
   it('appends the year for a date in a different year', () => {
     expect(formatDueDate('2027-10-05', YEREVAN, new Date('2026-09-20T10:00:00Z'))).toBe('5 Oct 2027');
+  });
+});
+
+describe('recencyBucket', () => {
+  // 21:30 UTC on the 24th is already the 25th in Yerevan (UTC+4).
+  const now = new Date('2026-09-24T21:30:00Z');
+  const tz = 'Asia/Yerevan';
+
+  it('buckets by calendar day in the workspace zone', () => {
+    expect(recencyBucket(new Date('2026-09-24T20:30:00Z'), tz, now)).toBe('Today');
+    expect(recencyBucket(new Date('2026-09-24T19:00:00Z'), tz, now)).toBe('Yesterday');
+    expect(recencyBucket(new Date('2026-09-19T12:00:00Z'), tz, now)).toBe('Past week');
+    expect(recencyBucket(new Date('2026-09-10T12:00:00Z'), tz, now)).toBe('Older');
   });
 });

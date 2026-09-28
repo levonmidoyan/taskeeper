@@ -55,7 +55,7 @@ export async function resolveWorkspace(
 /** Server-component and action entry point. Redirects or 404s rather than returning null. */
 export async function requireWorkspace(slug: string): Promise<WorkspaceContext> {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect('/sign-in');
+  if (!session) redirect('/auth/sign-in');
 
   const ctx = await resolveWorkspace(session.user.id, slug);
   // 404, not 403: a non-member must not be able to learn which slugs exist.

@@ -22,6 +22,48 @@
       "when": 1790176998764,
       "tag": "0002_lame_toxin",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790422410039,
+      "tag": "0003_happy_hellion",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790423761625,
+      "tag": "0004_square_cardiac",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790426941610,
+      "tag": "0005_stale_magus",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790427420307,
+      "tag": "0006_red_the_hand",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790538843750,
+      "tag": "0007_project_star",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790544739967,
+      "tag": "0008_status_icon",
+      "breakpoints": true
     }
   ]
 }

@@ -1,11 +1,18 @@
 'use client';
 
 import {
-  IconArrowDown, IconArrowUp, IconColumns3, IconPlus, IconTrash,
-} from '@tabler/icons-react';
+  closestCenter, DndContext, type DragEndEvent, KeyboardSensor, MouseSensor, TouchSensor,
+  useSensor, useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { IconColumns3, IconGripVertical, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useOptimistic, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { StatusIconPicker } from '@/components/board/StatusIconPicker';
 import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Input from '@/components/ui/input';
@@ -16,15 +23,17 @@ import type { StatusRow } from '@/server/projects/queries';
 import {
   createStatusAction, deleteStatusAction, moveStatusAction, updateStatusAction,
 } from '@/server/statuses/actions';
+import { cn } from '@/utils/cn';
 
 /**
  * Column management for a project: rename, reorder, add, delete, and mark which
- * column counts as done. Reordering is arrow buttons rather than drag — the board
- * already owns the drag gesture for cards, and this stays usable from the
- * keyboard without a second DndContext competing for the same pointer.
+ * column counts as done. Rows reorder by dragging their grip handle (Space on a
+ * focused handle for the keyboard). The dialog is modal, so its DndContext never
+ * competes with the board's for the same pointer.
  *
  * Every write is a server round-trip followed by router.refresh(): the list here
- * is the server's, never a local copy that could drift from it.
+ * is the server's, with only a dropped row's new place held optimistically until
+ * the refresh lands.
  */
 export function ManageColumnsDialog({
   workspaceSlug,
@@ -42,6 +51,14 @@ export function ManageColumnsDialog({
   const [pending, startTransition] = useTransition();
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [adding, setAdding] = useState('');
+  const [dragging, setDragging] = useState(false);
+  const [ordered, applyOrder] = useOptimistic(statuses, (_current: StatusRow[], next: StatusRow[]) => next);
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   // Only owners and admins may change the board's shape, so nobody else is
   // shown a dialog full of controls the server would refuse.
@@ -65,15 +82,25 @@ export function ManageColumnsDialog({
     run(() => updateStatusAction(workspaceSlug, { statusId: status.id, name: trimmed }));
   }
 
-  function move(index: number, direction: -1 | 1) {
-    const status = statuses[index];
-    // The two neighbours the column lands between once it has moved past one of
-    // them. Ids, never a position: the server computes the key (v1 spec §6.4).
-    const [beforeId, afterId] = direction === -1
-      ? [statuses[index - 2]?.id ?? null, statuses[index - 1].id]
-      : [statuses[index + 1].id, statuses[index + 2]?.id ?? null];
+  function onDragEnd({ active, over }: DragEndEvent) {
+    setDragging(false);
+    if (!over || active.id === over.id) return;
+    const from = ordered.findIndex((s) => s.id === active.id);
+    const to = ordered.findIndex((s) => s.id === over.id);
+    if (from < 0 || to < 0) return;
 
-    run(() => moveStatusAction(workspaceSlug, { statusId: status.id, beforeId, afterId }));
+    const next = arrayMove(ordered, from, to);
+    // The two neighbours the column now sits between. Ids, never a position: the
+    // server computes the key (v1 spec §6.4).
+    const beforeId = next[to - 1]?.id ?? null;
+    const afterId = next[to + 1]?.id ?? null;
+
+    startTransition(async () => {
+      applyOrder(next);
+      const result = await moveStatusAction(workspaceSlug, { statusId: String(active.id), beforeId, afterId });
+      if (!result.ok) toast.error(result.error ?? 'Something went wrong. Please try again.');
+      router.refresh();
+    });
   }
 
   function toggleDone(status: StatusRow) {
@@ -122,104 +149,47 @@ export function ManageColumnsDialog({
           Columns
         </Button.Root>
       </Modal.Trigger>
-      <Modal.Content className="max-w-lg">
+      <Modal.Content
+        className="max-w-lg"
+        // Escape mid-drag cancels the drag; it must not also close the dialog.
+        onEscapeKeyDown={(event) => { if (dragging) event.preventDefault(); }}
+      >
         <Modal.Header
           icon={IconColumns3}
           title="Columns"
-          description="Rename, reorder, add, or remove this project's columns."
+          description="Rename, reorder, restyle, add, or remove this project's columns."
         />
 
         <Modal.Body className="flex flex-col gap-3">
-          <ul className="flex flex-col gap-2">
-            {statuses.map((status, index) => {
-              const others = statuses.filter((s) => s.id !== status.id);
-
-              return (
-                <li
-                  key={`${status.id}:${status.name}:${status.isDone}`}
-                  className="rounded-10 p-2 ring-1 ring-inset ring-stroke-soft-200"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <div className="flex flex-col">
-                      <CompactButton.Root
-                        variant="ghost"
-                        size="medium"
-                        aria-label={`Move ${status.name} left`}
-                        disabled={pending || index === 0}
-                        onClick={() => move(index, -1)}
-                      >
-                        <CompactButton.Icon as={IconArrowUp} />
-                      </CompactButton.Root>
-                      <CompactButton.Root
-                        variant="ghost"
-                        size="medium"
-                        aria-label={`Move ${status.name} right`}
-                        disabled={pending || index === statuses.length - 1}
-                        onClick={() => move(index, 1)}
-                      >
-                        <CompactButton.Icon as={IconArrowDown} />
-                      </CompactButton.Root>
-                    </div>
-
-                    <Input.Root size="small" className="flex-1">
-                      <Input.Wrapper>
-                        <Input.Input
-                          // Uncontrolled and remounted by the key above, so a rename
-                          // that the server rejected or normalised snaps back to what
-                          // is actually stored.
-                          defaultValue={status.name}
-                          aria-label={`${status.name} name`}
-                          maxLength={32}
-                          disabled={pending}
-                          onBlur={(event) => rename(status, event.currentTarget.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') event.currentTarget.blur();
-                            if (event.key === 'Escape') {
-                              event.currentTarget.value = status.name;
-                              event.currentTarget.blur();
-                            }
-                          }}
-                        />
-                      </Input.Wrapper>
-                    </Input.Root>
-
-                    <span className="flex items-center gap-1.5 pl-1" title="Tasks in this column count as done">
-                      <Switch.Root
-                        checked={status.isDone}
-                        onCheckedChange={() => toggleDone(status)}
-                        disabled={pending}
-                        aria-label={`${status.name} completes tasks`}
-                      />
-                      <span aria-hidden="true" className="text-paragraph-xs text-text-sub-600">
-                        Done
-                      </span>
-                    </span>
-
-                    <CompactButton.Root
-                      variant="ghost"
-                      size="medium"
-                      aria-label={`Delete ${status.name}`}
-                      className="hover:text-error-base"
-                      disabled={pending || statuses.length === 1}
-                      onClick={() => setConfirmingId(confirmingId === status.id ? null : status.id)}
-                    >
-                      <CompactButton.Icon as={IconTrash} />
-                    </CompactButton.Root>
-                  </div>
-
-                  {confirmingId === status.id && others.length > 0 && (
-                    <DeleteColumnConfirm
-                      status={status}
-                      others={others}
-                      pending={pending}
-                      onCancel={() => setConfirmingId(null)}
-                      onConfirm={(reassignToId) => remove(status, reassignToId)}
-                    />
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <DndContext
+            // An explicit id, like the board's: dnd-kit's counter-based ids differ
+            // between server and browser.
+            id="manage-columns"
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={() => setDragging(true)}
+            onDragEnd={onDragEnd}
+            onDragCancel={() => setDragging(false)}
+          >
+            <SortableContext items={ordered.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+              <ul className="flex flex-col gap-2">
+                {ordered.map((status) => (
+                  <ColumnRow
+                    workspaceSlug={workspaceSlug}
+                    key={`${status.id}:${status.name}:${status.isDone}:${status.icon}`}
+                    status={status}
+                    others={ordered.filter((s) => s.id !== status.id)}
+                    pending={pending}
+                    confirming={confirmingId === status.id}
+                    onToggleConfirm={() => setConfirmingId(confirmingId === status.id ? null : status.id)}
+                    onRename={(name) => rename(status, name)}
+                    onToggleDone={() => toggleDone(status)}
+                    onRemove={(reassignToId) => remove(status, reassignToId)}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
 
           <form onSubmit={add} className="flex items-center gap-2">
             <Input.Root size="small" className="flex-1">
@@ -247,6 +217,113 @@ export function ManageColumnsDialog({
         </Modal.Body>
       </Modal.Content>
     </Modal.Root>
+  );
+}
+
+function ColumnRow({
+  workspaceSlug,
+  status,
+  others,
+  pending,
+  confirming,
+  onToggleConfirm,
+  onRename,
+  onToggleDone,
+  onRemove,
+}: {
+  workspaceSlug: string;
+  status: StatusRow;
+  others: StatusRow[];
+  pending: boolean;
+  confirming: boolean;
+  onToggleConfirm: () => void;
+  onRename: (name: string) => void;
+  onToggleDone: () => void;
+  onRemove: (reassignToId: string) => void;
+}) {
+  const {
+    attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging,
+  } = useSortable({ id: status.id, disabled: pending });
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn(
+        'relative rounded-10 bg-bg-white-0 p-2 ring-1 ring-inset ring-stroke-soft-200',
+        isDragging && 'z-10 shadow-regular-md ring-primary-base',
+      )}
+    >
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          aria-label={`Reorder ${status.name}`}
+          disabled={pending}
+          className="flex size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-text-soft-400 hover:text-text-sub-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50"
+          {...attributes}
+          {...listeners}
+        >
+          <IconGripVertical className="size-[18px]" aria-hidden="true" />
+        </button>
+
+        <StatusIconPicker workspaceSlug={workspaceSlug} status={status} disabled={pending} />
+
+        <Input.Root size="small" className="flex-1">
+          <Input.Wrapper>
+            <Input.Input
+              // Uncontrolled and remounted by the row key, so a rename that the
+              // server rejected or normalised snaps back to what is actually stored.
+              defaultValue={status.name}
+              aria-label={`${status.name} name`}
+              maxLength={32}
+              disabled={pending}
+              onBlur={(event) => onRename(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur();
+                if (event.key === 'Escape') {
+                  event.currentTarget.value = status.name;
+                  event.currentTarget.blur();
+                }
+              }}
+            />
+          </Input.Wrapper>
+        </Input.Root>
+
+        <span className="flex items-center gap-1.5 pl-1" title="Tasks in this column count as done">
+          <Switch.Root
+            checked={status.isDone}
+            onCheckedChange={onToggleDone}
+            disabled={pending}
+            aria-label={`${status.name} completes tasks`}
+          />
+          <span aria-hidden="true" className="text-paragraph-xs text-text-sub-600">
+            Done
+          </span>
+        </span>
+
+        <CompactButton.Root
+          variant="ghost"
+          size="medium"
+          aria-label={`Delete ${status.name}`}
+          className="hover:text-error-base"
+          disabled={pending || others.length === 0}
+          onClick={onToggleConfirm}
+        >
+          <CompactButton.Icon as={IconTrash} />
+        </CompactButton.Root>
+      </div>
+
+      {confirming && others.length > 0 && (
+        <DeleteColumnConfirm
+          status={status}
+          others={others}
+          pending={pending}
+          onCancel={onToggleConfirm}
+          onConfirm={onRemove}
+        />
+      )}
+    </li>
   );
 }
 

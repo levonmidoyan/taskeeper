@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { db, project, task, taskStatus } from '@/db';
+import { PROJECT_COLOR_KEYS } from '@/components/brand/tint';
+import { db, project, projectStar, task, taskStatus } from '@/db';
 import { newId } from '@/lib/ids';
 import { positionsForCount } from '@/lib/position';
 import { err, ok, type Result } from '@/lib/result';
@@ -49,11 +50,13 @@ async function uniqueProjectSlug(workspaceId: string, base: string): Promise<str
 const nameSchema = z
   .string().trim().min(1, 'Name your project.').max(64, 'Keep it under 64 characters.');
 
+const colorSchema = z.enum(PROJECT_COLOR_KEYS, { error: 'Pick one of the listed colors.' });
+
 export async function createProject(
   ctx: WorkspaceContext,
   input: { name: string; color?: string },
 ): Promise<Result<{ id: string }>> {
-  const parsed = z.object({ name: nameSchema, color: z.string().optional() }).safeParse(input);
+  const parsed = z.object({ name: nameSchema, color: colorSchema.optional() }).safeParse(input);
   if (!parsed.success) return err(parsed.error.issues[0].message);
 
   const id = newId();
@@ -86,6 +89,24 @@ export async function renameProject(
   const updated = await db
     .update(project)
     .set({ name: parsed.data.name, updatedAt: new Date() })
+    .where(and(eq(project.id, parsed.data.projectId), eq(project.workspaceId, ctx.workspaceId)))
+    .returning({ id: project.id });
+
+  if (updated.length === 0) return err('Project not found.');
+
+  return ok(null);
+}
+
+export async function setProjectColor(
+  ctx: WorkspaceContext,
+  input: { projectId: string; color: string },
+): Promise<Result<null>> {
+  const parsed = z.object({ projectId: z.string(), color: colorSchema }).safeParse(input);
+  if (!parsed.success) return err(parsed.error.issues[0].message);
+
+  const updated = await db
+    .update(project)
+    .set({ color: parsed.data.color, updatedAt: new Date() })
     .where(and(eq(project.id, parsed.data.projectId), eq(project.workspaceId, ctx.workspaceId)))
     .returning({ id: project.id });
 
@@ -146,4 +167,45 @@ export async function deleteProject(
 
     return ok(null);
   });
+}
+
+/**
+ * Stars or unstars a project for the caller only. Idempotent both ways, so a
+ * double click or a stale button cannot fail. Any member may star: it changes
+ * nothing anyone else sees.
+ */
+export async function setProjectStar(
+  ctx: WorkspaceContext,
+  input: { projectId: string; starred: boolean },
+): Promise<Result<null>> {
+  const parsed = z.object({ projectId: z.string(), starred: z.boolean() }).safeParse(input);
+  if (!parsed.success) return err(parsed.error.issues[0].message);
+  const { projectId, starred } = parsed.data;
+
+  if (!starred) {
+    await db.delete(projectStar).where(
+      and(
+        eq(projectStar.userId, ctx.userId),
+        eq(projectStar.projectId, projectId),
+        eq(projectStar.workspaceId, ctx.workspaceId),
+      ),
+    );
+    return ok(null);
+  }
+
+  // The project must belong to this workspace, or a foreign id would plant a
+  // star row pointing across tenants.
+  const [owned] = await db
+    .select({ id: project.id })
+    .from(project)
+    .where(and(eq(project.id, projectId), eq(project.workspaceId, ctx.workspaceId)))
+    .limit(1);
+  if (!owned) return err('Project not found.');
+
+  await db
+    .insert(projectStar)
+    .values({ userId: ctx.userId, projectId, workspaceId: ctx.workspaceId })
+    .onConflictDoNothing();
+
+  return ok(null);
 }

@@ -8,7 +8,8 @@ export type FeedEntry =
       type: 'comment';
       id: string;
       createdAt: Date;
-      authorId: string;
+      /** Null once the author has deleted their account. */
+      authorId: string | null;
       authorName: string;
       body: string;
       editedAt: Date | null;
@@ -17,12 +18,16 @@ export type FeedEntry =
       type: 'activity';
       id: string;
       createdAt: Date;
-      actorId: string;
+      /** Null once the actor has deleted their account. */
+      actorId: string | null;
       actorName: string;
       kind: ActivityKind;
       from: string | null;
       to: string | null;
     };
+
+/** Shown in place of a name whose account has since been deleted. */
+const DELETED_USER = 'Deleted user';
 
 function isKnownKind(kind: string): kind is ActivityKind {
   return (ACTIVITY_KINDS as readonly string[]).includes(kind);
@@ -49,7 +54,7 @@ export async function listTaskFeed(
         editedAt: comment.editedAt,
       })
       .from(comment)
-      .innerJoin(user, eq(user.id, comment.authorId))
+      .leftJoin(user, eq(user.id, comment.authorId))
       .where(and(eq(comment.taskId, taskId), eq(comment.workspaceId, ctx.workspaceId)))
       .orderBy(asc(comment.createdAt)),
     db
@@ -63,18 +68,27 @@ export async function listTaskFeed(
         to: taskActivity.toValue,
       })
       .from(taskActivity)
-      .innerJoin(user, eq(user.id, taskActivity.actorId))
+      .leftJoin(user, eq(user.id, taskActivity.actorId))
       .where(and(eq(taskActivity.taskId, taskId), eq(taskActivity.workspaceId, ctx.workspaceId)))
       .orderBy(asc(taskActivity.createdAt)),
   ]);
 
   const entries: FeedEntry[] = [
-    ...comments.map((c) => ({ type: 'comment' as const, ...c })),
+    ...comments.map((c) => ({
+      type: 'comment' as const,
+      ...c,
+      authorName: c.authorName ?? DELETED_USER,
+    })),
     // A kind written by an older deploy that this build does not know is dropped
     // rather than rendered as raw text.
     ...activity
       .filter((a) => isKnownKind(a.kind))
-      .map((a) => ({ type: 'activity' as const, ...a, kind: a.kind as ActivityKind })),
+      .map((a) => ({
+        type: 'activity' as const,
+        ...a,
+        actorName: a.actorName ?? DELETED_USER,
+        kind: a.kind as ActivityKind,
+      })),
   ];
 
   // Same-millisecond ties (a create and its activity row) fall back to id so the

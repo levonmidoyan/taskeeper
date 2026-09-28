@@ -10,6 +10,89 @@
 
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-jakarta), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+/*
+ * Brand layer on top of the generated Align tokens (which must not be hand-edited):
+ * indigo primary instead of Align blue, slate neutrals instead of gray so surfaces
+ * carry a faint cool tint that sits with the indigo, and semibold display titles.
+ */
+@theme {
+  --color-indigo-50: oklch(96.2% 0.018 272.3);
+  --color-indigo-100: oklch(93% 0.034 272.8);
+  --color-indigo-200: oklch(87% 0.065 274);
+  --color-indigo-300: oklch(78.5% 0.115 274.7);
+  --color-indigo-400: oklch(67.3% 0.182 276.9);
+  --color-indigo-500: oklch(58.5% 0.233 277.1);
+  --color-indigo-600: oklch(51.1% 0.262 277);
+  --color-indigo-700: oklch(45.7% 0.24 277);
+  --color-indigo-800: oklch(39.8% 0.195 277.4);
+  --color-indigo-900: oklch(35.9% 0.144 278.7);
+  --color-indigo-950: oklch(25.7% 0.09 281.3);
+  --color-indigo-alpha-24: oklch(58.5% 0.233 277.1 / 24%);
+  --color-indigo-alpha-16: oklch(58.5% 0.233 277.1 / 16%);
+  --color-indigo-alpha-10: oklch(58.5% 0.233 277.1 / 10%);
+
+  --color-primary-dark: var(--color-indigo-800);
+  --color-primary-darker: var(--color-indigo-700);
+  --color-primary-base: var(--color-indigo-600);
+  --color-primary-light: var(--color-indigo-100);
+  --color-primary-lighter: var(--color-indigo-50);
+  --color-primary-alpha-24: var(--color-indigo-alpha-24);
+  --color-primary-alpha-16: var(--color-indigo-alpha-16);
+  --color-primary-alpha-10: var(--color-indigo-alpha-10);
+
+  --color-neutral-950: var(--color-slate-950);
+  --color-neutral-900: var(--color-slate-900);
+  --color-neutral-800: var(--color-slate-800);
+  --color-neutral-700: var(--color-slate-700);
+  --color-neutral-600: var(--color-slate-600);
+  --color-neutral-500: var(--color-slate-500);
+  --color-neutral-400: var(--color-slate-400);
+  --color-neutral-300: var(--color-slate-300);
+  --color-neutral-200: var(--color-slate-200);
+  --color-neutral-100: var(--color-slate-100);
+  --color-neutral-50: var(--color-slate-50);
+  --color-neutral-0: var(--color-slate-0);
+  --color-neutral-alpha-24: var(--color-slate-alpha-24);
+  --color-neutral-alpha-16: var(--color-slate-alpha-16);
+  --color-neutral-alpha-10: var(--color-slate-alpha-10);
+
+  --text-title-h1--font-weight: 700;
+  --text-title-h2--font-weight: 700;
+  --text-title-h3--font-weight: 650;
+  --text-title-h4--font-weight: 650;
+  --text-title-h5--font-weight: 650;
+  --text-title-h6--font-weight: 600;
+
+  --animate-aurora: aurora-drift 18s ease-in-out infinite alternate;
+  --animate-float: float-y 7s ease-in-out infinite;
+  --animate-rise: rise-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes aurora-drift {
+    0% { transform: translate3d(-4%, -2%, 0) rotate(0deg) scale(1); }
+    50% { transform: translate3d(3%, 3%, 0) rotate(6deg) scale(1.08); }
+    100% { transform: translate3d(-2%, 4%, 0) rotate(-4deg) scale(1.02); }
+  }
+  @keyframes float-y {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/* Dark mode lifts the primary for contrast on slate-950, as Align does for its blue. */
+.dark {
+  --color-primary-dark: var(--color-indigo-300);
+  --color-primary-darker: var(--color-indigo-600);
+  --color-primary-base: var(--color-indigo-500);
+  --color-primary-light: var(--color-indigo-alpha-16);
+  --color-primary-lighter: var(--color-indigo-alpha-10);
+  --color-information-dark: var(--color-indigo-300);
 }
 
 /*
@@ -35,6 +118,10 @@
     line-height: 1.5;
   }
 
+  h1, h2, h3 {
+    font-family: var(--font-display);
+  }
+
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]) {
     cursor: pointer;
@@ -58,6 +145,50 @@
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/*
+ * Aurora: blurred indigo / violet / cyan glows drifting behind brand surfaces (auth,
+ * onboarding, page heroes). Drawn on a pseudo-element and moved with transform only,
+ * so it never repaints content; the reduced-motion rule above freezes it.
+ */
+@layer components {
+  .aurora {
+    position: relative;
+    isolation: isolate;
+    /* clip, not hidden: a hidden box can still be scrolled by focus/scrollIntoView,
+       which shifted the auth column and kept the offset across client navigations. */
+    overflow: clip;
+  }
+  .aurora::before {
+    content: "";
+    position: absolute;
+    inset: -20%;
+    z-index: -1;
+    background:
+      radial-gradient(38% 45% at 22% 28%, oklch(58.5% 0.233 277.1 / 0.55), transparent 70%),
+      radial-gradient(34% 40% at 78% 22%, oklch(62% 0.22 305 / 0.45), transparent 70%),
+      radial-gradient(40% 45% at 70% 80%, oklch(72% 0.14 220 / 0.40), transparent 70%),
+      radial-gradient(30% 35% at 18% 85%, oklch(70% 0.17 340 / 0.30), transparent 70%);
+    filter: blur(48px) saturate(1.15);
+    animation: var(--animate-aurora);
+    pointer-events: none;
+  }
+  /* Softer wash for app pages, where content must stay dominant. */
+  .aurora-soft::before {
+    opacity: 0.45;
+  }
+  .dark .aurora-soft::before {
+    opacity: 0.5;
+  }
+
+  /* Faint dot grid, faded out towards the edges. */
+  .dot-grid {
+    background-image: radial-gradient(currentColor 1px, transparent 1px);
+    background-size: 22px 22px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+  }
+
 }
 
 /* Markdown, rendered (components/task/Markdown.tsx) and edited (kibo-ui/editor). */

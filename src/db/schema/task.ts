@@ -24,6 +24,8 @@ export const taskStatus = pgTable(
     color: text('color').notNull().default('muted'),
     position: text('position').notNull(),
     isDone: boolean('is_done').notNull().default(false),
+    // A STATUS_ICONS key; null keeps the glyph derived from color and isDone.
+    icon: text('icon'),
   },
   (t) => [index('task_status_project_position_idx').on(t.projectId, t.position)],
 );
@@ -48,7 +50,8 @@ export const task = pgTable(
     parentTaskId: text('parent_task_id').references((): AnyPgColumn => task.id, { onDelete: 'cascade' }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
-    createdBy: text('created_by').notNull().references(() => user.id),
+    // Null once the creator deletes their account.
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

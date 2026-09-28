@@ -8,7 +8,7 @@ import { slugify } from '@/lib/slug';
 // reachable: Next's static route wins over the future `/[slug]` dynamic route
 // (Task 10), so the owner would be bounced straight back to the create form.
 // Route groups like (app)/(auth) do not contribute a segment of their own.
-const RESERVED_SLUGS = new Set(['new-workspace', 'sign-in', 'sign-up', 'api']);
+const RESERVED_SLUGS = new Set(['new-workspace', 'auth', 'admin', 'settings', 'sign-in', 'sign-up', 'api']);
 
 // Disambiguation suffixes are drawn from this alphabet only, never from
 // nanoid's default id alphabet (which includes '_' and '-'): slugify promises

@@ -7,11 +7,11 @@ function uniqueEmail(prefix: string) {
 test('a new user signs up, creates a workspace, and adds a task', async ({ page }) => {
   const email = uniqueEmail('signup');
 
-  await page.goto('/sign-up');
-  await page.getByLabel('Name').fill('Ada Lovelace');
-  await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill('correct-horse-battery');
-  await page.getByRole('button', { name: 'Create account' }).click();
+  await page.goto('/auth/sign-up');
+  await page.getByLabel('Name', { exact: true }).fill('Ada Lovelace');
+  await page.getByLabel('Email', { exact: true }).fill(email);
+  await page.getByLabel('Password', { exact: true }).fill('correct-horse-battery');
+  await page.getByRole('button', { name: 'Sign Up' }).click();
 
   await expect(page).toHaveURL(/\/new-workspace/);
   await page.getByLabel('Workspace name').fill('Acme Corp');
@@ -23,8 +23,8 @@ test('a new user signs up, creates a workspace, and adds a task', async ({ page 
   await page.getByLabel('Project name').fill('Website');
   await page.getByRole('button', { name: 'Create project' }).click();
 
-  await page.getByPlaceholder('Add a task…').fill('Ship the landing page');
-  await page.getByPlaceholder('Add a task…').press('Enter');
+  await page.getByPlaceholder('Add to Todo…').fill('Ship the landing page');
+  await page.getByPlaceholder('Add to Todo…').press('Enter');
 
   await expect(page.getByText('Ship the landing page')).toBeVisible();
 });
@@ -32,11 +32,11 @@ test('a new user signs up, creates a workspace, and adds a task', async ({ page 
 test('a workspace slug the user does not belong to returns 404', async ({ page }) => {
   const email = uniqueEmail('outsider');
 
-  await page.goto('/sign-up');
-  await page.getByLabel('Name').fill('Outsider');
-  await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill('correct-horse-battery');
-  await page.getByRole('button', { name: 'Create account' }).click();
+  await page.goto('/auth/sign-up');
+  await page.getByLabel('Name', { exact: true }).fill('Outsider');
+  await page.getByLabel('Email', { exact: true }).fill(email);
+  await page.getByLabel('Password', { exact: true }).fill('correct-horse-battery');
+  await page.getByRole('button', { name: 'Sign Up' }).click();
 
   await expect(page).toHaveURL(/\/new-workspace/);
   await page.getByLabel('Workspace name').fill('Outsider Space');

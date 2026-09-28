@@ -4,7 +4,7 @@ import { KanbanCard } from '@/components/kibo-ui/kanban';
 import { AssigneeAvatar } from '@/components/task/AssigneeAvatar';
 import { DueChip } from '@/components/task/DueChip';
 import { LabelChip } from '@/components/task/LabelChip';
-import { PriorityDot } from '@/components/task/PriorityDot';
+import { PriorityChip } from '@/components/task/Priority';
 import type { TaskRow } from '@/server/tasks/queries';
 
 export function TaskCard({
@@ -27,14 +27,14 @@ export function TaskCard({
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <PriorityDot priority={task.priority} />
+        <PriorityChip priority={task.priority} />
         <DueChip dueDate={task.dueDate} timezone={timezone} />
         {task.subtaskCount > 0 && (
           <span className="tabular text-paragraph-xs text-text-sub-600">
             {task.subtaskDoneCount}/{task.subtaskCount}
           </span>
         )}
-        {task.assigneeName && <AssigneeAvatar name={task.assigneeName} className="ml-auto" />}
+        {task.assigneeName && <AssigneeAvatar name={task.assigneeName} image={task.assigneeImage} className="ml-auto" />}
       </div>
     </KanbanCard>
   );

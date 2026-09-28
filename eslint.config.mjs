@@ -18,6 +18,18 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-empty-object-type": "off",
     },
   },
+  // better-auth-ui registry copies (src/components/auth, src/lib/auth-ui): kept
+  // close to upstream for the same reason. Upstream reads sessionStorage and the
+  // URL in effects after hydration, which these React Compiler rules flag.
+  {
+    files: ["src/components/auth/**", "src/lib/auth-ui/**"],
+    rules: {
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/preserve-manual-memoization": "off",
+      // The shadcn-shaped adapters in auth/ui accept props they do not use.
+      "@typescript-eslint/no-unused-vars": ["warn", { ignoreRestSiblings: true }],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

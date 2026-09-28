@@ -16,12 +16,15 @@ export function SubtaskSection({
   statuses,
   projectId,
   workspaceSlug,
+  pageBase,
 }: {
   parent: TaskRow;
   subtasks: TaskRow[];
   statuses: StatusRow[];
   projectId: string;
   workspaceSlug: string;
+  /** Set on a task's own page: subtasks open as pages under it, not via ?task=. */
+  pageBase?: string;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -70,7 +73,13 @@ export function SubtaskSection({
       {subtasks.length > 0 && (
         <ul className="overflow-hidden rounded-10 ring-1 ring-inset ring-stroke-soft-200">
           {subtasks.map((subtask) => (
-            <SubtaskRow key={subtask.id} subtask={subtask} statuses={statuses} workspaceSlug={workspaceSlug} />
+            <SubtaskRow
+              key={subtask.id}
+              subtask={subtask}
+              statuses={statuses}
+              workspaceSlug={workspaceSlug}
+              pageBase={pageBase}
+            />
           ))}
         </ul>
       )}
@@ -98,10 +107,12 @@ function SubtaskRow({
   subtask,
   statuses,
   workspaceSlug,
+  pageBase,
 }: {
   subtask: TaskRow;
   statuses: StatusRow[];
   workspaceSlug: string;
+  pageBase?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -123,6 +134,10 @@ function SubtaskRow({
   }
 
   function open() {
+    if (pageBase) {
+      router.push(`${pageBase}/${subtask.id}`);
+      return;
+    }
     const next = new URLSearchParams(searchParams);
     next.set('task', subtask.id);
     // Same ?task= contract as the board, so a subtask is deep-linkable too.

@@ -87,6 +87,23 @@ describe('updateStatus', () => {
     expect(await names(ctx, projectId)).toEqual(['Backlog', 'In Progress', 'Done']);
   });
 
+  it('sets, and clears, a column icon', async () => {
+    const { ctx, projectId, statuses } = await setup('ada-icon@example.com', 'acme-icon');
+    const icon = async () => (await getProject(ctx, projectId))!.statuses[0].icon;
+
+    expect(await icon()).toBeNull();
+    expect((await updateStatus(ctx, { statusId: statuses[0].id, icon: 'rocket' })).ok).toBe(true);
+    expect(await icon()).toBe('rocket');
+    expect((await updateStatus(ctx, { statusId: statuses[0].id, icon: null })).ok).toBe(true);
+    expect(await icon()).toBeNull();
+  });
+
+  it('rejects an icon outside the set', async () => {
+    const { ctx, statuses } = await setup('ada-icon2@example.com', 'acme-icon2');
+    // @ts-expect-error — the schema is the guard for a client that sends anything.
+    expect((await updateStatus(ctx, { statusId: statuses[0].id, icon: 'skull' })).ok).toBe(false);
+  });
+
   it('refuses a column in another workspace', async () => {
     const a = await setup('a2@example.com', 'ws-a2');
     const b = await setup('b2@example.com', 'ws-b2');

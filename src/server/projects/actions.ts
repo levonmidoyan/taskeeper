@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireWorkspace } from '@/lib/session';
 import { withAction, type Result } from '@/lib/result';
 import {
-  archiveProject, createProject, deleteProject, renameProject,
+  archiveProject, createProject, deleteProject, renameProject, setProjectColor, setProjectStar,
 } from './service';
 
 /**
@@ -38,6 +38,17 @@ export async function renameProjectAction(
   });
 }
 
+export async function setProjectColorAction(
+  workspaceSlug: string,
+  input: { projectId: string; color: string },
+): Promise<Result<null>> {
+  return withAction(async () => {
+    const result = await setProjectColor(await requireWorkspace(workspaceSlug), input);
+    if (result.ok) revalidatePath(`/${workspaceSlug}`, 'layout');
+    return result;
+  });
+}
+
 export async function archiveProjectAction(
   workspaceSlug: string,
   input: { projectId: string },
@@ -55,6 +66,17 @@ export async function deleteProjectAction(
 ): Promise<Result<null>> {
   return withAction(async () => {
     const result = await deleteProject(await requireWorkspace(workspaceSlug), input);
+    if (result.ok) revalidatePath(`/${workspaceSlug}`, 'layout');
+    return result;
+  });
+}
+
+export async function setProjectStarAction(
+  workspaceSlug: string,
+  input: { projectId: string; starred: boolean },
+): Promise<Result<null>> {
+  return withAction(async () => {
+    const result = await setProjectStar(await requireWorkspace(workspaceSlug), input);
     if (result.ok) revalidatePath(`/${workspaceSlug}`, 'layout');
     return result;
   });

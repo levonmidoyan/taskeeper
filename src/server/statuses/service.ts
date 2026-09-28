@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, project, task, taskStatus } from '@/db';
 import { newId } from '@/lib/ids';
+import { STATUS_ICON_KEYS } from '@/lib/status-icons';
 import { positionBetween, positionsAfter } from '@/lib/position';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import { requireRole, type WorkspaceContext } from '@/lib/session';
@@ -102,6 +103,8 @@ export const updateStatusSchema = z.object({
   name: nameSchema.optional(),
   color: z.string().max(32).optional(),
   isDone: z.boolean().optional(),
+  /** null resets the column to its derived glyph. */
+  icon: z.enum(STATUS_ICON_KEYS).nullable().optional(),
 });
 
 export type UpdateStatusInput = z.input<typeof updateStatusSchema>;
@@ -123,6 +126,7 @@ export async function updateStatus(
     if (parsed.data.name !== undefined) patch.name = parsed.data.name;
     if (parsed.data.color !== undefined) patch.color = parsed.data.color;
     if (parsed.data.isDone !== undefined) patch.isDone = parsed.data.isDone;
+    if (parsed.data.icon !== undefined) patch.icon = parsed.data.icon;
     if (Object.keys(patch).length === 0) return ok(null);
 
     const flipsDone = parsed.data.isDone !== undefined && parsed.data.isDone !== owned.isDone;
