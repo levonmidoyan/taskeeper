@@ -26,6 +26,14 @@ const announcer = (page: Page) => page.locator('[id^="DndLiveRegion"]');
 const frames = (page: Page) =>
   page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
+/**
+ * The server action's POST. Waiting on it, not on networkidle, keeps a reload
+ * from landing before the save: networkidle resolves at once when the page
+ * already reached it once since load.
+ */
+const saved = (page: Page) =>
+  page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('/todo'));
+
 test('a to-do can be added, reordered, checked and restored from Completed', async ({ page }) => {
   await signUp(page, 'todo');
 
@@ -51,22 +59,26 @@ test('a to-do can be added, reordered, checked and restored from Completed', asy
   await frames(page);
   await page.keyboard.press('ArrowUp');
   await frames(page);
+  const moved = saved(page);
   await page.keyboard.press('Space');
   await expect(announcer(page)).toContainText('was dropped');
   await expect(openTitles(page)).toHaveText(['File taxes', 'Buy milk', 'Call Ada']);
 
-  // Let the save reach the server before reloading over it.
-  await page.waitForLoadState('networkidle');
+  await moved;
   await page.reload();
   await expect(openTitles(page)).toHaveText(['File taxes', 'Buy milk', 'Call Ada']);
 
+  const checked = saved(page);
   await page.getByRole('button', { name: 'Mark "Buy milk" as done' }).click();
   await expect(openTitles(page)).toHaveText(['File taxes', 'Call Ada']);
+  // Settled first, so the next wait cannot be satisfied by this save.
+  await checked;
 
   const completed = page.getByRole('button', { name: 'Completed (1)' });
   await expect(completed).toHaveAttribute('aria-expanded', 'false');
   await completed.click();
 
+  const restored = saved(page);
   await page
     .getByRole('list', { name: 'Completed to-dos' })
     .getByRole('button', { name: 'Mark "Buy milk" as not done' })
@@ -74,7 +86,7 @@ test('a to-do can be added, reordered, checked and restored from Completed', asy
   await expect(openTitles(page)).toHaveText(['File taxes', 'Call Ada', 'Buy milk']);
   await expect(page.getByRole('button', { name: /^Completed/ })).toHaveCount(0);
 
-  await page.waitForLoadState('networkidle');
+  await restored;
   await page.reload();
   await expect(openTitles(page)).toHaveText(['File taxes', 'Call Ada', 'Buy milk']);
 });
