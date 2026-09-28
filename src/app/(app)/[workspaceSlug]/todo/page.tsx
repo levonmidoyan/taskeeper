@@ -12,7 +12,7 @@ export default async function TodoPage({
   const lists = await listTodos(ctx);
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-6 lg:px-6">
+    <main className="mx-auto w-full max-w-4xl px-4 py-6 lg:px-6">
       <h1 className="text-title-h5 text-text-strong-950">To-do</h1>
       <p className="mt-1 text-paragraph-sm text-text-sub-600">
         Your personal checklist for this workspace. Only you can see it.

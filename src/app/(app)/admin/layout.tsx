@@ -33,7 +33,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </div>
         <UserButton size="icon" align="end" />
       </header>
-      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">{children}</main>
+      <main className="mx-auto w-full max-w-400 px-4 py-6 sm:px-6">{children}</main>
     </div>
   );
 }

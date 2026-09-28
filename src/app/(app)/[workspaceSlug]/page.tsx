@@ -38,7 +38,7 @@ export default async function WorkspaceHome({
   }).format(new Date());
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-6">
+    <main className="mx-auto w-full max-w-400 px-4 py-6 lg:px-6">
       <header className="aurora aurora-soft rounded-20 bg-bg-white-0 px-6 py-7 ring-1 ring-inset ring-stroke-soft-200">
         <p className="text-label-sm text-text-sub-600">{today}</p>
         <h1 className="mt-1 text-title-h4 tracking-tight text-text-strong-950">

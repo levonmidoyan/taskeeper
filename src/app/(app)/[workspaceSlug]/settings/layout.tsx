@@ -11,7 +11,7 @@ export default async function WorkspaceSettingsLayout({
   const { workspaceSlug } = await params;
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 lg:px-6">
+    <main className="mx-auto w-full max-w-6xl space-y-8 px-4 py-6 lg:px-6">
       <div>
         <WorkspaceSettingsBreadcrumb className="mb-3" workspaceSlug={workspaceSlug} />
         <h1 className="text-title-h5 text-text-strong-950">Workspace settings</h1>
