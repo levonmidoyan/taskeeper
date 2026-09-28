@@ -8,6 +8,8 @@ import {
   IconChevronRight,
 } from '@tabler/icons-react';
 import {
+  columnOrderingFeature,
+  columnVisibilityFeature,
   createColumnHelper,
   createPaginatedRowModel,
   createSortedRowModel,
@@ -31,12 +33,14 @@ import { PriorityChip } from '@/components/task/Priority';
 import { TaskBulkBar } from '@/components/task/TaskBulkBar';
 import type { TaskPatch } from '@/components/task/TaskFieldItems';
 import { TaskRowActions } from '@/components/task/TaskRowActions';
+import { TaskTableSettings } from '@/components/task/TaskTableSettings';
 import { StatusIcon } from '@/components/task/StatusIcon';
 import * as Button from '@/components/ui/button';
 import * as StatusBadge from '@/components/ui/status-badge';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { useTableSettings } from '@/hooks/use-table-settings';
+import type { TableSettings } from '@/lib/task-table-settings';
 import {
-  LIST_PAGE_SIZE,
   PRIORITY_RANK,
   boardOrder,
   compareKeys,
@@ -51,6 +55,8 @@ import { formatDueDate, formatInZone, todayInZone } from '@/lib/dates';
 import { cn } from '@/utils/cn';
 
 const features = tableFeatures({
+  columnOrderingFeature,
+  columnVisibilityFeature,
   rowSortingFeature,
   rowPaginationFeature,
   sortedRowModel: createSortedRowModel(),
@@ -238,16 +244,24 @@ export function TaskTable({
   tasks,
   statuses,
   workspaceSlug,
+  projectId,
   timezone,
 }: {
   tasks: TaskRow[];
   statuses: StatusRow[];
   workspaceSlug: string;
+  projectId: string;
   timezone: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { settings, update: updateSettings, reset: resetSettings } = useTableSettings(projectId);
+  const { pageSize, density } = settings;
+  const columnVisibility = useMemo(
+    () => Object.fromEntries(settings.hidden.map((id) => [id, false])),
+    [settings.hidden],
+  );
 
   const statusById = useMemo(() => new Map(statuses.map((s) => [s.id, s])), [statuses]);
   const columns = useMemo(() => buildColumns(statusById, timezone), [statusById, timezone]);
@@ -273,13 +287,13 @@ export function TaskTable({
 
   // The URL owns the page too. A page past the end (rows deleted, a stale link)
   // shows the last one rather than an empty table.
-  const pageCount = Math.max(1, Math.ceil(data.length / LIST_PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(data.length / pageSize));
   const pagination: PaginationState = useMemo(
     () => ({
       pageIndex: Math.min(parsePageParam(searchParams.get('page')), pageCount - 1),
-      pageSize: LIST_PAGE_SIZE,
+      pageSize,
     }),
-    [searchParams, pageCount],
+    [searchParams, pageCount, pageSize],
   );
 
   // push, unlike sort: paging is a step Back should undo.
@@ -292,12 +306,23 @@ export function TaskTable({
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
+  function onSettingsChange(patch: Partial<TableSettings>) {
+    updateSettings(patch);
+    // A new page size moves every row to a different page, like a new sort.
+    if (patch.pageSize !== undefined && patch.pageSize !== pageSize && searchParams.has('page')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('page');
+      const query = next.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    }
+  }
+
   const table = useTable({
     features,
     columns,
     data,
     getRowId: (task) => task.id,
-    state: { sorting, pagination },
+    state: { sorting, pagination, columnVisibility, columnOrder: settings.columnOrder },
     onSortingChange,
     onPaginationChange,
     autoResetPageIndex: false,
@@ -417,148 +442,156 @@ export function TaskTable({
           <p className="mt-1 text-paragraph-sm text-text-sub-600">Type below to add the first one.</p>
         </div>
       ) : (
-        // The table scrolls sideways inside its own box on narrow screens, with
-        // Title pinned, so the page itself never scrolls horizontally.
-        <div className="overflow-x-auto rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200">
-          <table className="w-full border-separate border-spacing-0 text-left">
-            <thead>
-              {table.getHeaderGroups().map((group) => (
-                <tr key={group.id}>
-                  <th
-                    scope="col"
-                    className="sticky left-0 z-10 h-10 w-10 min-w-10 border-b border-stroke-soft-200 bg-bg-weak-50 pl-3 pr-0"
-                  >
-                    <span className="flex items-center">
-                      <SelectBox
-                        label="Select all tasks on this page"
-                        checked={allSelected}
-                        indeterminate={pageSelectedCount > 0 && !allSelected}
-                        onClick={toggleAll}
-                      />
-                    </span>
-                  </th>
-                  {group.headers.map((header) => {
-                    const col = header.column;
-                    const sorted = col.getIsSorted();
-                    const canSort = col.getCanSort();
-                    return (
-                      <th
-                        key={header.id}
-                        scope="col"
-                        aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}
-                        className={cn(
-                          'h-10 border-b border-stroke-soft-200 bg-bg-weak-50 px-3 text-label-xs font-medium text-text-sub-600 whitespace-nowrap',
-                          COLUMN_WIDTH[col.id],
-                          col.id === 'title' && 'sticky left-10 z-10',
-                        )}
-                      >
-                        {canSort ? (
-                          <button
-                            type="button"
-                            onClick={col.getToggleSortingHandler()}
-                            className="-mx-1 inline-flex items-center gap-1 rounded-md px-1 py-0.5 transition-colors duration-150 hover:text-text-strong-950"
-                          >
-                            <table.FlexRender header={header} />
-                            {sorted === 'asc' ? (
-                              <IconArrowUp className="size-3.5" aria-hidden="true" />
-                            ) : sorted === 'desc' ? (
-                              <IconArrowDown className="size-3.5" aria-hidden="true" />
-                            ) : (
-                              <IconArrowsSort className="size-3.5 opacity-40" aria-hidden="true" />
-                            )}
-                          </button>
-                        ) : (
-                          <table.FlexRender header={header} />
-                        )}
-                      </th>
-                    );
-                  })}
-                  <th scope="col" className="h-10 w-12 border-b border-stroke-soft-200 bg-bg-weak-50 px-2">
-                    <span className="sr-only">Actions</span>
-                  </th>
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const selected = selection.has(row.id);
-                const cellBg = selected
-                  ? 'bg-primary-lighter'
-                  : 'bg-bg-white-0 group-hover:bg-bg-weak-50';
-                const cellBase = 'h-11 border-b border-stroke-soft-200 transition-colors duration-150 group-last:border-b-0';
-                return (
-                <tr
-                  key={row.id}
-                  // The mouse can hit anywhere on the row; keyboard and screen
-                  // readers use the title button, so the row needs no tab stop.
-                  onClick={() => openTask(row.original.id)}
-                  aria-selected={selected}
-                  className="group cursor-pointer"
-                >
-                  <td
-                    className={cn(cellBase, cellBg, 'sticky left-0 z-10 w-10 min-w-10 pl-3 pr-0')}
-                    // A near-miss on the checkbox must not open the task.
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleRow(row.id, e.shiftKey);
-                    }}
-                  >
-                    <span className="flex items-center">
-                      <SelectBox
-                        label={`Select ${row.original.title}`}
-                        checked={selected}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleRow(row.id, e.shiftKey);
-                        }}
-                      />
-                    </span>
-                  </td>
-                  {row.getAllCells().map((cell) => (
-                    <td
-                      key={cell.id}
-                      className={cn(
-                        cellBase,
-                        cellBg,
-                        'px-3',
-                        COLUMN_WIDTH[cell.column.id],
-                        cell.column.id === 'title' && 'sticky left-10 z-10 max-w-md',
-                      )}
+        <>
+          <div className="mb-3 flex justify-end">
+            <TaskTableSettings settings={settings} onChange={onSettingsChange} onReset={resetSettings} />
+          </div>
+          {/* The table scrolls sideways inside its own box on narrow screens, with
+              Title pinned, so the page itself never scrolls horizontally. */}
+          <div className="overflow-x-auto rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200">
+            <table className="w-full border-separate border-spacing-0 text-left">
+              <thead>
+                {table.getHeaderGroups().map((group) => (
+                  <tr key={group.id}>
+                    <th
+                      scope="col"
+                      className="sticky left-0 z-10 h-10 w-10 min-w-10 border-b border-stroke-soft-200 bg-bg-weak-50 pl-3 pr-0"
                     >
-                      {cell.column.id === 'title' ? (
-                        <button
-                          type="button"
+                      <span className="flex items-center">
+                        <SelectBox
+                          label="Select all tasks on this page"
+                          checked={allSelected}
+                          indeterminate={pageSelectedCount > 0 && !allSelected}
+                          onClick={toggleAll}
+                        />
+                      </span>
+                    </th>
+                    {group.headers.map((header) => {
+                      const col = header.column;
+                      const sorted = col.getIsSorted();
+                      const canSort = col.getCanSort();
+                      return (
+                        <th
+                          key={header.id}
+                          scope="col"
+                          aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}
+                          className={cn(
+                            'h-10 border-b border-stroke-soft-200 bg-bg-weak-50 px-3 text-label-xs font-medium text-text-sub-600 whitespace-nowrap',
+                            COLUMN_WIDTH[col.id],
+                            col.id === 'title' && 'sticky left-10 z-10',
+                          )}
+                        >
+                          {canSort ? (
+                            <button
+                              type="button"
+                              onClick={col.getToggleSortingHandler()}
+                              className="-mx-1 inline-flex items-center gap-1 rounded-md px-1 py-0.5 transition-colors duration-150 hover:text-text-strong-950"
+                            >
+                              <table.FlexRender header={header} />
+                              {sorted === 'asc' ? (
+                                <IconArrowUp className="size-3.5" aria-hidden="true" />
+                              ) : sorted === 'desc' ? (
+                                <IconArrowDown className="size-3.5" aria-hidden="true" />
+                              ) : (
+                                <IconArrowsSort className="size-3.5 opacity-40" aria-hidden="true" />
+                              )}
+                            </button>
+                          ) : (
+                            <table.FlexRender header={header} />
+                          )}
+                        </th>
+                      );
+                    })}
+                    <th scope="col" className="h-10 w-12 border-b border-stroke-soft-200 bg-bg-weak-50 px-2">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                ))}
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const selected = selection.has(row.id);
+                  const cellBg = selected
+                    ? 'bg-primary-lighter'
+                    : 'bg-bg-white-0 group-hover:bg-bg-weak-50';
+                  const cellBase = cn(
+                    density === 'compact' ? 'h-9' : 'h-11',
+                    'border-b border-stroke-soft-200 transition-colors duration-150 group-last:border-b-0',
+                  );
+                  return (
+                  <tr
+                    key={row.id}
+                    // The mouse can hit anywhere on the row; keyboard and screen
+                    // readers use the title button, so the row needs no tab stop.
+                    onClick={() => openTask(row.original.id)}
+                    aria-selected={selected}
+                    className="group cursor-pointer"
+                  >
+                    <td
+                      className={cn(cellBase, cellBg, 'sticky left-0 z-10 w-10 min-w-10 pl-3 pr-0')}
+                      // A near-miss on the checkbox must not open the task.
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleRow(row.id, e.shiftKey);
+                      }}
+                    >
+                      <span className="flex items-center">
+                        <SelectBox
+                          label={`Select ${row.original.title}`}
+                          checked={selected}
                           onClick={(e) => {
                             e.stopPropagation();
-                            openTask(row.original.id);
+                            toggleRow(row.id, e.shiftKey);
                           }}
-                          aria-label={row.original.title}
-                          className="flex w-full min-w-0 text-left"
-                        >
-                          <table.FlexRender cell={cell} />
-                        </button>
-                      ) : (
-                        <table.FlexRender cell={cell} />
-                      )}
+                        />
+                      </span>
                     </td>
-                  ))}
-                  <td className={cn(cellBase, cellBg, 'w-12 px-2')}>
-                    <TaskRowActions
-                      task={row.original}
-                      statuses={statuses}
-                      timezone={timezone}
-                      disabled={pending}
-                      onOpen={() => openTask(row.original.id)}
-                      onPatch={(patch) => applyPatch([row.original.id], patch)}
-                      onDelete={() => deleteTasks([row.original.id])}
-                    />
-                  </td>
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        className={cn(
+                          cellBase,
+                          cellBg,
+                          'px-3',
+                          COLUMN_WIDTH[cell.column.id],
+                          cell.column.id === 'title' && 'sticky left-10 z-10 max-w-md',
+                        )}
+                      >
+                        {cell.column.id === 'title' ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openTask(row.original.id);
+                            }}
+                            aria-label={row.original.title}
+                            className="flex w-full min-w-0 text-left"
+                          >
+                            <table.FlexRender cell={cell} />
+                          </button>
+                        ) : (
+                          <table.FlexRender cell={cell} />
+                        )}
+                      </td>
+                    ))}
+                    <td className={cn(cellBase, cellBg, 'w-12 px-2')}>
+                      <TaskRowActions
+                        task={row.original}
+                        statuses={statuses}
+                        timezone={timezone}
+                        disabled={pending}
+                        onOpen={() => openTask(row.original.id)}
+                        onPatch={(patch) => applyPatch([row.original.id], patch)}
+                        onDelete={() => deleteTasks([row.original.id])}
+                      />
+                    </td>
+                  </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {pageCount > 1 && (
@@ -567,8 +600,8 @@ export function TaskTable({
           className="mt-3 flex items-center justify-between gap-3 text-paragraph-sm text-text-sub-600"
         >
           <span>
-            {pagination.pageIndex * LIST_PAGE_SIZE + 1}–
-            {Math.min(data.length, (pagination.pageIndex + 1) * LIST_PAGE_SIZE)} of {data.length}
+            {pagination.pageIndex * pageSize + 1}–
+            {Math.min(data.length, (pagination.pageIndex + 1) * pageSize)} of {data.length}
           </span>
           <div className="flex items-center gap-2">
             <span>
