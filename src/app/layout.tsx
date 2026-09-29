@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { TopLoadingBar } from '@/components/brand/TopLoadingBar';
 import { Providers } from '@/components/providers';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
@@ -16,6 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={fontVariables} suppressHydrationWarning>
       <body className="min-h-dvh antialiased">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <TopLoadingBar />
           <Providers
             requireEmailVerification={requireEmailVerification()}
             google={googleCredentials() !== null}

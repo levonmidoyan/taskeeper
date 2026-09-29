@@ -182,6 +182,37 @@
     opacity: 0.5;
   }
 
+  /* Top request bar (components/brand/TopLoadingBar.tsx): aurora gradient with a
+     light sweep running through it and a glow at the leading edge. */
+  .top-loading-bar {
+    position: relative;
+    background:
+      linear-gradient(90deg, transparent 0%, oklch(100% 0 0 / 0.55) 50%, transparent 100%) 0 0 / 40% 100% no-repeat,
+      linear-gradient(90deg, var(--color-indigo-600), oklch(62% 0.22 305), oklch(72% 0.14 220));
+    box-shadow: 0 0 8px var(--color-indigo-alpha-24);
+    border-radius: 0 9999px 9999px 0;
+    animation: loading-bar-sweep 1.1s linear infinite;
+  }
+  .top-loading-bar::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    top: 50%;
+    width: 80px;
+    height: 100%;
+    transform: translateY(-50%);
+    border-radius: 9999px;
+    box-shadow: 0 0 12px 2px oklch(72% 0.14 220 / 0.7), 0 0 4px 1px oklch(62% 0.22 305 / 0.8);
+    opacity: 0.9;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .top-loading-bar { animation: none; }
+  }
+  @keyframes loading-bar-sweep {
+    from { background-position: -40% 0, 0 0; }
+    to { background-position: 140% 0, 0 0; }
+  }
+
   /* Faint dot grid, faded out towards the edges. */
   .dot-grid {
     background-image: radial-gradient(currentColor 1px, transparent 1px);
