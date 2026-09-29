@@ -36,8 +36,8 @@ Tasks need supporting files — screenshots, specs, exports. Today there is nowh
 ### 2.1 Provider
 
 - **Production:** Cloudflare R2. Private bucket, no public access, no custom domain needed.
-- **Development and tests:** MinIO in `docker-compose.yml`, plus a one-shot `minio/mc` service
-  that creates the dev and test buckets and sets their CORS rule.
+- **Development and tests:** MinIO in `docker-compose.yml`. Buckets are created by
+  `yarn storage:init`; MinIO allows any origin by default, so dev needs no CORS rule.
 
 Both are reached through the same S3 client, so there is one code path.
 
