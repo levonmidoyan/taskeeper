@@ -7,20 +7,8 @@ import { Calendar } from '@/components/ui/datepicker';
 import * as Label from '@/components/ui/label';
 import * as Popover from '@/components/ui/popover';
 import { selectVariants } from '@/components/ui/select';
-import { formatDueDate, isOverdue, todayInZone } from '@/lib/dates';
+import { dateToDay, dayToDate, formatDueDate, isOverdue, todayInZone } from '@/lib/dates';
 import { cn } from '@/utils/cn';
-
-// The picker works in local Date objects, but only ever as a calendar day:
-// these two helpers are the whole boundary with the YYYY-MM-DD strings.
-function toDate(day: string): Date {
-  const [y, m, d] = day.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-
-function toDay(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
 
 /** Due date as a popover calendar; `onChange` gets a bare YYYY-MM-DD or null. */
 export function DueDateField({
@@ -68,11 +56,11 @@ export function DueDateField({
               mode="single"
               // Clicking the chosen day again keeps it; "Clear" is the way out.
               required
-              selected={value ? toDate(value) : undefined}
-              defaultMonth={toDate(value ?? today)}
+              selected={value ? dayToDate(value) : undefined}
+              defaultMonth={dayToDate(value ?? today)}
               // "Today" is the workspace's, not the browser's.
-              today={toDate(today)}
-              onSelect={(date) => pick(toDay(date))}
+              today={dayToDate(today)}
+              onSelect={(date) => pick(dateToDay(date))}
               autoFocus
             />
           </div>

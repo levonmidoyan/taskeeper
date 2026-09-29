@@ -1,6 +1,7 @@
 'use client';
 
 import { IconArrowUpRight, IconDots, IconLink, IconTrash } from '@tabler/icons-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { FIELD_LABEL, TaskFieldItems, type TaskField, type TaskPatch } from '@/components/task/TaskFieldItems';
 import * as Dropdown from '@/components/ui/dropdown';
@@ -27,6 +28,9 @@ export function TaskRowActions({
   onPatch: (patch: TaskPatch) => void;
   onDelete: () => void;
 }) {
+  // Controlled so a pick from the due-date calendar (not a menu item) closes it too.
+  const [open, setOpen] = useState(false);
+
   function copyLink() {
     const url = new URL(window.location.href);
     url.search = '';
@@ -38,7 +42,7 @@ export function TaskRowActions({
   }
 
   return (
-    <Dropdown.Root>
+    <Dropdown.Root open={open} onOpenChange={setOpen}>
       <Dropdown.Trigger
         disabled={disabled}
         aria-label={`Actions for ${task.title}`}
@@ -62,12 +66,19 @@ export function TaskRowActions({
           <Dropdown.MenuSub key={field}>
             <Dropdown.MenuSubTrigger>{FIELD_LABEL[field]}</Dropdown.MenuSubTrigger>
             <Dropdown.Portal>
-              <Dropdown.MenuSubContent sideOffset={6} className="max-h-80 min-w-48 overflow-y-auto">
+              <Dropdown.MenuSubContent
+                sideOffset={6}
+                // The due-date menu holds a calendar, too tall to scroll inside.
+                className={field === 'due' ? undefined : 'max-h-80 min-w-48 overflow-y-auto'}
+              >
                 <TaskFieldItems
                   field={field}
                   statuses={statuses}
                   timezone={timezone}
-                  onPick={onPatch}
+                  onPick={(patch) => {
+                    setOpen(false);
+                    onPatch(patch);
+                  }}
                 />
               </Dropdown.MenuSubContent>
             </Dropdown.Portal>

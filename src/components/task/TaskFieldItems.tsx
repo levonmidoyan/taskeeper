@@ -3,8 +3,9 @@
 import { IconCalendarOff } from '@tabler/icons-react';
 import { PRIORITY_LABEL, PriorityIcon } from '@/components/task/Priority';
 import { StatusIcon } from '@/components/task/StatusIcon';
+import { Calendar } from '@/components/ui/datepicker';
 import * as Dropdown from '@/components/ui/dropdown';
-import { addDays, todayInZone } from '@/lib/dates';
+import { addDays, dateToDay, dayToDate, todayInZone } from '@/lib/dates';
 import type { StatusRow } from '@/server/projects/queries';
 import type { Priority } from '@/server/tasks/queries';
 import type { BulkUpdateTasksInput } from '@/server/tasks/service';
@@ -24,6 +25,9 @@ const PRIORITIES: Priority[] = ['urgent', 'high', 'medium', 'low', 'none'];
  * The choices for one task field, as dropdown items. Shared by the row menu
  * (inside a submenu) and the bulk bar (as a menu of its own), so both offer
  * exactly the same values.
+ *
+ * The due-date calendar is not a menu item, so picking a day there doesn't
+ * close the menu by itself — callers close it from `onPick`.
  */
 export function TaskFieldItems({
   field,
@@ -68,11 +72,20 @@ export function TaskFieldItems({
           {p.label}
         </Dropdown.Item>
       ))}
-      <Dropdown.Separator className="my-1 h-px bg-stroke-soft-200" />
       <Dropdown.Item onSelect={() => onPick({ dueDate: null })}>
         <Dropdown.ItemIcon as={IconCalendarOff} />
         No due date
       </Dropdown.Item>
+      <Dropdown.Separator className="my-1 h-px bg-stroke-soft-200" />
+      <div className="px-1 pb-1">
+        <Calendar
+          mode="single"
+          defaultMonth={dayToDate(today)}
+          // "Today" is the workspace's, not the browser's.
+          today={dayToDate(today)}
+          onSelect={(date) => date && onPick({ dueDate: dateToDay(date) })}
+        />
+      </div>
     </>
   );
 }

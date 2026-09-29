@@ -1,6 +1,7 @@
 'use client';
 
 import { IconChevronDown, IconTrash, IconX } from '@tabler/icons-react';
+import { useState } from 'react';
 import { FIELD_LABEL, TaskFieldItems, type TaskField, type TaskPatch } from '@/components/task/TaskFieldItems';
 import * as Dropdown from '@/components/ui/dropdown';
 import type { StatusRow } from '@/server/projects/queries';
@@ -32,6 +33,9 @@ export function TaskBulkBar({
   onDelete: () => void;
   onClear: () => void;
 }) {
+  // Controlled so a pick from the due-date calendar (not a menu item) closes it too.
+  const [openField, setOpenField] = useState<TaskField | null>(null);
+
   return (
     <div
       role="toolbar"
@@ -43,17 +47,29 @@ export function TaskBulkBar({
       </span>
       <span className="mx-1 h-5 w-px shrink-0 bg-text-white-0/15" aria-hidden="true" />
       {FIELDS.map((field) => (
-        <Dropdown.Root key={field}>
+        <Dropdown.Root
+          key={field}
+          open={openField === field}
+          onOpenChange={(open) => setOpenField(open ? field : null)}
+        >
           <Dropdown.Trigger disabled={pending} className={cn(barButton, 'shrink-0')}>
             {FIELD_LABEL[field]}
             <IconChevronDown className="size-3.5 opacity-60" aria-hidden="true" />
           </Dropdown.Trigger>
-          <Dropdown.Content side="top" align="start" className="max-h-80 w-56 overflow-y-auto">
+          <Dropdown.Content
+            side="top"
+            align="start"
+            // The due-date menu holds a calendar, too tall to scroll inside.
+            className={field === 'due' ? 'w-max' : 'max-h-80 w-56 overflow-y-auto'}
+          >
             <TaskFieldItems
               field={field}
               statuses={statuses}
               timezone={timezone}
-              onPick={onPatch}
+              onPick={(patch) => {
+                setOpenField(null);
+                onPatch(patch);
+              }}
             />
           </Dropdown.Content>
         </Dropdown.Root>

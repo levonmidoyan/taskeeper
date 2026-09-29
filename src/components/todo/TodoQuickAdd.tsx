@@ -14,8 +14,8 @@ export function TodoQuickAdd({ workspaceSlug }: { workspaceSlug: string }) {
     const title = inputRef.current?.value.trim();
     if (!title) return;
 
-    // Same rules as QuickAddTask: clear first and never disable, so focus stays
-    // in the field and the next item can be typed straight away.
+    // Clear first and never disable (disabling blurs), so focus stays in the
+    // field and the next item can be typed straight away.
     if (inputRef.current) inputRef.current.value = '';
 
     setPending(true);

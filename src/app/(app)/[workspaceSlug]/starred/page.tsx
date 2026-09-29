@@ -16,7 +16,7 @@ export default async function StarredPage({
   const starred = (await listProjects(ctx)).filter((p) => p.starred);
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-6">
+    <main className="mx-auto w-full max-w-400 px-4 py-6 lg:px-6">
       <h1 className="text-title-h5 text-text-strong-950">Starred</h1>
       <p className="mt-1 text-paragraph-sm text-text-sub-600">
         Projects you starred. They also stay pinned at the top of the sidebar.

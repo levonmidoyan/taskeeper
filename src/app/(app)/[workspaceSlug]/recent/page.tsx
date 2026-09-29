@@ -36,7 +36,7 @@ export default async function RecentPage({
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-6">
+    <main className="mx-auto w-full max-w-400 px-4 py-6 lg:px-6">
       <h1 className="text-title-h5 text-text-strong-950">Recent</h1>
       <p className="mt-1 text-paragraph-sm text-text-sub-600">
         Tasks you created, changed or commented on lately.

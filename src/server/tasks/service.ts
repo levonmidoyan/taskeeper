@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
-import { db, member, project, task, taskStatus, user } from '@/db';
+import { db, label, member, project, task, taskLabel, taskStatus, user } from '@/db';
 import { newId } from '@/lib/ids';
 import { positionBetween } from '@/lib/position';
 import { err, ok, withAction, type Result } from '@/lib/result';
@@ -68,16 +68,26 @@ async function memberName(ctx: WorkspaceContext, userId: string | null): Promise
   return row?.name ?? null;
 }
 
+const dueDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a YYYY-MM-DD date.');
+
 const createSchema = z.object({
   projectId: z.string().min(1),
   title: z.string().trim().min(1, 'Give the task a title.').max(200, 'Title is too long.'),
   statusId: z.string().optional(),
   parentTaskId: z.string().optional(),
+  // The rest is what the full create form can fill in up front.
+  description: z.string().max(10_000).optional(),
+  priority: z.enum(PRIORITIES).optional(),
+  assigneeId: z.string().nullable().optional(),
+  dueDate: dueDateSchema.nullable().optional(),
+  labelIds: z.array(z.string()).max(20).optional(),
 });
+
+export type CreateTaskInput = z.input<typeof createSchema>;
 
 export async function createTask(
   ctx: WorkspaceContext,
-  input: { projectId: string; title: string; statusId?: string; parentTaskId?: string },
+  input: CreateTaskInput,
 ): Promise<Result<{ id: string }>> {
   return withAction(async () => {
     const parsed = createSchema.safeParse(input);
@@ -87,10 +97,11 @@ export async function createTask(
 
     // Default to the leftmost column.
     let statusId = parsed.data.statusId;
+    let isDone = false;
     if (statusId) {
-      if (!(await assertStatus(ctx, statusId, parsed.data.projectId))) {
-        return err('That column does not belong to this project.');
-      }
+      const status = await assertStatus(ctx, statusId, parsed.data.projectId);
+      if (!status) return err('That column does not belong to this project.');
+      isDone = status.isDone;
     } else {
       const [first] = await db
         .select({ id: taskStatus.id })
@@ -100,6 +111,19 @@ export async function createTask(
         .limit(1);
       if (!first) return err('This project has no columns.');
       statusId = first.id;
+    }
+
+    const assigneeId = parsed.data.assigneeId ?? null;
+    if (assigneeId && !(await memberName(ctx, assigneeId))) return err('That person is not in this workspace.');
+
+    // Deduplicated, then every id must belong to this workspace (as setTaskLabels).
+    const labelIds = [...new Set(parsed.data.labelIds ?? [])];
+    if (labelIds.length > 0) {
+      const valid = await db
+        .select({ id: label.id })
+        .from(label)
+        .where(and(eq(label.workspaceId, ctx.workspaceId), inArray(label.id, labelIds)));
+      if (valid.length !== labelIds.length) return err('Unknown label.');
     }
 
     const [last] = await db
@@ -122,7 +146,15 @@ export async function createTask(
         parentTaskId: parsed.data.parentTaskId,
         position: positionBetween(last?.position ?? null, null),
         createdBy: ctx.userId,
+        description: parsed.data.description,
+        priority: parsed.data.priority,
+        assigneeId,
+        dueDate: parsed.data.dueDate ?? null,
+        completedAt: isDone ? new Date() : null,
       });
+      if (labelIds.length > 0) {
+        await tx.insert(taskLabel).values(labelIds.map((labelId) => ({ taskId: id, labelId })));
+      }
       await recordActivity(ctx, { taskId: id, kind: 'created', to: parsed.data.title }, tx);
     });
 
@@ -138,7 +170,7 @@ export const updateSchema = z.object({
   priority: z.enum(PRIORITIES).optional(),
   assigneeId: z.string().nullable().optional(),
   // A calendar date, never an instant (spec §3.4).
-  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a YYYY-MM-DD date.').nullable().optional(),
+  dueDate: dueDateSchema.nullable().optional(),
 });
 
 export type UpdateTaskInput = z.input<typeof updateSchema>;

@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  IconArrowUpRight, IconChevronLeft, IconChevronRight, IconLink, IconTrash, IconX,
+  IconArrowUpRight, IconChevronLeft, IconLink, IconTrash, IconX,
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -15,12 +15,15 @@ import { LabelPicker } from '@/components/task/LabelPicker';
 import { PRIORITY_LABEL, PriorityIcon } from '@/components/task/Priority';
 import { RichTextField } from '@/components/task/RichTextField';
 import { StatusIcon } from '@/components/task/StatusIcon';
+import { homeCrumb, PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
 import { SubtaskSection } from '@/components/task/SubtaskSection';
 import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Label from '@/components/ui/label';
 import * as Modal from '@/components/ui/modal';
 import * as Select from '@/components/ui/select';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import { formatInZone } from '@/lib/dates';
 import type { FeedEntry } from '@/server/activity/queries';
 import type { MemberRow } from '@/server/labels/queries';
 import type { StatusRow } from '@/server/projects/queries';
@@ -73,6 +76,7 @@ export function TaskDetailView({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
+  const confirm = useConfirm();
   const [title, setTitle] = useState(task.title);
   const [assigneeId, setAssigneeId] = useState(task.assigneeId);
 
@@ -108,8 +112,12 @@ export function TaskDetailView({
     });
   }
 
-  function onDelete() {
-    if (!confirm(`Delete "${task.title}"? This also deletes its subtasks.`)) return;
+  async function onDelete() {
+    const ok = await confirm({
+      title: `Delete "${task.title}"?`,
+      description: 'This also deletes its subtasks. It can’t be undone.',
+    });
+    if (!ok) return;
     startTransition(async () => {
       const result = await deleteTaskAction(workspaceSlug, { taskId: task.id });
       if (!result.ok) {
@@ -168,30 +176,14 @@ export function TaskDetailView({
     </header>
   ) : (
     <header className="flex shrink-0 items-center justify-between gap-3 border-b border-stroke-soft-200 px-4 py-3 lg:px-6">
-      <nav aria-label="Breadcrumb" className="min-w-0">
-        <ol className="flex min-w-0 items-center gap-1 text-paragraph-sm text-text-sub-600">
-          <li className="min-w-0">
-            <Link href={projectHref} className="block truncate transition-colors duration-150 hover:text-text-strong-950">
-              {projectName}
-            </Link>
-          </li>
-          {task.parentId && (
-            <li className="flex min-w-0 items-center gap-1">
-              <IconChevronRight className="size-3.5 shrink-0" aria-hidden="true" />
-              <Link
-                href={`${tasksBase}/${task.parentId}`}
-                className="truncate transition-colors duration-150 hover:text-text-strong-950"
-              >
-                {task.parentTitle}
-              </Link>
-            </li>
-          )}
-          <li aria-current="page" className="flex min-w-0 items-center gap-1 text-text-strong-950">
-            <IconChevronRight className="size-3.5 shrink-0 text-text-sub-600" aria-hidden="true" />
-            <span className="truncate">{task.title}</span>
-          </li>
-        </ol>
-      </nav>
+      <PageBreadcrumb
+        items={[
+          homeCrumb(workspaceSlug),
+          { label: projectName ?? 'Project', href: projectHref },
+          ...(task.parentId ? [{ label: task.parentTitle ?? 'Parent task', href: `${tasksBase}/${task.parentId}` }] : []),
+          { label: task.title },
+        ]}
+      />
 
       <div className="flex shrink-0 items-center gap-1">
         {deleteButton}
@@ -286,6 +278,17 @@ export function TaskDetailView({
               selected={task.labels}
             />
           </div>
+
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-t border-stroke-soft-200 pt-4 text-paragraph-xs">
+            <dt className="text-text-sub-600">Created</dt>
+            <dd className="tabular text-text-strong-950">
+              <time dateTime={task.createdAt.toISOString()}>{formatInZone(task.createdAt, timezone)}</time>
+            </dd>
+            <dt className="text-text-sub-600">Updated</dt>
+            <dd className="tabular text-text-strong-950">
+              <time dateTime={task.updatedAt.toISOString()}>{formatInZone(task.updatedAt, timezone)}</time>
+            </dd>
+          </dl>
         </aside>
 
         <div className="flex flex-col gap-5 p-5 lg:col-start-1 lg:row-start-2 lg:overflow-y-auto">

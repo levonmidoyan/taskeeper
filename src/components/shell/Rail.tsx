@@ -21,7 +21,6 @@ type Props = {
   workspaceSlug: string;
   workspaces: WorkspaceSummary[];
   projects: ProjectSummary[];
-  userName: string;
 };
 
 const navItem =

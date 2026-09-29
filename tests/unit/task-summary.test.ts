@@ -14,7 +14,7 @@ const statuses: StatusRow[] = [
 function task(overrides: Partial<TaskRow> & { id: string }): TaskRow {
   return {
     title: overrides.id, description: '', statusId: 'todo', priority: 'none' as Priority,
-    assigneeId: null, assigneeName: null, assigneeImage: null, dueDate: null, position: 'a0', completedAt: null,
+    assigneeId: null, assigneeName: null, assigneeImage: null, dueDate: null, position: 'a0', completedAt: null, createdAt: new Date(0), updatedAt: new Date(0),
     labels: [], subtaskCount: 0, subtaskDoneCount: 0, ...overrides,
   };
 }

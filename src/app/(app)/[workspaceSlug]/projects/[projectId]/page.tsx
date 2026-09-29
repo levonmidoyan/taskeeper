@@ -44,7 +44,6 @@ export default async function ProjectBoardPage({
       </ProjectHeader>
       <Board
         workspaceSlug={workspaceSlug}
-        projectId={projectId}
         statuses={project.statuses}
         tasks={tasks}
         timezone={ctx.timezone}

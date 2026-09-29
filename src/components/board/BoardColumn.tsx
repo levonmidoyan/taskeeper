@@ -9,7 +9,6 @@ import { columnId } from '@/components/board/neighbours';
 import { StatusIconPicker } from '@/components/board/StatusIconPicker';
 import { TaskCard } from '@/components/board/TaskCard';
 import { KanbanBoard, KanbanCards, KanbanHeader } from '@/components/kibo-ui/kanban';
-import { QuickAddTask } from '@/components/task/QuickAddTask';
 import { StatusIcon } from '@/components/task/StatusIcon';
 import * as CompactButton from '@/components/ui/compact-button';
 import type { StatusRow } from '@/server/projects/queries';
@@ -19,7 +18,6 @@ export function BoardColumn({
   status,
   count,
   workspaceSlug,
-  projectId,
   timezone,
   canEdit,
   onOpen,
@@ -27,7 +25,6 @@ export function BoardColumn({
   status: StatusRow;
   count: number;
   workspaceSlug: string;
-  projectId: string;
   timezone: string;
   canEdit: boolean;
   onOpen: (id: string) => void;
@@ -60,15 +57,6 @@ export function BoardColumn({
       >
         {(item) => <TaskCard key={item.id} task={item.task} timezone={timezone} onOpen={onOpen} />}
       </KanbanCards>
-
-      <div className="border-t border-stroke-soft-200 px-3">
-        <QuickAddTask
-          workspaceSlug={workspaceSlug}
-          projectId={projectId}
-          statusId={status.id}
-          placeholder={`Add to ${status.name}…`}
-        />
-      </div>
     </KanbanBoard>
   );
 }

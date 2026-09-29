@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { AddAccountDialog } from '@/components/auth/multi-session/add-account-dialog';
+import { ConfirmProvider } from '@/components/ui/confirm-dialog';
 import { authClient } from '@/lib/auth-client';
 import { adminPlugin } from '@/lib/auth-ui/admin-plugin';
 import { deleteUserPlugin } from '@/lib/auth-ui/delete-user-plugin';
@@ -53,7 +54,7 @@ export function Providers({
         }}
         Link={Link}
       >
-        {children}
+        <ConfirmProvider>{children}</ConfirmProvider>
         <AddAccountDialog />
       </AuthProvider>
     </QueryClientProvider>

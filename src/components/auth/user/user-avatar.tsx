@@ -4,7 +4,7 @@ import type { UsernameAuthClient } from "@better-auth-ui/core/plugins/username"
 import { useAuth, useSession } from "@better-auth-ui/react"
 import type { User } from "better-auth"
 import { IconUser as User2 } from "@tabler/icons-react"
-import type { ReactNode } from "react"
+import type { ComponentProps, ReactNode } from "react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/auth/ui/avatar"
 import { Skeleton } from "@/components/auth/ui/skeleton"
@@ -15,8 +15,11 @@ export type UserAvatarProps = {
   fallback?: ReactNode
   isPending?: boolean
   /** @remarks `User` */
-  user?: User & { username?: string | null; displayUsername?: string | null }
-}
+  user?: Partial<User> & {
+    username?: string | null
+    displayUsername?: string | null
+  }
+} & Pick<ComponentProps<"span">, "role" | "aria-label" | "aria-hidden">
 
 /**
  * Display a user's avatar using session information or an explicit user prop.
@@ -33,7 +36,8 @@ export function UserAvatar({
   className,
   user,
   isPending,
-  fallback
+  fallback,
+  ...rest
 }: UserAvatarProps) {
   const { authClient } = useAuth<UsernameAuthClient>()
   const { data: session, isPending: sessionPending } = useSession(authClient, {
@@ -60,6 +64,7 @@ export function UserAvatar({
         "size-8 bg-bg-soft-200 text-text-strong-950 text-paragraph-sm rounded-full",
         className
       )}
+      {...rest}
     >
       <AvatarImage
         src={resolvedUser?.image ?? undefined}

@@ -7,6 +7,7 @@ import {
   bulkDeleteTasks, bulkUpdateTasks, createTask, deleteTask, moveTask, updateTask,
 } from '@/server/tasks/service';
 import { getTask, getTaskDetail, listMyOpenTasks, listProjectTasks, searchTasks } from '@/server/tasks/queries';
+import { createLabel } from '@/server/labels/service';
 import { task } from '@/db';
 import type { WorkspaceContext } from '@/lib/session';
 
@@ -73,6 +74,68 @@ describe('createTask', () => {
     const tasks = await listProjectTasks(ctx, projectId);
     expect(tasks.map((t) => t.title)).toEqual(['First', 'Second']);
     expect(tasks[0].position < tasks[1].position).toBe(true);
+  });
+
+  it('sets every field the create form offers in one call', async () => {
+    const { ctx, projectId, statuses } = await setup('full@example.com', 'full');
+    const label = await createLabel(ctx, { name: 'bug' });
+    if (!label.ok) throw new Error('setup failed');
+
+    const result = await createTask(ctx, {
+      projectId,
+      title: 'Full form',
+      statusId: statuses[1].id,
+      description: 'Some **details**',
+      priority: 'high',
+      assigneeId: ctx.userId,
+      dueDate: '2026-10-01',
+      labelIds: [label.data.id, label.data.id],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const detail = await getTaskDetail(ctx, result.data.id);
+    expect(detail).toMatchObject({
+      statusId: statuses[1].id,
+      description: 'Some **details**',
+      priority: 'high',
+      assigneeId: ctx.userId,
+      dueDate: '2026-10-01',
+    });
+    expect(detail!.labels.map((l) => l.id)).toEqual([label.data.id]);
+  });
+
+  it('sets completed_at when created straight into a done column', async () => {
+    const { ctx, projectId, statuses } = await setup('done@example.com', 'done-ws');
+    const done = statuses.find((s) => s.isDone)!;
+
+    const result = await createTask(ctx, { projectId, title: 'Already done', statusId: done.id });
+
+    expect(result.ok).toBe(true);
+    const [row] = await db.select().from(task);
+    expect(row.completedAt).not.toBeNull();
+  });
+
+  it('rejects an assignee outside the workspace', async () => {
+    const a = await setup('as-a@example.com', 'as-a');
+    const b = await setup('as-b@example.com', 'as-b');
+
+    const result = await createTask(a.ctx, { projectId: a.projectId, title: 'X', assigneeId: b.ctx.userId });
+
+    expect(result.ok).toBe(false);
+    expect(await db.select().from(task)).toHaveLength(0);
+  });
+
+  it('rejects a label from another workspace', async () => {
+    const a = await setup('lb-a@example.com', 'lb-a');
+    const b = await setup('lb-b@example.com', 'lb-b');
+    const foreign = await createLabel(b.ctx, { name: 'theirs' });
+    if (!foreign.ok) throw new Error('setup failed');
+
+    const result = await createTask(a.ctx, { projectId: a.projectId, title: 'X', labelIds: [foreign.data.id] });
+
+    expect(result.ok).toBe(false);
+    expect(await db.select().from(task)).toHaveLength(0);
   });
 });
 

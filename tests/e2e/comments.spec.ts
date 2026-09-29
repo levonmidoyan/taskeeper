@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { createTask } from './tasks';
 
 /** Mirrors the helper in board.spec.ts: a fresh account, workspace, project, task. */
 async function signUpWithTask(page: Page, prefix: string) {
@@ -17,8 +18,7 @@ async function signUpWithTask(page: Page, prefix: string) {
   await page.getByLabel('Project name').fill('Website');
   await page.getByRole('button', { name: 'Create project' }).click();
 
-  await page.getByPlaceholder('Add to Todo…').fill('Talk about me');
-  await page.getByPlaceholder('Add to Todo…').press('Enter');
+  await createTask(page, 'Talk about me');
   await expect(page.getByText('Talk about me')).toBeVisible();
 }
 

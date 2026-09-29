@@ -90,3 +90,34 @@ test('a to-do can be added, reordered, checked and restored from Completed', asy
   await page.reload();
   await expect(openTitles(page)).toHaveText(['File taxes', 'Call Ada', 'Buy milk']);
 });
+
+test('deleting a to-do asks for confirmation first', async ({ page }) => {
+  await signUp(page, 'todo-delete');
+
+  await page.getByRole('link', { name: 'To-do' }).click();
+  const add = page.getByPlaceholder('Add a to-do…');
+  for (const title of ['Keep me', 'Drop me']) {
+    await add.fill(title);
+    await add.press('Enter');
+    await expect(openTitles(page).filter({ hasText: title })).toBeVisible();
+  }
+
+  const confirm = page.getByRole('alertdialog', { name: 'Delete "Drop me"?' });
+
+  // Cancel leaves it in place.
+  await page.getByRole('button', { name: 'More actions for "Drop me"' }).click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  await expect(confirm).toBeHidden();
+  await expect(openTitles(page)).toHaveText(['Keep me', 'Drop me']);
+
+  await page.getByRole('button', { name: 'More actions for "Drop me"' }).click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
+  const deleted = saved(page);
+  await confirm.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(openTitles(page)).toHaveText(['Keep me']);
+
+  await deleted;
+  await page.reload();
+  await expect(openTitles(page)).toHaveText(['Keep me']);
+});

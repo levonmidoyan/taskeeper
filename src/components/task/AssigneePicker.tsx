@@ -3,7 +3,7 @@
 import { IconCheck, IconChevronDown, IconSearch, IconUserOff } from '@tabler/icons-react';
 import { Command } from 'cmdk';
 import { useState } from 'react';
-import { UserAvatar } from '@/components/task/AssigneeAvatar';
+import { UserView } from '@/components/auth/user/user-view';
 import * as Popover from '@/components/ui/popover';
 import { selectVariants } from '@/components/ui/select';
 import type { MemberRow } from '@/server/labels/queries';
@@ -42,8 +42,7 @@ export function AssigneePicker({
       <Popover.Trigger id={id} className={triggerRoot()}>
         {selected ? (
           <>
-            <UserAvatar name={selected.name} image={selected.image} size="20" aria-hidden="true" />
-            <span className="truncate">{selected.name}</span>
+            <UserView user={selected} hideSubtitle avatarClassName="size-5 text-[0.5625rem]" />
           </>
         ) : (
           <>
@@ -83,11 +82,7 @@ export function AssigneePicker({
                 onSelect={() => pick(m.userId)}
                 className={itemClass}
               >
-                <UserAvatar name={m.name} image={m.image} size="20" aria-hidden="true" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate">{m.name}</span>
-                  <span className="block truncate text-paragraph-xs text-text-sub-600">{m.email}</span>
-                </span>
+                <UserView user={m} className="flex-1" avatarClassName="size-5 text-[0.5625rem]" />
                 <IconCheck
                   className={cn('size-4 shrink-0', m.userId === value ? 'opacity-100' : 'opacity-0')}
                   aria-hidden="true"

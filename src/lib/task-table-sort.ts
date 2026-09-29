@@ -2,7 +2,7 @@ import type { StatusRow } from '@/server/projects/queries';
 import type { Priority, TaskRow } from '@/server/tasks/queries';
 
 /** The List table's sortable columns, which are also the ids written to ?sort=. */
-export const SORTABLE_COLUMNS = ['title', 'status', 'priority', 'assignee', 'due'] as const;
+export const SORTABLE_COLUMNS = ['title', 'status', 'priority', 'assignee', 'due', 'created', 'updated'] as const;
 export type SortableColumn = (typeof SORTABLE_COLUMNS)[number];
 export type TableSort = { id: SortableColumn; desc: boolean };
 
@@ -45,4 +45,13 @@ export function formatSortParam(sorting: readonly { id: string; desc: boolean }[
   const first = sorting[0];
   if (!first || !(SORTABLE_COLUMNS as readonly string[]).includes(first.id)) return null;
   return `${first.id}.${first.desc ? 'desc' : 'asc'}`;
+}
+
+/** Rows per page of the List table. */
+export const LIST_PAGE_SIZE = 50;
+
+/** `?page=` is 1-based; anything malformed means the first page. Returns the page index. */
+export function parsePageParam(param: string | null | undefined): number {
+  const page = Number(param);
+  return Number.isInteger(page) && page >= 1 ? page - 1 : 0;
 }

@@ -37,8 +37,8 @@ export function SubtaskSection({
     const title = inputRef.current?.value.trim();
     if (!title || pending) return;
 
-    // Cleared up front so the field is ready for the next subtask, the same
-    // bargain QuickAddTask makes.
+    // Cleared up front so the field is ready for the next subtask. Never
+    // disabled either: that blurs it, and re-enabling does not restore focus.
     if (inputRef.current) inputRef.current.value = '';
 
     setPending(true);

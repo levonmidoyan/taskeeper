@@ -10,9 +10,9 @@ export default async function GeneralSettingsPage({
   const ctx = await requireWorkspace(workspaceSlug);
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 lg:px-6">
+    <div className="space-y-8">
       <div>
-        <h1 className="text-title-h5 text-text-strong-950">General</h1>
+        <h2 className="text-label-lg text-text-strong-950">General</h2>
         <p className="mt-1 text-paragraph-sm text-text-sub-600">Workspace-wide preferences.</p>
       </div>
 
@@ -21,6 +21,6 @@ export default async function GeneralSettingsPage({
         current={ctx.timezone}
         canEdit={ctx.role === 'owner' || ctx.role === 'admin'}
       />
-    </main>
+    </div>
   );
 }

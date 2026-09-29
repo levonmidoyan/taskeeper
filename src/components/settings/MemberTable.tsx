@@ -3,9 +3,10 @@
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
-import { UserAvatar } from '@/components/task/AssigneeAvatar';
+import { UserView } from '@/components/auth/user/user-view';
 import * as Button from '@/components/ui/button';
 import * as Select from '@/components/ui/select';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { changeMemberRoleAction, removeMemberAction } from '@/server/members/actions';
 import type { MemberRow } from '@/server/labels/queries';
 import type { WorkspaceRole } from '@/lib/session';
@@ -23,6 +24,7 @@ export function MemberTable({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const confirm = useConfirm();
 
   function onRoleChange(userId: string, role: WorkspaceRole) {
     startTransition(async () => {
@@ -32,8 +34,13 @@ export function MemberTable({
     });
   }
 
-  function onRemove(member: MemberRow) {
-    if (!confirm(`Remove ${member.name} from this workspace?`)) return;
+  async function onRemove(member: MemberRow) {
+    const ok = await confirm({
+      title: `Remove ${member.name}?`,
+      description: 'They lose access to this workspace and its projects.',
+      confirmLabel: 'Remove',
+    });
+    if (!ok) return;
     startTransition(async () => {
       const result = await removeMemberAction(workspaceSlug, { userId: member.userId });
       if (!result.ok) toast.error(result.error);
@@ -63,13 +70,7 @@ export function MemberTable({
               className="border-t border-stroke-soft-200 max-sm:flex max-sm:flex-wrap max-sm:items-center max-sm:pb-3 max-sm:first:border-t-0"
             >
               <td className="px-4 py-3 max-sm:min-w-0 max-sm:basis-full">
-                <div className="flex min-w-0 items-center gap-3">
-                  <UserAvatar name={member.name} image={member.image} size="32" />
-                  <div className="min-w-0">
-                    <div className="truncate text-label-sm text-text-strong-950">{member.name}</div>
-                    <div className="truncate text-paragraph-xs text-text-sub-600">{member.email}</div>
-                  </div>
-                </div>
+                <UserView user={member} className="gap-3" />
               </td>
               <td className="px-4 py-3 max-sm:py-0 max-sm:pl-15">
                 {currentRole === 'owner' ? (

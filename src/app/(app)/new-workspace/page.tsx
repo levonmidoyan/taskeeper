@@ -33,8 +33,8 @@ export default async function NewWorkspacePage() {
   }
 
   return (
-    <WorkspaceShell ctx={ctx} userName={session.user.name}>
-      <main className="mx-auto w-full max-w-5xl px-4 py-6 lg:px-6">
+    <WorkspaceShell ctx={ctx}>
+      <main className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-6">
         <Link
           href={`/${ctx.slug}`}
           className="-ml-2 inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-label-sm text-text-sub-600 transition-colors duration-150 hover:bg-bg-weak-50 hover:text-text-strong-950"

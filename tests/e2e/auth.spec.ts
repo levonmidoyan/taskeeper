@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { createTask } from './tasks';
 
 function uniqueEmail(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`;
@@ -23,8 +24,7 @@ test('a new user signs up, creates a workspace, and adds a task', async ({ page 
   await page.getByLabel('Project name').fill('Website');
   await page.getByRole('button', { name: 'Create project' }).click();
 
-  await page.getByPlaceholder('Add to Todo…').fill('Ship the landing page');
-  await page.getByPlaceholder('Add to Todo…').press('Enter');
+  await createTask(page, 'Ship the landing page');
 
   await expect(page.getByText('Ship the landing page')).toBeVisible();
 });

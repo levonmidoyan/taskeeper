@@ -50,7 +50,7 @@ export default async function ProjectSummaryPage({
         basePath={basePath}
         star={<StarButton workspaceSlug={workspaceSlug} projectId={projectId} starred={project.starred} />}
       />
-      <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-6">
+      <div className="mx-auto w-full max-w-400 px-4 py-6 lg:px-6">
         <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {tiles.map(({ label, value, icon: Icon, tone }) => (
             <li

@@ -8,5 +8,6 @@ export default async function SettingsPage({ params }: { params: Promise<{ path:
   const { path } = await params;
   if (!validSettingsPaths.has(path)) notFound();
 
-  return <Settings path={path} />;
+  // The layout draws the menu.
+  return <Settings path={path} hideNav />;
 }

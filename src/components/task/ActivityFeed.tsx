@@ -6,15 +6,25 @@ import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { Markdown } from '@/components/task/Markdown';
 import { RichTextField } from '@/components/task/RichTextField';
-import * as Avatar from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/auth/user/user-avatar';
 import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import * as SegmentedControl from '@/components/ui/segmented-control';
 import { describeActivity } from '@/lib/activity-text';
 import { formatInZone } from '@/lib/dates';
 import type { FeedEntry } from '@/server/activity/queries';
 import {
   createCommentAction, deleteCommentAction, updateCommentAction,
 } from '@/server/comments/actions';
+
+type ActivityTab = 'all' | 'comments' | 'history';
+
+const TABS: { value: ActivityTab; label: string; empty: string }[] = [
+  { value: 'all', label: 'All', empty: 'No activity yet.' },
+  { value: 'comments', label: 'Comments', empty: 'No comments yet.' },
+  { value: 'history', label: 'History', empty: 'No changes yet.' },
+];
 
 export function ActivityFeed({
   taskId,
@@ -33,11 +43,18 @@ export function ActivityFeed({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const confirm = useConfirm();
   const [draft, setDraft] = useState('');
   // Bumped after a successful post: remounting the editor is how it is cleared.
   const [composerKey, setComposerKey] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
+  const [tab, setTab] = useState<ActivityTab>('comments');
+
+  // Jira-style filter over the one merged feed: comments, field history, or both.
+  const visible = tab === 'all'
+    ? feed
+    : feed.filter((entry) => entry.type === (tab === 'comments' ? 'comment' : 'activity'));
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -73,8 +90,8 @@ export function ActivityFeed({
     });
   }
 
-  function onDelete(commentId: string) {
-    if (!confirm('Delete this comment?')) return;
+  async function onDelete(commentId: string) {
+    if (!(await confirm({ title: 'Delete this comment?', description: 'This can’t be undone.' }))) return;
     startTransition(async () => {
       const result = await deleteCommentAction(workspaceSlug, { commentId });
       if (!result.ok) {
@@ -87,10 +104,27 @@ export function ActivityFeed({
 
   return (
     <section className="flex flex-col gap-3 border-t border-stroke-soft-200 pt-4">
-      <h3 className="text-label-sm text-text-strong-950">Activity</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-label-sm text-text-strong-950">Activity</h3>
+        <SegmentedControl.Root value={tab} onValueChange={(value) => setTab(value as ActivityTab)}>
+          <SegmentedControl.List aria-label="Show activity" className="w-auto">
+            {TABS.map(({ value, label }) => (
+              <SegmentedControl.Trigger key={value} value={value} className="px-3">
+                {label}
+              </SegmentedControl.Trigger>
+            ))}
+          </SegmentedControl.List>
+        </SegmentedControl.Root>
+      </div>
+
+      {visible.length === 0 && (
+        <p className="text-paragraph-sm text-text-soft-400">
+          {TABS.find((t) => t.value === tab)!.empty}
+        </p>
+      )}
 
       <ol className="flex flex-col gap-3">
-        {feed.map((entry) =>
+        {visible.map((entry) =>
           entry.type === 'activity' ? (
             <li key={entry.id} className="text-paragraph-sm text-text-sub-600">
               <span className="text-label-sm text-text-strong-950">{entry.actorName}</span>{' '}
@@ -101,9 +135,11 @@ export function ActivityFeed({
             </li>
           ) : (
             <li key={entry.id} className="flex gap-3">
-              <Avatar.Root size="24" color="blue" aria-hidden="true" className="mt-0.5 shrink-0">
-                {entry.authorName.slice(0, 1)}
-              </Avatar.Root>
+              <UserAvatar
+                user={{ name: entry.authorName, image: entry.authorImage }}
+                aria-hidden="true"
+                className="mt-0.5 size-6 text-[0.625rem]"
+              />
               <div className="min-w-0 flex-1 rounded-10 bg-bg-weak-50 p-3">
                 <div className="flex items-baseline gap-2">
                   <span className="text-label-sm text-text-strong-950">{entry.authorName}</span>
@@ -154,7 +190,8 @@ export function ActivityFeed({
         )}
       </ol>
 
-      <form onSubmit={onSubmit} className="flex flex-col gap-2">
+      {/* Hidden, not unmounted, on History so a half-written comment survives a tab switch. */}
+      <form onSubmit={onSubmit} hidden={tab === 'history'} className="flex flex-col gap-2">
         <RichTextField
           key={composerKey}
           value=""
