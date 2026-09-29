@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { TextField } from '@/components/forms/TextField';
 import { ActivityFeed } from '@/components/task/ActivityFeed';
 import { AssigneePicker } from '@/components/task/AssigneePicker';
+import { AttachmentSection } from '@/components/task/AttachmentSection';
 import { DueDateField } from '@/components/task/DueDateField';
 import { LabelPicker } from '@/components/task/LabelPicker';
 import { PRIORITY_LABEL, PriorityIcon } from '@/components/task/Priority';
@@ -25,6 +26,7 @@ import * as Select from '@/components/ui/select';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatInZone } from '@/lib/dates';
 import type { FeedEntry } from '@/server/activity/queries';
+import type { AttachmentView } from '@/server/attachments/queries';
 import type { MemberRow } from '@/server/labels/queries';
 import type { StatusRow } from '@/server/projects/queries';
 import { deleteTaskAction, updateTaskAction } from '@/server/tasks/actions';
@@ -52,6 +54,8 @@ export type TaskDetailViewProps = {
   currentUserId: string;
   canModerate: boolean;
   timezone: string;
+  /** Null when storage is not configured; the section is then hidden. */
+  attachments: AttachmentView[] | null;
 };
 
 /**
@@ -72,6 +76,7 @@ export function TaskDetailView({
   currentUserId,
   canModerate,
   timezone,
+  attachments,
 }: TaskDetailViewProps & { mode: 'modal' | 'page'; projectName?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -314,6 +319,17 @@ export function TaskDetailView({
               projectId={projectId}
               workspaceSlug={workspaceSlug}
               pageBase={mode === 'page' ? tasksBase : undefined}
+            />
+          )}
+
+          {attachments && (
+            <AttachmentSection
+              taskId={task.id}
+              attachments={attachments}
+              workspaceSlug={workspaceSlug}
+              currentUserId={currentUserId}
+              canModerate={canModerate}
+              timezone={timezone}
             />
           )}
 

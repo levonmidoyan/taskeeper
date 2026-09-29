@@ -1,7 +1,9 @@
 import { notFound } from 'next/navigation';
 import { TaskDetailView } from '@/components/task/TaskDetailView';
 import { requireWorkspace } from '@/lib/session';
+import { storageEnabled } from '@/lib/storage';
 import { listTaskFeed } from '@/server/activity/queries';
+import { listTaskAttachments } from '@/server/attachments/queries';
 import { listLabels, listWorkspaceMembers } from '@/server/labels/queries';
 import { getProject } from '@/server/projects/queries';
 import { getTaskDetail } from '@/server/tasks/queries';
@@ -21,11 +23,12 @@ export default async function TaskPage({
   const task = await getTaskDetail(ctx, taskId);
   if (!task) notFound();
 
-  const [project, members, allLabels, feed] = await Promise.all([
+  const [project, members, allLabels, feed, attachments] = await Promise.all([
     getProject(ctx, task.projectId),
     listWorkspaceMembers(ctx),
     listLabels(ctx),
     listTaskFeed(ctx, task.id),
+    storageEnabled() ? listTaskAttachments(ctx, task.id) : null,
   ]);
   if (!project) notFound();
 
@@ -48,6 +51,7 @@ export default async function TaskPage({
         currentUserId={ctx.userId}
         canModerate={ctx.role === 'owner' || ctx.role === 'admin'}
         timezone={ctx.timezone}
+        attachments={attachments}
       />
     </main>
   );
