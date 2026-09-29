@@ -7,11 +7,11 @@ import { resolveDownload } from '@/server/attachments/download';
  * membership, then redirects to a five-minute presigned URL; the bucket
  * itself is never public.
  */
-export async function GET(request: NextRequest, ctx: RouteContext<'/api/attachments/[id]'>) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session) return new Response('Unauthorized', { status: 401 });
 
-  const { id } = await ctx.params;
+  const { id } = await params;
   const download = request.nextUrl.searchParams.has('download');
   const url = await resolveDownload(session.user.id, id, { download });
   if (!url) return new Response('Not found', { status: 404 });
