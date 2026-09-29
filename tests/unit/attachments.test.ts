@@ -86,4 +86,7 @@ describe('fileFormat', () => {
     expect(fileFormat('Makefile', 'application/octet-stream')).toEqual({ label: 'FILE', color: 'gray' });
     expect(fileFormat('archive.verylongext', 'application/octet-stream')).toEqual({ label: 'FILE', color: 'gray' });
   });
+  it('badges PDFs by content type when extension is missing', () => {
+    expect(fileFormat('export', 'application/pdf')).toEqual({ label: 'PDF', color: 'red' });
+  });
 });

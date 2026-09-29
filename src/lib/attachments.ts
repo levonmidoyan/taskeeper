@@ -69,6 +69,18 @@ export function fileFormat(fileName: string, contentType: string): { label: stri
   const dot = fileName.lastIndexOf('.');
   const ext = dot > 0 ? fileName.slice(dot + 1).toLowerCase() : '';
   const label = ext && ext.length <= 4 ? ext.toUpperCase() : 'FILE';
-  const color = contentType.startsWith('image/') ? 'blue' : EXT_COLOR[ext] ?? 'gray';
+
+  // Images are always blue
+  if (contentType.startsWith('image/')) {
+    return { label, color: 'blue' };
+  }
+
+  // PDFs are red, with 'PDF' label when no extension
+  if (contentType === 'application/pdf') {
+    return { label: label === 'FILE' ? 'PDF' : label, color: 'red' };
+  }
+
+  // Everything else uses extension color
+  const color = EXT_COLOR[ext] ?? 'gray';
   return { label, color };
 }
