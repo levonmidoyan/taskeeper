@@ -116,10 +116,19 @@ export async function listKeys(prefix: string): Promise<string[]> {
 export async function deleteObjects(keys: string[]): Promise<void> {
   for (let i = 0; i < keys.length; i += 1000) {
     const batch = keys.slice(i, i + 1000);
-    await storageClient().send(new DeleteObjectsCommand({
+    const result = await storageClient().send(new DeleteObjectsCommand({
       Bucket: bucketName(),
       Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
     }));
+    // Quiet: true suppresses per-key success entries, not failures: S3 still
+    // reports keys it failed to delete in `Errors`, and the call otherwise
+    // resolves as if everything succeeded.
+    if (result.Errors?.length) {
+      const first = result.Errors[0];
+      throw new Error(
+        `deleteObjects failed for ${result.Errors.length} key(s), e.g. ${first.Key}: ${first.Code}`,
+      );
+    }
   }
 }
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { deleteObject, headObject, presignGet, presignPut } from '@/lib/storage';
+import { deleteObject, deleteObjects, headObject, presignGet, presignPut } from '@/lib/storage';
 import { resetBucket, uploadTo } from '../setup/storage';
 
 beforeEach(resetBucket);
@@ -51,5 +51,13 @@ describe('storage', () => {
   it('returns null for a missing object and deletes idempotently', async () => {
     expect(await headObject('missing')).toBeNull();
     await expect(deleteObject('missing')).resolves.toBeUndefined();
+  });
+
+  // A key over S3's 1024-byte limit is rejected per-key by DeleteObjects
+  // (Quiet: true still reports it in `Errors`), not at the request level.
+  it('throws when DeleteObjects reports a per-key failure', async () => {
+    const tooLong = 'x'.repeat(1025);
+
+    await expect(deleteObjects([tooLong])).rejects.toThrow(/1 key/);
   });
 });
