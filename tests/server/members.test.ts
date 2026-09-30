@@ -116,6 +116,63 @@ describe('changeMemberRole', () => {
   });
 });
 
+describe('last-owner check under concurrency', () => {
+  /** Two owners of one workspace, each with their own request context. */
+  async function twoOwners(n: number) {
+    const a = await setup(`race-a${n}@example.com`, `race-${n}`);
+    const b = await createUser(`race-b${n}@example.com`);
+    await db.insert(member).values({ id: `race-m${n}`, organizationId: a.ws.id, userId: b.id, role: 'owner' });
+    const bCtx: WorkspaceContext = { ...a.ctx, userId: b.id };
+    return { aCtx: a.ctx, bCtx, aId: a.user.id, bId: b.id, workspaceId: a.ws.id };
+  }
+
+  const owners = async (workspaceId: string) =>
+    (await db.select().from(member).where(eq(member.organizationId, workspaceId)))
+      .filter((m) => m.role === 'owner');
+
+  // Several rounds: a race that loses only sometimes must still fail the test.
+  it('keeps an owner when two owners demote each other at once', async () => {
+    for (let n = 0; n < 5; n++) {
+      const { aCtx, bCtx, aId, bId, workspaceId } = await twoOwners(n);
+
+      const results = await Promise.all([
+        changeMemberRole(aCtx, { userId: bId, role: 'member' }),
+        changeMemberRole(bCtx, { userId: aId, role: 'member' }),
+      ]);
+
+      expect(results.filter((r) => r.ok)).toHaveLength(1);
+      expect(await owners(workspaceId)).toHaveLength(1);
+    }
+  });
+
+  it('keeps an owner when two owners remove each other at once', async () => {
+    for (let n = 0; n < 5; n++) {
+      const { aCtx, bCtx, aId, bId, workspaceId } = await twoOwners(n);
+
+      const results = await Promise.all([
+        removeMember(aCtx, { userId: bId }),
+        removeMember(bCtx, { userId: aId }),
+      ]);
+
+      expect(results.filter((r) => r.ok)).toHaveLength(1);
+      expect(await owners(workspaceId)).toHaveLength(1);
+    }
+  });
+
+  it('keeps an owner when one demotes while the other removes', async () => {
+    for (let n = 0; n < 5; n++) {
+      const { aCtx, bCtx, aId, bId, workspaceId } = await twoOwners(n);
+
+      await Promise.all([
+        changeMemberRole(aCtx, { userId: bId, role: 'admin' }),
+        removeMember(bCtx, { userId: aId }),
+      ]);
+
+      expect(await owners(workspaceId)).toHaveLength(1);
+    }
+  });
+});
+
 describe('updateWorkspaceSettings', () => {
   it('changes the timezone as an admin', async () => {
     const { ctx } = await setup('owner10@example.com', 'acme11');
