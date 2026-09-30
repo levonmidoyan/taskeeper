@@ -1,15 +1,17 @@
-import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, label, member, project, task, taskLabel, taskStatus, user } from '@/db';
 import { newId } from '@/lib/ids';
-import { byId, positionBetween, positionsForCount } from '@/lib/position';
+import { byId, byKey, positionBetween, positionsForCount } from '@/lib/position';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
 import { recordActivity, type ActivityKind } from '@/server/activity/service';
+import { lastTaskPosition, lockColumns, nextTaskPosition } from '@/server/tasks/columns';
 
 const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const;
 
 const STALE_MOVE = 'The board changed while you were dragging. Try again.';
+const COLUMN_GONE = 'That column no longer exists.';
 
 /** Confirms a project belongs to this workspace. Every task write starts here. */
 async function assertProject(ctx: WorkspaceContext, projectId: string) {
@@ -109,7 +111,7 @@ export async function createTask(
         .select({ id: taskStatus.id })
         .from(taskStatus)
         .where(eq(taskStatus.projectId, parsed.data.projectId))
-        .orderBy(asc(taskStatus.position))
+        .orderBy(byKey(taskStatus.position))
         .limit(1);
       if (!first) return err('This project has no columns.');
       statusId = first.id;
@@ -146,15 +148,13 @@ export async function createTask(
       if (valid.length !== labelIds.length) return err('Unknown label.');
     }
 
-    const [last] = await db
-      .select({ position: task.position })
-      .from(task)
-      .where(and(eq(task.projectId, parsed.data.projectId), eq(task.statusId, statusId)))
-      .orderBy(desc(task.position))
-      .limit(1);
-
     const id = newId();
-    await db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
+      // The last key is read under the column lock, so concurrent creates in one
+      // column append one after another instead of sharing a key.
+      if (!(await lockColumns(tx, [statusId]))) return err(COLUMN_GONE);
+      const last = await lastTaskPosition(tx, parsed.data.projectId, statusId);
+
       await tx.insert(task).values({
         id,
         // From the context, never the input: this is what keeps the denormalized
@@ -164,7 +164,7 @@ export async function createTask(
         title: parsed.data.title,
         statusId,
         parentTaskId,
-        position: positionBetween(last?.position ?? null, null),
+        position: positionBetween(last, null),
         createdBy: ctx.userId,
         description: parsed.data.description,
         priority: parsed.data.priority,
@@ -176,9 +176,8 @@ export async function createTask(
         await tx.insert(taskLabel).values(labelIds.map((labelId) => ({ taskId: id, labelId })));
       }
       await recordActivity(ctx, { taskId: id, kind: 'created', to: parsed.data.title }, tx);
+      return ok({ id });
     });
-
-    return ok({ id });
   });
 }
 
@@ -245,14 +244,21 @@ export async function updateTask(
       entries.push({ kind: 'status', from: owned.statusName, to: newStatusName });
     }
 
-    await db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
+      // A task changing column goes to its end. Keeping its old key could tie
+      // with a task already there, since each column numbers its own keys.
+      if (patch.statusId !== undefined && patch.statusId !== owned.statusId) {
+        if (!(await lockColumns(tx, [patch.statusId as string]))) return err(COLUMN_GONE);
+        const last = await lastTaskPosition(tx, owned.projectId, patch.statusId as string);
+        patch.position = positionBetween(last, null);
+      }
+
       await tx.update(task).set(patch).where(eq(task.id, parsed.data.taskId));
       for (const entry of entries) {
         await recordActivity(ctx, { taskId: parsed.data.taskId, ...entry }, tx);
       }
+      return ok(null);
     });
-
-    return ok(null);
   });
 }
 
@@ -283,44 +289,46 @@ export async function moveTask(
     const status = await assertStatus(ctx, parsed.data.statusId, owned.projectId);
     if (!status) return err('That column does not belong to this project.');
 
-    // null = column edge; undefined = not a valid neighbour. Scoped to the target
-    // column: a key computed from anywhere else sorts the task into a nonsense place.
-    const neighbourPosition = async (id: string | null): Promise<string | null | undefined> => {
-      if (id === null) return null;
-      if (id === owned.id) return undefined;
-      const [row] = await db
-        .select({ position: task.position })
-        .from(task)
-        .where(
-          and(
-            eq(task.id, id),
-            eq(task.statusId, parsed.data.statusId),
-            eq(task.workspaceId, ctx.workspaceId),
-          ),
-        )
-        .limit(1);
-      return row?.position;
-    };
-
-    const [before, after] = await Promise.all([
-      neighbourPosition(parsed.data.beforeId),
-      neighbourPosition(parsed.data.afterId),
-    ]);
-    if (before === undefined || after === undefined) return err('That move is not valid.');
-    // Reversed neighbours mean someone reordered the column since this board loaded.
-    // Tied keys are ordered by id (codepoint, as the board query sorts them).
-    if (before !== null && after !== null) {
-      if (before > after) return err(STALE_MOVE);
-      if (before === after && parsed.data.beforeId! > parsed.data.afterId!) return err(STALE_MOVE);
-    }
-
     const crossedColumn = parsed.data.statusId !== owned.statusId;
 
-    const position = await db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
+      // Neighbours are read under the column lock: two drops into one gap that
+      // both read its keys first would compute the same key between them.
+      if (!(await lockColumns(tx, [parsed.data.statusId]))) return err(COLUMN_GONE);
+
+      // null = column edge; undefined = not a valid neighbour. Scoped to the target
+      // column: a key computed from anywhere else sorts the task into a nonsense place.
+      const neighbourPosition = async (id: string | null): Promise<string | null | undefined> => {
+        if (id === null) return null;
+        if (id === owned.id) return undefined;
+        const [row] = await tx
+          .select({ position: task.position })
+          .from(task)
+          .where(
+            and(
+              eq(task.id, id),
+              eq(task.statusId, parsed.data.statusId),
+              eq(task.workspaceId, ctx.workspaceId),
+            ),
+          )
+          .limit(1);
+        return row?.position;
+      };
+
+      const before = await neighbourPosition(parsed.data.beforeId);
+      const after = await neighbourPosition(parsed.data.afterId);
+      if (before === undefined || after === undefined) return err('That move is not valid.');
+      // Reversed neighbours mean someone reordered the column since this board loaded.
+      // Tied keys are ordered by id (codepoint, as the board query sorts them).
+      if (before !== null && after !== null) {
+        if (before > after) return err(STALE_MOVE);
+        if (before === after && parsed.data.beforeId! > parsed.data.afterId!) return err(STALE_MOVE);
+      }
+
       let position: string;
       if (before !== null && before === after) {
-        // Two tasks share a key (concurrent creates both append after the same
-        // last row), so nothing fits between them. Renumber the column in its
+        // Two tasks share a key (left by writes from before columns were locked),
+        // so nothing fits between them. Renumber the column in its
         // displayed order, then place the task between the new keys.
         const column = await tx
           .select({ id: task.id })
@@ -332,7 +340,7 @@ export async function moveTask(
               ne(task.id, owned.id),
             ),
           )
-          .orderBy(asc(task.position), byId(task.id));
+          .orderBy(byKey(task.position), byId(task.id));
         const keys = positionsForCount(column.length);
         const renumbered = new Map(column.map((row, i) => [row.id, keys[i]]));
         for (const [id, key] of renumbered) {
@@ -343,7 +351,10 @@ export async function moveTask(
           renumbered.get(parsed.data.afterId!)!,
         );
       } else {
-        position = positionBetween(before, after);
+        position = positionBetween(
+          before,
+          await nextTaskPosition(tx, owned.projectId, parsed.data.statusId, before, owned.id),
+        );
       }
 
       await tx
@@ -365,10 +376,8 @@ export async function moveTask(
           tx,
         );
       }
-      return position;
+      return ok({ position });
     });
-
-    return ok({ position });
   });
 }
 

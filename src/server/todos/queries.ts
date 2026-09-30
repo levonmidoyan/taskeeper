@@ -1,5 +1,6 @@
-import { and, asc, desc, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { db, todo } from '@/db';
+import { byId, byKey } from '@/lib/position';
 import type { WorkspaceContext } from '@/lib/session';
 
 export type TodoRow = {
@@ -31,10 +32,10 @@ export async function listTodos(ctx: WorkspaceContext): Promise<TodoLists> {
   const [open, done] = await Promise.all([
     db.select(columns).from(todo)
       .where(and(ownedBy(ctx), isNull(todo.completedAt)))
-      .orderBy(asc(todo.position), asc(todo.id)),
+      .orderBy(byKey(todo.position), byId(todo.id)),
     db.select(columns).from(todo)
       .where(and(ownedBy(ctx), isNotNull(todo.completedAt)))
-      .orderBy(desc(todo.completedAt), asc(todo.id)),
+      .orderBy(desc(todo.completedAt), byId(todo.id)),
   ]);
   return { open, done };
 }

@@ -2,7 +2,7 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, todo } from '@/db';
 import { newId } from '@/lib/ids';
-import { positionBetween } from '@/lib/position';
+import { byKey, positionBetween } from '@/lib/position';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
 import { ownedBy } from './queries';
@@ -35,7 +35,7 @@ async function lastOpenPosition(ctx: WorkspaceContext): Promise<string | null> {
     .select({ position: todo.position })
     .from(todo)
     .where(and(ownedBy(ctx), isNull(todo.completedAt)))
-    .orderBy(desc(todo.position))
+    .orderBy(desc(byKey(todo.position)))
     .limit(1);
   return last?.position ?? null;
 }

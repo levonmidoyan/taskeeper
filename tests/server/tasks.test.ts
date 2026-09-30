@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
 import { createProject } from '@/server/projects/service';
@@ -75,6 +75,18 @@ describe('createTask', () => {
     const tasks = await listProjectTasks(ctx, projectId);
     expect(tasks.map((t) => t.title)).toEqual(['First', 'Second']);
     expect(tasks[0].position < tasks[1].position).toBe(true);
+  });
+
+  it('gives concurrent creates in one column distinct positions', async () => {
+    const { ctx, projectId } = await setup('ada-race@example.com', 'acme-race');
+
+    const results = await Promise.all(
+      Array.from({ length: 8 }, (_, i) => createTask(ctx, { projectId, title: `T${i}` })),
+    );
+
+    expect(results.every((r) => r.ok)).toBe(true);
+    const positions = (await listProjectTasks(ctx, projectId)).map((t) => t.position);
+    expect(new Set(positions).size).toBe(8);
   });
 
   it('sets every field the create form offers in one call', async () => {
@@ -238,6 +250,20 @@ describe('updateTask', () => {
     expect((await getTask(ctx, created.data.id))!.assigneeId).toBeNull();
   });
 
+  it('appends a task to the end of the column it moves to', async () => {
+    const { ctx, projectId, statuses } = await setup('ada-col@example.com', 'acme-col');
+    const a = await createTask(ctx, { projectId, title: 'A', statusId: statuses[1].id });
+    // Created first in its own column, so it holds the same key as A.
+    const b = await createTask(ctx, { projectId, title: 'B' });
+    if (!a.ok || !b.ok) throw new Error('setup failed');
+
+    expect((await updateTask(ctx, { taskId: b.data.id, statusId: statuses[1].id })).ok).toBe(true);
+
+    const column = (await listProjectTasks(ctx, projectId)).filter((t) => t.statusId === statuses[1].id);
+    expect(column.map((t) => t.title)).toEqual(['A', 'B']);
+    expect(column[0].position < column[1].position).toBe(true);
+  });
+
   it('refuses a status that belongs to a different project', async () => {
     const { ctx, projectId } = await setup('ada8@example.com', 'acme8');
     const otherProject = await createProject(ctx, { name: 'Other' });
@@ -305,6 +331,25 @@ describe('moveTask', () => {
 
     const ordered = await listProjectTasks(ctx, projectId);
     expect(ordered.map((t) => t.title)).toEqual(['A', 'C', 'B']);
+  });
+
+  it('gives concurrent drops into the same gap distinct positions', async () => {
+    const { ctx, projectId, statuses } = await setup('ada-gap@example.com', 'acme-gap');
+    // One at a time, so A sorts before B.
+    const ids: string[] = [];
+    for (const title of ['A', 'B', 'C', 'D']) {
+      const made = await createTask(ctx, { projectId, title });
+      if (!made.ok) throw new Error('setup failed');
+      ids.push(made.data.id);
+    }
+    const [a, b, c, d] = ids;
+
+    const results = await Promise.all([c, d].map((taskId) =>
+      moveTask(ctx, { taskId, statusId: statuses[0].id, beforeId: a, afterId: b })));
+
+    expect(results.every((r) => r.ok)).toBe(true);
+    const positions = (await listProjectTasks(ctx, projectId)).map((t) => t.position);
+    expect(new Set(positions).size).toBe(4);
   });
 
   it('drops between two tasks that share a position', async () => {
@@ -547,5 +592,35 @@ describe('bulkDeleteTasks', () => {
     expect(result).toEqual({ ok: true, data: { deleted: 2 } });
     expect((await listProjectTasks(a.ctx, a.projectId)).map((t) => t.title)).toEqual(['Keep']);
     expect(await listProjectTasks(b.ctx, b.projectId)).toHaveLength(1);
+  });
+});
+
+describe('position order under a locale collation', () => {
+  // Alpine's Postgres sorts en_US like "C", so this borrows an ICU collation to
+  // stand in for a glibc host, where 'aB' sorts after 'ab'.
+  async function withLocaleCollation(run: () => Promise<void>) {
+    await db.execute(sql`alter table task alter column position type text collate "en-US-x-icu"`);
+    try {
+      await run();
+    } finally {
+      await db.execute(sql`alter table task alter column position type text collate "default"`);
+    }
+  }
+
+  it('lists a column and appends to it in key order', async () => {
+    await withLocaleCollation(async () => {
+      const { ctx, projectId } = await setup('ada-icu@example.com', 'acme-icu');
+      const a = await createTask(ctx, { projectId, title: 'A' });
+      const b = await createTask(ctx, { projectId, title: 'B' });
+      if (!a.ok || !b.ok) throw new Error('setup failed');
+      await db.update(task).set({ position: 'aB' }).where(eq(task.id, a.data.id));
+      await db.update(task).set({ position: 'ab' }).where(eq(task.id, b.data.id));
+
+      expect((await createTask(ctx, { projectId, title: 'C' })).ok).toBe(true);
+
+      const tasks = await listProjectTasks(ctx, projectId);
+      expect(tasks.map((t) => t.title)).toEqual(['A', 'B', 'C']);
+      expect(tasks[1].position < tasks[2].position).toBe(true);
+    });
   });
 });

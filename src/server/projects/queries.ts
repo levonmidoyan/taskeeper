@@ -1,6 +1,6 @@
 import { and, asc, count, eq, isNull, sql } from 'drizzle-orm';
 import { db, project, projectStar, task, taskStatus } from '@/db';
-import { byId } from '@/lib/position';
+import { byId, byKey } from '@/lib/position';
 import type { WorkspaceContext } from '@/lib/session';
 
 export type ProjectSummary = {
@@ -95,7 +95,7 @@ export async function getProject(
     })
     .from(taskStatus)
     .where(eq(taskStatus.projectId, projectId))
-    .orderBy(asc(taskStatus.position), byId(taskStatus.id));
+    .orderBy(byKey(taskStatus.position), byId(taskStatus.id));
 
   return { ...row, statuses };
 }

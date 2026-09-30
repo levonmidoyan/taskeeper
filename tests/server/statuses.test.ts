@@ -38,6 +38,20 @@ describe('createStatus', () => {
     expect(await names(ctx, projectId)).toEqual(['Todo', 'In Progress', 'Done', 'Review']);
   });
 
+  it('gives concurrent creates distinct positions and holds the cap', async () => {
+    const { ctx, projectId } = await setup('ada-race@example.com', 'acme-race');
+
+    const results = await Promise.all(
+      Array.from({ length: 12 }, (_, i) => createStatus(ctx, { projectId, name: `Extra ${i}` })),
+    );
+
+    // Three defaults plus nine: the cap is 12.
+    expect(results.filter((r) => r.ok)).toHaveLength(9);
+    const positions = (await getProject(ctx, projectId))!.statuses.map((s) => s.position);
+    expect(positions).toHaveLength(12);
+    expect(new Set(positions).size).toBe(12);
+  });
+
   it('rejects an empty name', async () => {
     const { ctx, projectId } = await setup('ada2@example.com', 'acme2');
     expect((await createStatus(ctx, { projectId, name: '   ' })).ok).toBe(false);
@@ -177,6 +191,19 @@ describe('moveStatus', () => {
 
     expect(result.ok).toBe(false);
     expect(await names(ctx, projectId)).toEqual(['Todo', 'In Progress', 'Done']);
+  });
+
+  it('gives concurrent drops into the same gap distinct positions', async () => {
+    const { ctx, projectId, statuses } = await setup('ada-gap@example.com', 'acme-gap');
+    const extra = await createStatus(ctx, { projectId, name: 'Review' });
+    if (!extra.ok) throw new Error('setup failed');
+
+    const results = await Promise.all([statuses[2].id, extra.data.id].map((statusId) =>
+      moveStatus(ctx, { statusId, beforeId: statuses[0].id, afterId: statuses[1].id })));
+
+    expect(results.every((r) => r.ok)).toBe(true);
+    const positions = (await getProject(ctx, projectId))!.statuses.map((s) => s.position);
+    expect(new Set(positions).size).toBe(4);
   });
 
   it('drops between two columns that share a position', async () => {
