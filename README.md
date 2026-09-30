@@ -74,6 +74,8 @@ storage integration filled in the unpooled value, replace it.
    ]
    ```
 
+   Add every origin that uploads from: each Preview deployment origin (`*.vercel.app`) and `http://localhost:3000` if local development uses R2.
+
 4. Uploads that never finish and files of deleted tasks stay in the bucket until swept:
    `SWEEP_ENV_FILE=.env.production.local yarn attachments:sweep` (add `--dry-run` to preview). Run it daily or weekly.
 

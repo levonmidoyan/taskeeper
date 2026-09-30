@@ -13,7 +13,7 @@ import { cn } from '@/utils/cn';
 function FileGlyph({ fileName, contentType, thumbnail }: { fileName: string; contentType: string; thumbnail?: string }) {
   if (thumbnail && isInlineType(contentType) && contentType.startsWith('image/')) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- presigned bucket URLs, not optimisable
+      // eslint-disable-next-line @next/next/no-img-element -- served through the /api/attachments redirect route, not optimisable
       <img src={thumbnail} alt="" className="size-10 shrink-0 rounded-lg object-cover ring-1 ring-inset ring-stroke-soft-200" />
     );
   }
@@ -72,7 +72,7 @@ export function UploadCard({
         <FileGlyph fileName={file.name} contentType={file.type} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-label-sm text-text-strong-950">{file.name}</p>
-          <p className="flex items-center gap-1 text-paragraph-xs text-text-sub-600">
+          <p aria-live="polite" className="flex items-center gap-1 text-paragraph-xs text-text-sub-600">
             <span className="tabular">
               {state === 'uploading' ? `${formatBytes(item.loaded)} of ${formatBytes(file.size)}` : formatBytes(file.size)}
             </span>
