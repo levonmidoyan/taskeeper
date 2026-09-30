@@ -233,11 +233,11 @@ export async function updateTask(
       entries.push({ kind: 'due_date', from: owned.dueDate, to: patch.dueDate as string | null });
     }
     if (patch.assigneeId !== undefined && patch.assigneeId !== owned.assigneeId) {
-      entries.push({
-        kind: 'assignee',
-        from: await memberName(ctx, owned.assigneeId),
-        to: await memberName(ctx, patch.assigneeId as string | null),
-      });
+      // Only a change is checked, so a stale assignee (since removed from the
+      // workspace) does not block edits to other fields.
+      const to = await memberName(ctx, patch.assigneeId as string | null);
+      if (patch.assigneeId !== null && !to) return err('That person is not in this workspace.');
+      entries.push({ kind: 'assignee', from: await memberName(ctx, owned.assigneeId), to });
     }
     if (patch.statusId !== undefined && patch.statusId !== owned.statusId) {
       entries.push({ kind: 'status', from: owned.statusName, to: newStatusName });

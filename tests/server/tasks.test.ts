@@ -214,6 +214,29 @@ describe('updateTask', () => {
     expect((await getTask(b.ctx, created.data.id))!.title).toBe('Theirs');
   });
 
+  it('rejects an assignee outside the workspace', async () => {
+    const a = await setup('ua-a@example.com', 'ua-a');
+    const b = await setup('ua-b@example.com', 'ua-b');
+    const created = await createTask(a.ctx, { projectId: a.projectId, title: 'Mine' });
+    if (!created.ok) throw new Error('setup failed');
+
+    const result = await updateTask(a.ctx, { taskId: created.data.id, assigneeId: b.ctx.userId });
+
+    expect(result.ok).toBe(false);
+    expect((await getTask(a.ctx, created.data.id))!.assigneeId).toBeNull();
+  });
+
+  it('still allows clearing the assignee', async () => {
+    const { ctx, projectId } = await setup('ua-c@example.com', 'ua-c');
+    const created = await createTask(ctx, { projectId, title: 'Mine', assigneeId: ctx.userId });
+    if (!created.ok) throw new Error('setup failed');
+
+    const result = await updateTask(ctx, { taskId: created.data.id, assigneeId: null });
+
+    expect(result.ok).toBe(true);
+    expect((await getTask(ctx, created.data.id))!.assigneeId).toBeNull();
+  });
+
   it('refuses a status that belongs to a different project', async () => {
     const { ctx, projectId } = await setup('ada8@example.com', 'acme8');
     const otherProject = await createProject(ctx, { name: 'Other' });
