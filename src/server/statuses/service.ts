@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { db, project, task, taskStatus } from '@/db';
 import { newId } from '@/lib/ids';
 import { STATUS_ICON_KEYS } from '@/lib/status-icons';
-import { positionBetween, positionsAfter } from '@/lib/position';
+import { byId, positionBetween, positionsAfter, positionsForCount } from '@/lib/position';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import { requireRole, type WorkspaceContext } from '@/lib/session';
 
@@ -16,6 +16,8 @@ import { requireRole, type WorkspaceContext } from '@/lib/session';
 
 /** A board stays readable at this width, and it bounds the reorder queries. */
 const MAX_STATUSES = 12;
+
+const STALE_MOVE = 'The columns changed while you were dragging. Try again.';
 
 const nameSchema = z
   .string().trim().min(1, 'Name the column.').max(32, 'Keep it under 32 characters.');
@@ -223,9 +225,39 @@ export async function moveStatus(
     ]);
 
     if (before === undefined || after === undefined) return err('That move is not valid.');
+    // Reversed neighbours mean someone reordered the columns since this dialog
+    // loaded. Tied keys are ordered by id (codepoint, as the board query sorts them).
+    if (before !== null && after !== null) {
+      if (before > after) return err(STALE_MOVE);
+      if (before === after && parsed.data.beforeId! > parsed.data.afterId!) return err(STALE_MOVE);
+    }
 
-    const position = positionBetween(before, after);
-    await db.update(taskStatus).set({ position }).where(eq(taskStatus.id, owned.id));
+    const position = await db.transaction(async (tx) => {
+      if (before === null || before !== after) {
+        const position = positionBetween(before, after);
+        await tx.update(taskStatus).set({ position }).where(eq(taskStatus.id, owned.id));
+        return position;
+      }
+
+      // Two columns share a key, so nothing fits between them. Renumber the
+      // project's columns in their displayed order, then place this one.
+      const columns = await tx
+        .select({ id: taskStatus.id })
+        .from(taskStatus)
+        .where(and(eq(taskStatus.projectId, owned.projectId), ne(taskStatus.id, owned.id)))
+        .orderBy(asc(taskStatus.position), byId(taskStatus.id));
+      const keys = positionsForCount(columns.length);
+      const renumbered = new Map(columns.map((row, i) => [row.id, keys[i]]));
+      for (const [id, key] of renumbered) {
+        await tx.update(taskStatus).set({ position: key }).where(eq(taskStatus.id, id));
+      }
+      const position = positionBetween(
+        renumbered.get(parsed.data.beforeId!)!,
+        renumbered.get(parsed.data.afterId!)!,
+      );
+      await tx.update(taskStatus).set({ position }).where(eq(taskStatus.id, owned.id));
+      return position;
+    });
 
     return ok({ position });
   });
@@ -280,7 +312,7 @@ export async function deleteStatus(
         .select({ id: task.id, completedAt: task.completedAt })
         .from(task)
         .where(and(eq(task.statusId, owned.id), eq(task.workspaceId, ctx.workspaceId)))
-        .orderBy(asc(task.position));
+        .orderBy(asc(task.position), byId(task.id));
 
       if (holdouts.length > 0) {
         const target = reassignToId

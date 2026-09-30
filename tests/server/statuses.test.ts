@@ -7,7 +7,7 @@ import { createProject } from '@/server/projects/service';
 import { createStatus, deleteStatus, moveStatus, updateStatus } from '@/server/statuses/service';
 import { createTask, updateTask } from '@/server/tasks/service';
 import { getTask, listProjectTasks } from '@/server/tasks/queries';
-import { task } from '@/db';
+import { task, taskStatus } from '@/db';
 import type { WorkspaceContext } from '@/lib/session';
 
 beforeEach(resetDb);
@@ -176,6 +176,33 @@ describe('moveStatus', () => {
     });
 
     expect(result.ok).toBe(false);
+    expect(await names(ctx, projectId)).toEqual(['Todo', 'In Progress', 'Done']);
+  });
+
+  it('drops between two columns that share a position', async () => {
+    const { ctx, projectId, statuses } = await setup('stie@example.com', 'stie');
+    await db.update(taskStatus).set({ position: statuses[0].position })
+      .where(eq(taskStatus.id, statuses[1].id));
+    const [first, second] = [statuses[0], statuses[1]].sort((x, y) => (x.id < y.id ? -1 : 1));
+
+    const result = await moveStatus(ctx, {
+      statusId: statuses[2].id, beforeId: first.id, afterId: second.id,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(await names(ctx, projectId)).toEqual([first.name, 'Done', second.name]);
+  });
+
+  it('refuses neighbours that are out of order with a clear message', async () => {
+    const { ctx, projectId, statuses } = await setup('sstale@example.com', 'sstale');
+
+    const result = await moveStatus(ctx, {
+      statusId: statuses[1].id, beforeId: statuses[2].id, afterId: statuses[0].id,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).not.toMatch(/Something went wrong/);
     expect(await names(ctx, projectId)).toEqual(['Todo', 'In Progress', 'Done']);
   });
 

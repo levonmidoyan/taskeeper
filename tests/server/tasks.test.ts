@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
 import { createProject } from '@/server/projects/service';
@@ -304,6 +305,56 @@ describe('moveTask', () => {
 
     const ordered = await listProjectTasks(ctx, projectId);
     expect(ordered.map((t) => t.title)).toEqual(['A', 'C', 'B']);
+  });
+
+  it('drops between two tasks that share a position', async () => {
+    const { ctx, projectId, statuses } = await setup('tie@example.com', 'tie');
+    const a = await createTask(ctx, { projectId, title: 'A' });
+    const b = await createTask(ctx, { projectId, title: 'B' });
+    const c = await createTask(ctx, { projectId, title: 'C' });
+    if (!a.ok || !b.ok || !c.ok) throw new Error('setup failed');
+    // What two concurrent creates in one column leave behind.
+    const [bRow] = await db.select().from(task).where(eq(task.id, b.data.id));
+    await db.update(task).set({ position: bRow.position }).where(eq(task.id, c.data.id));
+    const [first, second] = [b.data, c.data].sort((x, y) => (x.id < y.id ? -1 : 1));
+
+    const result = await moveTask(ctx, {
+      taskId: a.data.id, statusId: statuses[0].id, beforeId: first.id, afterId: second.id,
+    });
+
+    expect(result.ok).toBe(true);
+    const ordered = await listProjectTasks(ctx, projectId);
+    expect(ordered.map((t) => t.id)).toEqual([first.id, a.data.id, second.id]);
+  });
+
+  it('refuses neighbours that are out of order with a clear message', async () => {
+    const { ctx, projectId, statuses } = await setup('stale@example.com', 'stale');
+    const a = await createTask(ctx, { projectId, title: 'A' });
+    const b = await createTask(ctx, { projectId, title: 'B' });
+    const c = await createTask(ctx, { projectId, title: 'C' });
+    if (!a.ok || !b.ok || !c.ok) throw new Error('setup failed');
+
+    const result = await moveTask(ctx, {
+      taskId: b.data.id, statusId: statuses[0].id, beforeId: c.data.id, afterId: a.data.id,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).not.toMatch(/Something went wrong/);
+    expect((await listProjectTasks(ctx, projectId)).map((t) => t.title)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('refuses a neighbour from a different column', async () => {
+    const { ctx, projectId, statuses } = await setup('col@example.com', 'col');
+    const a = await createTask(ctx, { projectId, title: 'A' });
+    const x = await createTask(ctx, { projectId, title: 'X', statusId: statuses[1].id });
+    if (!a.ok || !x.ok) throw new Error('setup failed');
+
+    const result = await moveTask(ctx, {
+      taskId: a.data.id, statusId: statuses[0].id, beforeId: x.data.id, afterId: null,
+    });
+
+    expect(result.ok).toBe(false);
   });
 
   it('refuses to move a task into another workspace’s column', async () => {

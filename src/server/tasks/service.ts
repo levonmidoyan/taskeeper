@@ -1,13 +1,15 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, label, member, project, task, taskLabel, taskStatus, user } from '@/db';
 import { newId } from '@/lib/ids';
-import { positionBetween } from '@/lib/position';
+import { byId, positionBetween, positionsForCount } from '@/lib/position';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
 import { recordActivity, type ActivityKind } from '@/server/activity/service';
 
 const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const;
+
+const STALE_MOVE = 'The board changed while you were dragging. Try again.';
 
 /** Confirms a project belongs to this workspace. Every task write starts here. */
 async function assertProject(ctx: WorkspaceContext, projectId: string) {
@@ -281,26 +283,69 @@ export async function moveTask(
     const status = await assertStatus(ctx, parsed.data.statusId, owned.projectId);
     if (!status) return err('That column does not belong to this project.');
 
-    const neighbourPosition = async (id: string | null) => {
-      if (!id) return null;
+    // null = column edge; undefined = not a valid neighbour. Scoped to the target
+    // column: a key computed from anywhere else sorts the task into a nonsense place.
+    const neighbourPosition = async (id: string | null): Promise<string | null | undefined> => {
+      if (id === null) return null;
+      if (id === owned.id) return undefined;
       const [row] = await db
         .select({ position: task.position })
         .from(task)
-        .where(and(eq(task.id, id), eq(task.workspaceId, ctx.workspaceId)))
+        .where(
+          and(
+            eq(task.id, id),
+            eq(task.statusId, parsed.data.statusId),
+            eq(task.workspaceId, ctx.workspaceId),
+          ),
+        )
         .limit(1);
-      return row?.position ?? null;
+      return row?.position;
     };
 
     const [before, after] = await Promise.all([
       neighbourPosition(parsed.data.beforeId),
       neighbourPosition(parsed.data.afterId),
     ]);
-
-    const position = positionBetween(before, after);
+    if (before === undefined || after === undefined) return err('That move is not valid.');
+    // Reversed neighbours mean someone reordered the column since this board loaded.
+    // Tied keys are ordered by id (codepoint, as the board query sorts them).
+    if (before !== null && after !== null) {
+      if (before > after) return err(STALE_MOVE);
+      if (before === after && parsed.data.beforeId! > parsed.data.afterId!) return err(STALE_MOVE);
+    }
 
     const crossedColumn = parsed.data.statusId !== owned.statusId;
 
-    await db.transaction(async (tx) => {
+    const position = await db.transaction(async (tx) => {
+      let position: string;
+      if (before !== null && before === after) {
+        // Two tasks share a key (concurrent creates both append after the same
+        // last row), so nothing fits between them. Renumber the column in its
+        // displayed order, then place the task between the new keys.
+        const column = await tx
+          .select({ id: task.id })
+          .from(task)
+          .where(
+            and(
+              eq(task.projectId, owned.projectId),
+              eq(task.statusId, parsed.data.statusId),
+              ne(task.id, owned.id),
+            ),
+          )
+          .orderBy(asc(task.position), byId(task.id));
+        const keys = positionsForCount(column.length);
+        const renumbered = new Map(column.map((row, i) => [row.id, keys[i]]));
+        for (const [id, key] of renumbered) {
+          await tx.update(task).set({ position: key }).where(eq(task.id, id));
+        }
+        position = positionBetween(
+          renumbered.get(parsed.data.beforeId!)!,
+          renumbered.get(parsed.data.afterId!)!,
+        );
+      } else {
+        position = positionBetween(before, after);
+      }
+
       await tx
         .update(task)
         .set({
@@ -320,6 +365,7 @@ export async function moveTask(
           tx,
         );
       }
+      return position;
     });
 
     return ok({ position });

@@ -1,3 +1,5 @@
+import { sql } from 'drizzle-orm';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing';
 
 /**
@@ -23,4 +25,13 @@ export function positionsForCount(n: number): string[] {
 export function positionsAfter(last: string | null, n: number): string[] {
   if (n <= 0) return [];
   return generateNKeysBetween(last, null, n);
+}
+
+/**
+ * Tiebreak for rows that share a position: id in codepoint order, the same order
+ * JS string comparison gives. The database's en_US collation would sort nanoid's
+ * `-`, `_` and mixed case differently from the server's checks.
+ */
+export function byId(column: AnyPgColumn) {
+  return sql`${column} collate "C"`;
 }

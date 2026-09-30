@@ -1,1 +1,0 @@
-ALTER TABLE "task_status" ADD COLUMN "icon" text;
