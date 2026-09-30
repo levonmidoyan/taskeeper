@@ -156,9 +156,59 @@ export async function changeMemberRole(
   });
 }
 
+type RedeemableInvite = {
+  id: string; organizationId: string; role: string | null;
+  workspaceName: string; slug: string; inviterName: string | null;
+};
+
 /**
- * Takes the redeeming user's own id and email (Amendment A): as a Server Action
- * this would let any caller redeem an invitation as somebody else.
+ * A pending, unexpired invitation addressed to this user, with its workspace.
+ * Read-only: opening the link only shows it, since mail scanners and link
+ * previews fetch invite URLs without the invitee meaning to join.
+ */
+async function loadRedeemable(userEmail: string, invitationId: string): Promise<Result<RedeemableInvite>> {
+  const [invite] = await db
+    .select({
+      id: invitation.id, organizationId: invitation.organizationId, email: invitation.email,
+      role: invitation.role, status: invitation.status, expiresAt: invitation.expiresAt,
+      workspaceName: organization.name, slug: organization.slug, inviterName: user.name,
+    })
+    .from(invitation)
+    .innerJoin(organization, eq(organization.id, invitation.organizationId))
+    .leftJoin(user, eq(user.id, invitation.inviterId))
+    .where(eq(invitation.id, invitationId))
+    .limit(1);
+
+  if (!invite || invite.status !== 'pending') return err('This invitation is no longer valid.');
+  if (invite.expiresAt.getTime() < Date.now()) return err('This invitation has expired.');
+  // Bound to the invited address, so a forwarded link cannot be redeemed by
+  // whoever happens to open it.
+  if (invite.email !== userEmail.toLowerCase()) {
+    return err('This invitation was sent to a different email address.');
+  }
+
+  return ok({
+    id: invite.id, organizationId: invite.organizationId, role: invite.role,
+    workspaceName: invite.workspaceName, slug: invite.slug, inviterName: invite.inviterName,
+  });
+}
+
+/** What the invite page shows before the user chooses to accept or decline. */
+export async function getInvitationPreview(
+  userEmail: string,
+  invitationId: string,
+): Promise<Result<{ workspaceName: string; role: string; inviterName: string | null }>> {
+  return withAction(async () => {
+    const found = await loadRedeemable(userEmail, invitationId);
+    if (!found.ok) return found;
+    const { workspaceName, role, inviterName } = found.data;
+    return ok({ workspaceName, role: role ?? 'member', inviterName });
+  });
+}
+
+/**
+ * Takes the redeeming user's own id and email (Amendment A): the action wrapper
+ * reads both from the session, never from the caller.
  */
 export async function acceptInvitation(
   userId: string,
@@ -166,27 +216,9 @@ export async function acceptInvitation(
   invitationId: string,
 ): Promise<Result<{ slug: string }>> {
   return withAction(async () => {
-    const [invite] = await db
-      .select({
-        id: invitation.id, organizationId: invitation.organizationId, email: invitation.email,
-        role: invitation.role, status: invitation.status, expiresAt: invitation.expiresAt,
-      })
-      .from(invitation)
-      .where(eq(invitation.id, invitationId))
-      .limit(1);
-
-    if (!invite || invite.status !== 'pending') return err('This invitation is no longer valid.');
-    if (invite.expiresAt.getTime() < Date.now()) return err('This invitation has expired.');
-    // Bound to the invited address, so a forwarded link cannot be redeemed by
-    // whoever happens to open it.
-    if (invite.email !== userEmail.toLowerCase()) {
-      return err('This invitation was sent to a different email address.');
-    }
-
-    const [org] = await db
-      .select({ slug: organization.slug })
-      .from(organization).where(eq(organization.id, invite.organizationId)).limit(1);
-    if (!org) return err('That workspace no longer exists.');
+    const found = await loadRedeemable(userEmail, invitationId);
+    if (!found.ok) return found;
+    const invite = found.data;
 
     const accepted = await db.transaction(async (tx) => {
       // Claim the invite first, so two tabs redeeming it at once add one membership.
@@ -213,6 +245,26 @@ export async function acceptInvitation(
     });
     if (!accepted) return err('This invitation is no longer valid.');
 
-    return ok({ slug: org.slug });
+    return ok({ slug: invite.slug });
+  });
+}
+
+/** Same rules as acceptInvitation; the invitation is spent either way. */
+export async function declineInvitation(
+  userEmail: string,
+  invitationId: string,
+): Promise<Result<null>> {
+  return withAction(async () => {
+    const found = await loadRedeemable(userEmail, invitationId);
+    if (!found.ok) return found;
+
+    const [declined] = await db
+      .update(invitation)
+      .set({ status: 'rejected' })
+      .where(and(eq(invitation.id, found.data.id), eq(invitation.status, 'pending')))
+      .returning({ id: invitation.id });
+    if (!declined) return err('This invitation is no longer valid.');
+
+    return ok(null);
   });
 }
