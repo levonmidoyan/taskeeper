@@ -1,0 +1,41 @@
+name: Setup
+description: Install Node and dependencies, then create the test tables and buckets.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 22
+        # setup-node v5 turns package-manager caching on by default as soon as
+        # package.json has a "packageManager" field. It probes the cache with
+        # the runner's global Yarn 1, which refuses to run in a yarn@4 project,
+        # so the step failed before corepack could be enabled below. The Yarn
+        # cache is restored by hand instead.
+        package-manager-cache: false
+
+    - name: Enable corepack
+      shell: bash
+      run: corepack enable
+
+    # .yarnrc.yml has enableGlobalCache, so packages live in ~/.yarn/berry/cache.
+    - uses: actions/cache@v4
+      with:
+        path: ~/.yarn/berry/cache
+        key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+        restore-keys: yarn-${{ runner.os }}-
+
+    # --immutable is the CI lockfile check: it fails rather than silently
+    # updating yarn.lock.
+    - name: Install dependencies
+      shell: bash
+      run: yarn install --immutable
+
+    # No migrations in v1: tables are created straight from the schema.
+    - name: Create tables
+      shell: bash
+      run: yarn db:setup
+
+    - name: Create storage buckets
+      shell: bash
+      run: yarn storage:init

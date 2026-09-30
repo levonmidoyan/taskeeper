@@ -5,10 +5,15 @@ on:
     branches: [master]
   pull_request:
 
+# A new push to the same branch or PR cancels the run it replaces.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  checks:
     runs-on: ubuntu-latest
-    env:
+    env: &env
       TZ: UTC
       DATABASE_URL: postgres://taskeeper:taskeeper@localhost:5432/taskeeper_test
       DATABASE_URL_TEST: postgres://taskeeper:taskeeper@localhost:5432/taskeeper_test
@@ -21,7 +26,8 @@ jobs:
       S3_BUCKET: taskeeper
       S3_BUCKET_TEST: taskeeper-test
 
-    services:
+    # Server tests need the database and storage too, not only e2e.
+    services: &services
       postgres:
         image: postgres:17-alpine
         env:
@@ -47,30 +53,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          # setup-node v5 turns package-manager caching on by default as soon as
-          # package.json has a "packageManager" field. It probes the cache with
-          # the runner's global Yarn 1, which refuses to run in a yarn@4 project,
-          # so the step failed before corepack could be enabled below.
-          package-manager-cache: false
-
-      - name: Enable corepack
-        run: corepack enable
-
-      # --immutable is the CI lockfile check: it fails rather than silently
-      # updating yarn.lock.
-      - name: Install dependencies
-        run: yarn install --immutable
-
-      # No migrations in v1: tables are created straight from the schema.
-      - name: Create tables
-        run: yarn db:setup
-
-      - name: Create storage buckets
-        run: yarn storage:init
+      - uses: ./.github/actions/setup
 
       - name: Typecheck
         run: yarn typecheck
@@ -81,8 +64,36 @@ jobs:
       - name: Unit and server tests
         run: yarn test
 
+  e2e:
+    # The PR run already covered e2e for what lands on master, so the push
+    # run after a merge only repeats the checks job.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env: *env
+    services: *services
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+
+      # Browsers are keyed on yarn.lock, which pins the Playwright version.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+
+      # Headless runs only need the headless shell, not full Chromium. On a
+      # cache hit the download is skipped and only the shell's system libraries
+      # are installed; `install-deps chromium` would also pull in xvfb and X
+      # fonts from a mirror that can crawl.
       - name: Install browsers
-        run: yarn playwright install --with-deps chromium
+        run: yarn playwright install --with-deps --only-shell chromium
+
+      # The e2e web server runs `next build`; its cache makes rebuilds incremental.
+      - uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('yarn.lock') }}-${{ hashFiles('src/**', 'public/**', 'next.config.*') }}
+          restore-keys: next-${{ runner.os }}-${{ hashFiles('yarn.lock') }}-
 
       - name: End-to-end tests
         run: yarn e2e
