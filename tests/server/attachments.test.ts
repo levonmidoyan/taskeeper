@@ -251,6 +251,22 @@ describe('deleteAttachment', () => {
   });
 });
 
+describe('deleteAttachment concurrency', () => {
+  it('lets one of two simultaneous deletes win and records one activity', async () => {
+    const { ctx, taskId } = await setup('d5@example.com', 'ws-d5');
+    const view = await attach(ctx, taskId);
+
+    const results = await Promise.all([
+      deleteAttachment(ctx, { attachmentId: view.id }),
+      deleteAttachment(ctx, { attachmentId: view.id }),
+    ]);
+
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.filter((r) => !r.ok)).toEqual([{ ok: false, error: 'Attachment not found.' }]);
+    expect(await db.select().from(taskActivity).where(eq(taskActivity.kind, 'attachment_removed'))).toHaveLength(1);
+  });
+});
+
 describe('listTaskAttachments', () => {
   // Review Focus 5.
   it('list hides pending rows and other workspaces, newest first', async () => {

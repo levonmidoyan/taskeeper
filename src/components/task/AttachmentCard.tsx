@@ -102,7 +102,7 @@ export function UploadCard({
           <CompactButton.Root variant="ghost" size="large" onClick={onCancel} aria-label={`Dismiss ${file.name}`}>
             <CompactButton.Icon as={IconTrash} className="text-error-base" aria-hidden="true" />
           </CompactButton.Root>
-        ) : (
+        ) : item.confirming ? null : (
           <CompactButton.Root variant="ghost" size="large" onClick={onCancel} aria-label={`Cancel ${file.name}`}>
             <CompactButton.Icon as={IconX} aria-hidden="true" />
           </CompactButton.Root>

@@ -156,10 +156,18 @@ export async function deleteAttachment(
       return err('You can only delete your own attachments.');
     }
 
-    await db.transaction(async (tx) => {
-      await tx.delete(attachment).where(eq(attachment.id, row.id));
+    // Only the delete that removed the row records it, so a concurrent delete
+    // writes the activity once.
+    const deleted = await db.transaction(async (tx) => {
+      const removed = await tx
+        .delete(attachment)
+        .where(eq(attachment.id, row.id))
+        .returning({ id: attachment.id });
+      if (!removed.length) return false;
       await recordActivity(ctx, { taskId: row.taskId, kind: 'attachment_removed', from: row.fileName }, tx);
+      return true;
     });
+    if (!deleted) return err(NOT_FOUND);
     // After commit: a rolled-back delete must not have lost the file.
     await dropObject(row.key);
     return ok(null);

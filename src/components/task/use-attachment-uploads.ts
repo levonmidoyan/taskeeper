@@ -111,7 +111,10 @@ export function pumpStore(store: Store, router: ReturnType<typeof useRouter>, wo
         return pumpStore(store, router, workspaceSlug, taskId);
       }
 
+      // Past this point a cancel would race the confirm, so ✕ is hidden and ignored.
+      update(store, patchItem(store.items, item.localId, { confirming: true }));
       const done = await confirmUploadAction(workspaceSlug, { attachmentId: req.data.id });
+      update(store, patchItem(store.items, item.localId, { confirming: false }));
       if (!done.ok) fail(done.error, true);
       else {
         update(store, patchItem(store.items, item.localId, { state: 'done', loaded: item.file.size }));
@@ -119,6 +122,7 @@ export function pumpStore(store: Store, router: ReturnType<typeof useRouter>, wo
       }
     } catch {
       store.xhrs.delete(item.localId);
+      update(store, patchItem(store.items, item.localId, { confirming: false }));
       if (!gone()) fail('Upload failed.', true);
     }
     pumpStore(store, router, workspaceSlug, taskId);
@@ -149,13 +153,14 @@ export function useAttachmentUploads(workspaceSlug: string, taskId: string) {
   }, [pump, store]);
 
   const cancel = useCallback((localId: string) => {
+    if (store.items.find((i) => i.localId === localId)?.confirming) return;
     store.xhrs.get(localId)?.abort();
     update(store, removeItem(store.items, localId));
     pump();
   }, [pump, store]);
 
   const retry = useCallback((localId: string) => {
-    update(store, patchItem(store.items, localId, { state: 'queued', error: null, attachmentId: null, loaded: 0 }));
+    update(store, patchItem(store.items, localId, { state: 'queued', error: null, attachmentId: null, loaded: 0, confirming: false }));
     pump();
   }, [pump, store]);
 

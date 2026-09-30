@@ -16,6 +16,8 @@ export type UploadItem = {
   /** False for failures a retry cannot fix, such as a file over the limit. */
   retryable: boolean;
   attachmentId: string | null;
+  /** Bytes are up and the server is confirming; too late to cancel. */
+  confirming: boolean;
 };
 
 export const MAX_PARALLEL = 3;
@@ -31,6 +33,7 @@ export function enqueue(items: UploadItem[], files: File[], makeId: () => string
       error: tooBig ? 'Files can be up to 25 MB.' : null,
       retryable: false,
       attachmentId: null,
+      confirming: false,
     };
   });
   return [...items, ...added];
