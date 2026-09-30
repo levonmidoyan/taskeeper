@@ -37,8 +37,16 @@ export function AttachmentSection({
   async function onDelete(a: AttachmentView) {
     const ok = await confirm({ title: `Delete "${a.fileName}"?`, description: 'It can’t be undone.' });
     if (!ok) return;
-    const result = await deleteAttachmentAction(workspaceSlug, { attachmentId: a.id });
-    if (!result.ok) toast.error(result.error);
+    try {
+      const result = await deleteAttachmentAction(workspaceSlug, { attachmentId: a.id });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+    } catch {
+      toast.error('Something went wrong. Please try again.');
+      return;
+    }
     router.refresh();
   }
 

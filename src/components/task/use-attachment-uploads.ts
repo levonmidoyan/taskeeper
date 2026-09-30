@@ -26,7 +26,7 @@ type Store = {
 const stores = new Map<string, Store>();
 const EMPTY: UploadItem[] = [];
 
-function storeFor(taskId: string): Store {
+export function storeFor(taskId: string): Store {
   let store = stores.get(taskId);
   if (!store) {
     store = { items: [], listeners: new Set(), xhrs: new Map(), modalOpen: false };
@@ -63,7 +63,7 @@ function putFile(url: string, file: File, contentType: string, onProgress: (load
  * (via a hoisted function declaration, not a self-referencing closure) so one
  * finished slot immediately pulls the next queued item in.
  */
-function pumpStore(store: Store, router: ReturnType<typeof useRouter>, workspaceSlug: string, taskId: string) {
+export function pumpStore(store: Store, router: ReturnType<typeof useRouter>, workspaceSlug: string, taskId: string) {
   for (const item of startable(store.items)) void run(item);
 
   async function run(item: UploadItem) {
@@ -76,43 +76,50 @@ function pumpStore(store: Store, router: ReturnType<typeof useRouter>, workspace
       if (!store.modalOpen) toast.error(`${item.file.name}: ${error}`);
     };
 
-    const req = await requestUploadAction(workspaceSlug, {
-      taskId, fileName: item.file.name, contentType: item.file.type, size: item.file.size,
-    });
-    if (!req.ok) {
-      if (!gone()) fail(req.error, req.error === 'Upload failed.' || req.error.startsWith('Something went wrong'));
-      return pumpStore(store, router, workspaceSlug, taskId);
-    }
-    if (gone()) {
-      void cancelUploadAction(workspaceSlug, { attachmentId: req.data.id });
-      return pumpStore(store, router, workspaceSlug, taskId);
-    }
-    update(store, patchItem(store.items, item.localId, { attachmentId: req.data.id }));
-
+    // A rejected action call (network drop, stale deploy, expired session)
+    // must not leave the card uploading forever with its slot held.
     try {
-      await putFile(
-        req.data.url, item.file, req.data.contentType,
-        (loaded) => update(store, patchItem(store.items, item.localId, { loaded })),
-        (xhr) => store.xhrs.set(item.localId, xhr),
-      );
-    } catch (error) {
-      store.xhrs.delete(item.localId);
-      void cancelUploadAction(workspaceSlug, { attachmentId: req.data.id });
-      // A cancel already removed the item; nothing left to mark.
-      if (!(error instanceof DOMException && error.name === 'AbortError')) fail('Upload failed.', true);
-      return pumpStore(store, router, workspaceSlug, taskId);
-    }
-    store.xhrs.delete(item.localId);
-    if (gone()) {
-      void cancelUploadAction(workspaceSlug, { attachmentId: req.data.id });
-      return pumpStore(store, router, workspaceSlug, taskId);
-    }
+      const req = await requestUploadAction(workspaceSlug, {
+        taskId, fileName: item.file.name, contentType: item.file.type, size: item.file.size,
+      });
+      if (!req.ok) {
+        if (!gone()) fail(req.error, req.error === 'Upload failed.' || req.error.startsWith('Something went wrong'));
+        return pumpStore(store, router, workspaceSlug, taskId);
+      }
+      if (gone()) {
+        void cancelUploadAction(workspaceSlug, { attachmentId: req.data.id });
+        return pumpStore(store, router, workspaceSlug, taskId);
+      }
+      update(store, patchItem(store.items, item.localId, { attachmentId: req.data.id }));
 
-    const done = await confirmUploadAction(workspaceSlug, { attachmentId: req.data.id });
-    if (!done.ok) fail(done.error, true);
-    else {
-      update(store, patchItem(store.items, item.localId, { state: 'done', loaded: item.file.size }));
-      router.refresh();
+      try {
+        await putFile(
+          req.data.url, item.file, req.data.contentType,
+          (loaded) => update(store, patchItem(store.items, item.localId, { loaded })),
+          (xhr) => store.xhrs.set(item.localId, xhr),
+        );
+      } catch (error) {
+        store.xhrs.delete(item.localId);
+        void cancelUploadAction(workspaceSlug, { attachmentId: req.data.id });
+        // A cancel already removed the item; nothing left to mark.
+        if (!(error instanceof DOMException && error.name === 'AbortError')) fail('Upload failed.', true);
+        return pumpStore(store, router, workspaceSlug, taskId);
+      }
+      store.xhrs.delete(item.localId);
+      if (gone()) {
+        void cancelUploadAction(workspaceSlug, { attachmentId: req.data.id });
+        return pumpStore(store, router, workspaceSlug, taskId);
+      }
+
+      const done = await confirmUploadAction(workspaceSlug, { attachmentId: req.data.id });
+      if (!done.ok) fail(done.error, true);
+      else {
+        update(store, patchItem(store.items, item.localId, { state: 'done', loaded: item.file.size }));
+        router.refresh();
+      }
+    } catch {
+      store.xhrs.delete(item.localId);
+      if (!gone()) fail('Upload failed.', true);
     }
     pumpStore(store, router, workspaceSlug, taskId);
   }
@@ -155,9 +162,15 @@ export function useAttachmentUploads(workspaceSlug: string, taskId: string) {
   const remove = useCallback(async (localId: string) => {
     const item = store.items.find((i) => i.localId === localId);
     if (item?.attachmentId) {
-      const result = await deleteAttachmentAction(workspaceSlug, { attachmentId: item.attachmentId });
-      if (!result.ok) {
-        toast.error(result.error);
+      try {
+        const result = await deleteAttachmentAction(workspaceSlug, { attachmentId: item.attachmentId });
+        // Already deleted from the section: the item is stale, so drop it.
+        if (!result.ok && result.error !== 'Attachment not found.') {
+          toast.error(result.error);
+          return;
+        }
+      } catch {
+        toast.error('Something went wrong. Please try again.');
         return;
       }
       router.refresh();
