@@ -13,6 +13,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import * as SegmentedControl from '@/components/ui/segmented-control';
 import { describeActivity } from '@/lib/activity-text';
 import { formatInZone } from '@/lib/dates';
+import { settle } from '@/lib/settle';
 import type { FeedEntry } from '@/server/activity/queries';
 import {
   createCommentAction, deleteCommentAction, updateCommentAction,
@@ -62,7 +63,7 @@ export function ActivityFeed({
     if (!body.trim() || pending) return;
 
     startTransition(async () => {
-      const result = await createCommentAction(workspaceSlug, { taskId, body });
+      const result = await settle(createCommentAction(workspaceSlug, { taskId, body }));
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -80,7 +81,7 @@ export function ActivityFeed({
 
   function onEdit(commentId: string) {
     startTransition(async () => {
-      const result = await updateCommentAction(workspaceSlug, { commentId, body: editDraft });
+      const result = await settle(updateCommentAction(workspaceSlug, { commentId, body: editDraft }));
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -93,7 +94,7 @@ export function ActivityFeed({
   async function onDelete(commentId: string) {
     if (!(await confirm({ title: 'Delete this comment?', description: 'This can’t be undone.' }))) return;
     startTransition(async () => {
-      const result = await deleteCommentAction(workspaceSlug, { commentId });
+      const result = await settle(deleteCommentAction(workspaceSlug, { commentId }));
       if (!result.ok) {
         toast.error(result.error);
         return;

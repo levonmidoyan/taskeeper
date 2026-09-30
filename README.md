@@ -52,6 +52,7 @@ Set these under **Settings -> Environment Variables** for Production and Preview
 | `S3_REGION` | `auto` |
 | `S3_BUCKET` | R2 bucket name, or empty to turn attachments off |
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | R2 API token (Object Read & Write, this bucket only) |
+| `CRON_SECRET` | `openssl rand -base64 32` — authorizes the daily attachment sweep |
 
 `DATABASE_URL` must point at the provider's *pooled* endpoint (`-pooler` in a Neon host, port
 6543 on Supabase). The direct endpoint runs out of connections once functions fan out. If a
@@ -76,8 +77,10 @@ storage integration filled in the unpooled value, replace it.
 
    Add every origin that uploads from: each Preview deployment origin (`*.vercel.app`) and `http://localhost:3000` if local development uses R2.
 
-4. Uploads that never finish and files of deleted tasks stay in the bucket until swept:
-   `SWEEP_ENV_FILE=.env.production.local yarn attachments:sweep` (add `--dry-run` to preview). Run it daily or weekly.
+4. Deleting a task, project or workspace removes its files at once. Uploads that never finish,
+   and files whose delete failed, are swept daily by the Vercel cron in `vercel.json`
+   (`/api/cron/sweep-attachments`, which needs `CRON_SECRET`). To run it by hand:
+   `SWEEP_ENV_FILE=.env.production.local yarn attachments:sweep` (add `--dry-run` to preview).
 
 Locally, `yarn db:up` also starts MinIO; run `yarn storage:init` once to create the buckets.
 

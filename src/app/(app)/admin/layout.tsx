@@ -1,14 +1,15 @@
 import { IconArrowLeft } from '@tabler/icons-react';
 import { headers } from 'next/headers';
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { LogoMark } from '@/components/brand/Logo';
 import { UserButton } from '@/components/auth/user/user-button';
 import { auth } from '@/lib/auth';
+import { signInRedirect } from '@/lib/session';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect('/auth/sign-in');
+  if (!session) return signInRedirect();
 
   // The admin API refuses non-admins on its own; this keeps the screen itself
   // from existing for them. Same check the users table makes client-side.

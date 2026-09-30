@@ -10,6 +10,7 @@ import { useAttachmentUploads } from '@/components/task/use-attachment-uploads';
 import * as Button from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatInZone } from '@/lib/dates';
+import { settle } from '@/lib/settle';
 import type { AttachmentView } from '@/server/attachments/queries';
 import { deleteAttachmentAction } from '@/server/attachments/actions';
 import { cn } from '@/utils/cn';
@@ -38,7 +39,7 @@ export function AttachmentSection({
     const ok = await confirm({ title: `Delete "${a.fileName}"?`, description: 'It can’t be undone.' });
     if (!ok) return;
     try {
-      const result = await deleteAttachmentAction(workspaceSlug, { attachmentId: a.id });
+      const result = await settle(deleteAttachmentAction(workspaceSlug, { attachmentId: a.id }));
       if (!result.ok) {
         toast.error(result.error);
         return;

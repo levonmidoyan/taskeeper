@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
-import { createProject } from '@/server/projects/service';
+import { archiveProject, createProject } from '@/server/projects/service';
 import { getProject } from '@/server/projects/queries';
 import {
   bulkDeleteTasks, bulkUpdateTasks, createTask, deleteTask, moveTask, updateTask,
@@ -549,6 +549,25 @@ describe('bulkUpdateTasks', () => {
     expect(tasks.every((t) => t.completedAt !== null)).toBe(true);
   });
 
+  it('changes nothing when one task in the set cannot be updated', async () => {
+    const { ctx, projectId } = await setup('bulk-atomic@example.com', 'bulk-atomic');
+    const live = await createTask(ctx, { projectId, title: 'Live' });
+    const other = await createProject(ctx, { name: 'Shelved' });
+    if (!live.ok || !other.ok) throw new Error('setup failed');
+    const shelved = await createTask(ctx, { projectId: other.data.id, title: 'Shelved' });
+    if (!shelved.ok) throw new Error('setup failed');
+    await archiveProject(ctx, { projectId: other.data.id });
+
+    const result = await bulkUpdateTasks(ctx, {
+      taskIds: [live.data.id, shelved.data.id],
+      patch: { priority: 'urgent' },
+    });
+
+    expect(result.ok).toBe(false);
+    const [row] = await db.select().from(task).where(eq(task.id, live.data.id));
+    expect(row.priority).toBe('none');
+  });
+
   it('rejects an empty patch', async () => {
     const { ctx, projectId } = await setup('bulk2@example.com', 'bulk2');
     const a = await createTask(ctx, { projectId, title: 'A' });
@@ -622,5 +641,28 @@ describe('position order under a locale collation', () => {
       expect(tasks.map((t) => t.title)).toEqual(['A', 'B', 'C']);
       expect(tasks[1].position < tasks[2].position).toBe(true);
     });
+  });
+});
+
+describe('archived projects', () => {
+  it('404s the board, hides its tasks from My tasks, and refuses writes', async () => {
+    const { ctx, projectId } = await setup('arch@example.com', 'arch');
+    const created = await createTask(ctx, { projectId, title: 'Left behind' });
+    if (!created.ok) throw new Error('setup failed');
+    await updateTask(ctx, { taskId: created.data.id, assigneeId: ctx.userId });
+    await archiveProject(ctx, { projectId });
+
+    expect(await getProject(ctx, projectId)).toBeNull();
+    expect(await listMyOpenTasks(ctx)).toEqual([]);
+    expect((await createTask(ctx, { projectId, title: 'New' })).ok).toBe(false);
+    expect((await updateTask(ctx, { taskId: created.data.id, title: 'Edited' })).ok).toBe(false);
+  });
+});
+
+describe('due dates', () => {
+  it('rejects a well-formed string that is not a calendar day', async () => {
+    const { ctx, projectId } = await setup('due@example.com', 'due');
+    const result = await createTask(ctx, { projectId, title: 'Leap', dueDate: '2026-02-30' });
+    expect(result.ok).toBe(false);
   });
 });

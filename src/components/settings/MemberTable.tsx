@@ -7,6 +7,7 @@ import { UserView } from '@/components/auth/user/user-view';
 import * as Button from '@/components/ui/button';
 import * as Select from '@/components/ui/select';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { settle } from '@/lib/settle';
 import { changeMemberRoleAction, removeMemberAction } from '@/server/members/actions';
 import type { MemberRow } from '@/server/labels/queries';
 import type { WorkspaceRole } from '@/lib/session';
@@ -28,7 +29,7 @@ export function MemberTable({
 
   function onRoleChange(userId: string, role: WorkspaceRole) {
     startTransition(async () => {
-      const result = await changeMemberRoleAction(workspaceSlug, { userId, role });
+      const result = await settle(changeMemberRoleAction(workspaceSlug, { userId, role }));
       if (!result.ok) toast.error(result.error);
       router.refresh();
     });
@@ -42,7 +43,7 @@ export function MemberTable({
     });
     if (!ok) return;
     startTransition(async () => {
-      const result = await removeMemberAction(workspaceSlug, { userId: member.userId });
+      const result = await settle(removeMemberAction(workspaceSlug, { userId: member.userId }));
       if (!result.ok) toast.error(result.error);
       else toast.success(`${member.name} removed.`);
       router.refresh();

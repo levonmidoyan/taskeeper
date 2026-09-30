@@ -4,6 +4,7 @@ import { IconStar, IconStarFilled } from '@tabler/icons-react';
 import { useOptimistic, useTransition } from 'react';
 import { toast } from 'sonner';
 import * as CompactButton from '@/components/ui/compact-button';
+import { settle } from '@/lib/settle';
 import { setProjectStarAction } from '@/server/projects/actions';
 import { cn } from '@/utils/cn';
 
@@ -26,7 +27,7 @@ export function StarButton({
     const next = !shown;
     startTransition(async () => {
       setShown(next);
-      const result = await setProjectStarAction(workspaceSlug, { projectId, starred: next });
+      const result = await settle(setProjectStarAction(workspaceSlug, { projectId, starred: next }));
       if (!result.ok) toast.error(result.error);
     });
   }

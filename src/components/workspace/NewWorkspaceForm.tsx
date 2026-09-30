@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { FormError, TextField } from '@/components/forms/TextField';
 import * as Button from '@/components/ui/button';
+import { settle } from '@/lib/settle';
 import { createWorkspaceAction } from '@/server/workspaces/actions';
 
 export function NewWorkspaceForm() {
@@ -17,7 +18,7 @@ export function NewWorkspaceForm() {
     setError(null);
 
     const name = String(new FormData(event.currentTarget).get('name'));
-    const result = await createWorkspaceAction({ name });
+    const result = await settle(createWorkspaceAction({ name }));
 
     if (!result.ok) {
       setError(result.error);

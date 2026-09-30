@@ -33,6 +33,8 @@ export default defineConfig({
       TZ: 'UTC',
       AUTH_RATE_LIMIT: 'off',
       AUTH_EMAIL_VERIFICATION: 'off',
+      // Invitation emails go to the log, never to a real inbox.
+      RESEND_API_KEY: '',
     },
   },
 });

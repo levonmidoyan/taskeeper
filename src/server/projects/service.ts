@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { PROJECT_COLOR_KEYS } from '@/components/brand/tint';
 import { db, project, projectStar, task, taskStatus } from '@/db';
@@ -6,6 +6,7 @@ import { newId } from '@/lib/ids';
 import { positionsForCount } from '@/lib/position';
 import { err, ok, type Result } from '@/lib/result';
 import { requireRole, type WorkspaceContext } from '@/lib/session';
+import { attachmentKeysForProject, purgeObjects } from '@/server/attachments/cleanup';
 import { slugify } from '@/lib/slug';
 
 const DEFAULT_STATUSES = [
@@ -79,10 +80,15 @@ export async function createProject(
   return ok({ id });
 }
 
+// Rename, recolor and archive change what everyone in the workspace sees, so
+// they take the same role as delete. Starring stays open to every member.
+const MANAGE_ROLES = ['owner', 'admin'] as const;
+
 export async function renameProject(
   ctx: WorkspaceContext,
   input: { projectId: string; name: string },
 ): Promise<Result<null>> {
+  requireRole(ctx, ...MANAGE_ROLES);
   const parsed = z.object({ projectId: z.string(), name: nameSchema }).safeParse(input);
   if (!parsed.success) return err(parsed.error.issues[0].message);
 
@@ -101,6 +107,7 @@ export async function setProjectColor(
   ctx: WorkspaceContext,
   input: { projectId: string; color: string },
 ): Promise<Result<null>> {
+  requireRole(ctx, ...MANAGE_ROLES);
   const parsed = z.object({ projectId: z.string(), color: colorSchema }).safeParse(input);
   if (!parsed.success) return err(parsed.error.issues[0].message);
 
@@ -119,10 +126,34 @@ export async function archiveProject(
   ctx: WorkspaceContext,
   input: { projectId: string },
 ): Promise<Result<null>> {
+  requireRole(ctx, ...MANAGE_ROLES);
+
   const updated = await db
     .update(project)
     .set({ archivedAt: new Date(), updatedAt: new Date() })
-    .where(and(eq(project.id, input.projectId), eq(project.workspaceId, ctx.workspaceId)))
+    .where(and(
+      eq(project.id, input.projectId), eq(project.workspaceId, ctx.workspaceId), isNull(project.archivedAt),
+    ))
+    .returning({ id: project.id });
+
+  if (updated.length === 0) return err('Project not found.');
+
+  return ok(null);
+}
+
+/** Undoes archiveProject: the board, its tasks and its files come back as they were. */
+export async function unarchiveProject(
+  ctx: WorkspaceContext,
+  input: { projectId: string },
+): Promise<Result<null>> {
+  requireRole(ctx, ...MANAGE_ROLES);
+
+  const updated = await db
+    .update(project)
+    .set({ archivedAt: null, updatedAt: new Date() })
+    .where(and(
+      eq(project.id, input.projectId), eq(project.workspaceId, ctx.workspaceId), isNotNull(project.archivedAt),
+    ))
     .returning({ id: project.id });
 
   if (updated.length === 0) return err('Project not found.');
@@ -140,7 +171,7 @@ export async function deleteProject(
   // failure two different shapes depending on which layer is asked.
   requireRole(ctx, 'owner', 'admin');
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     // The ownership check and the deletes must run in the same transaction:
     // outside it, this is check-then-act — a race that a concurrent change
     // could slip through between the SELECT and the DELETEs.
@@ -150,7 +181,8 @@ export async function deleteProject(
       .where(and(eq(project.id, input.projectId), eq(project.workspaceId, ctx.workspaceId)))
       .limit(1);
 
-    if (!owned) return err('Project not found.');
+    if (!owned) return { result: err('Project not found.'), keys: [] as string[] };
+    const keys = await attachmentKeysForProject(tx, ctx.workspaceId, input.projectId);
 
     // Explicit order, every delete scoped to this workspace. task.status_id is
     // RESTRICT, and relying on cascade would leave the delete order between
@@ -165,8 +197,12 @@ export async function deleteProject(
       and(eq(project.id, input.projectId), eq(project.workspaceId, ctx.workspaceId)),
     );
 
-    return ok(null);
+    return { result: ok(null), keys };
   });
+  // After commit: a rolled-back delete must not have lost the files.
+  await purgeObjects(result.keys);
+
+  return result.result;
 }
 
 /**

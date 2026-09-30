@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { projectDot } from '@/components/brand/tint';
 import { ignoreShortcut } from '@/components/shell/shortcuts';
 import * as Input from '@/components/ui/input';
+import { settle } from '@/lib/settle';
 import type { ProjectSummary } from '@/server/projects/queries';
 import type { TaskSearchHit } from '@/server/tasks/queries';
 import { searchTasksAction } from '@/server/tasks/actions';
@@ -55,7 +56,7 @@ export function TaskSearch({
   useEffect(() => {
     if (!searchable) return;
     const timer = setTimeout(async () => {
-      const result = await searchTasksAction(workspaceSlug, trimmed);
+      const result = await settle(searchTasksAction(workspaceSlug, trimmed));
       setFound({ term: trimmed, tasks: result.ok ? result.data : [] });
     }, 200);
     return () => clearTimeout(timer);

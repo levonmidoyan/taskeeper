@@ -13,6 +13,7 @@ import { SortableTodoItem, TodoItem, type TodoItemHandlers } from '@/components/
 import { TodoQuickAdd } from '@/components/todo/TodoQuickAdd';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import type { Result } from '@/lib/result';
+import { settle } from '@/lib/settle';
 import { applyTodoOp, dropTarget, type TodoOp } from '@/lib/todo-list';
 import {
   deleteTodoAction, moveTodoAction, updateTodoAction,
@@ -56,18 +57,18 @@ export function TodoList({
     onToggle: (item) => {
       const done = item.completedAt === null;
       run({ kind: 'toggle', id: item.id, done, now: new Date() },
-        () => updateTodoAction(workspaceSlug, { todoId: item.id, done }));
+        () => settle(updateTodoAction(workspaceSlug, { todoId: item.id, done })));
     },
     onRename: (item, title) =>
       run({ kind: 'edit', id: item.id, title },
-        () => updateTodoAction(workspaceSlug, { todoId: item.id, title })),
+        () => settle(updateTodoAction(workspaceSlug, { todoId: item.id, title }))),
     onDue: (item, dueDate) =>
       run({ kind: 'edit', id: item.id, dueDate },
-        () => updateTodoAction(workspaceSlug, { todoId: item.id, dueDate })),
+        () => settle(updateTodoAction(workspaceSlug, { todoId: item.id, dueDate }))),
     onDelete: async (item) => {
       if (!(await confirm({ title: `Delete "${item.title}"?`, description: 'This can’t be undone.' }))) return;
       run({ kind: 'delete', id: item.id },
-        () => deleteTodoAction(workspaceSlug, { todoId: item.id }));
+        () => settle(deleteTodoAction(workspaceSlug, { todoId: item.id })));
     },
   };
 
@@ -77,7 +78,7 @@ export function TodoList({
     const target = dropTarget(view.open.map((t) => t.id), id, String(over.id));
     if (!target) return;
     run({ kind: 'move', id, toIndex: target.toIndex },
-      () => moveTodoAction(workspaceSlug, { todoId: id, beforeId: target.beforeId, afterId: target.afterId }));
+      () => settle(moveTodoAction(workspaceSlug, { todoId: id, beforeId: target.beforeId, afterId: target.afterId })));
   }
 
   const empty = view.open.length === 0 && view.done.length === 0;

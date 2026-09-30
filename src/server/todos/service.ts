@@ -1,6 +1,7 @@
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, todo } from '@/db';
+import { isCalendarDay } from '@/lib/dates';
 import { newId } from '@/lib/ids';
 import { byKey, positionBetween } from '@/lib/position';
 import { err, ok, withAction, type Result } from '@/lib/result';
@@ -19,16 +20,7 @@ const BAD_MOVE = 'That move is not valid.';
 const titleSchema = z
   .string().trim().min(1, 'Name the to-do.').max(200, 'Keep it under 200 characters.');
 
-/** 'YYYY-MM-DD' that is also a real calendar day — Postgres would throw on 2026-02-30. */
-const dueDateSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'That date is not valid.')
-  .refine((value) => {
-    const [y, m, d] = value.split('-').map(Number);
-    const date = new Date(Date.UTC(y, m - 1, d));
-    return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
-  }, 'That date is not valid.')
-  .nullable();
+const dueDateSchema = z.string().refine(isCalendarDay, 'That date is not valid.').nullable();
 
 async function lastOpenPosition(ctx: WorkspaceContext): Promise<string | null> {
   const [last] = await db

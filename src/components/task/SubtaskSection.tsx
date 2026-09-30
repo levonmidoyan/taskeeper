@@ -4,6 +4,7 @@ import { IconCircle, IconCircleCheckFilled, IconPlus, IconTrash } from '@tabler/
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { settle } from '@/lib/settle';
 import { doneToggleTarget } from '@/lib/task-done';
 import type { StatusRow } from '@/server/projects/queries';
 import { createTaskAction, deleteTaskAction, updateTaskAction } from '@/server/tasks/actions';
@@ -42,14 +43,14 @@ export function SubtaskSection({
     if (inputRef.current) inputRef.current.value = '';
 
     setPending(true);
-    const result = await createTaskAction(workspaceSlug, {
+    const result = await settle(createTaskAction(workspaceSlug, {
       projectId,
       title,
       // Subtasks land in the parent's column, not the leftmost one: they are
       // part of work already in flight.
       statusId: parent.statusId,
       parentTaskId: parent.id,
-    });
+    }));
     setPending(false);
 
     if (!result.ok) {
@@ -127,7 +128,7 @@ function SubtaskRow({
       return;
     }
     startTransition(async () => {
-      const result = await updateTaskAction(workspaceSlug, { taskId: subtask.id, statusId: target.id });
+      const result = await settle(updateTaskAction(workspaceSlug, { taskId: subtask.id, statusId: target.id }));
       if (!result.ok) toast.error(result.error);
       else router.refresh();
     });
@@ -146,7 +147,7 @@ function SubtaskRow({
 
   function onDelete() {
     startTransition(async () => {
-      const result = await deleteTaskAction(workspaceSlug, { taskId: subtask.id });
+      const result = await settle(deleteTaskAction(workspaceSlug, { taskId: subtask.id }));
       if (!result.ok) toast.error(result.error);
       else router.refresh();
     });

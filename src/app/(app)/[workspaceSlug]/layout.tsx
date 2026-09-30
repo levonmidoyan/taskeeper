@@ -1,8 +1,7 @@
 import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
 import { WorkspaceShell } from '@/components/shell/WorkspaceShell';
 import { auth } from '@/lib/auth';
-import { requireWorkspace } from '@/lib/session';
+import { requireWorkspace, signInRedirect } from '@/lib/session';
 
 export default async function WorkspaceLayout({
   children,
@@ -13,7 +12,7 @@ export default async function WorkspaceLayout({
 }) {
   const { workspaceSlug } = await params;
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect('/auth/sign-in');
+  if (!session) return signInRedirect();
 
   const ctx = await requireWorkspace(workspaceSlug);
 

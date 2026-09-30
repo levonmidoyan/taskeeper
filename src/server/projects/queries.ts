@@ -82,8 +82,10 @@ export async function getProject(
       projectStar,
       and(eq(projectStar.projectId, project.id), eq(projectStar.userId, ctx.userId)),
     )
-    // Both conditions, always: the id alone would read across tenants.
-    .where(and(eq(project.id, projectId), eq(project.workspaceId, ctx.workspaceId)))
+    // Both conditions, always: the id alone would read across tenants. Archived
+    // projects are gone from the sidebar and have no way back, so a bookmark to
+    // one 404s rather than opening an editable board.
+    .where(and(eq(project.id, projectId), eq(project.workspaceId, ctx.workspaceId), isNull(project.archivedAt)))
     .limit(1);
 
   if (!row) return null;

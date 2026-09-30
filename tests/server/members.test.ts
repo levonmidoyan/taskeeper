@@ -2,7 +2,9 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
-import { changeMemberRole, inviteMember, removeMember } from '@/server/members/service';
+import {
+  acceptInvitation, changeMemberRole, declineInvitation, getInvitationPreview, inviteMember, removeMember,
+} from '@/server/members/service';
 import { updateWorkspaceSettings } from '@/server/settings/service';
 import { listWorkspaceMembers } from '@/server/labels/queries';
 import { invitation, member, workspaceSettings } from '@/db';
@@ -195,5 +197,52 @@ describe('updateWorkspaceSettings', () => {
     const { ctx } = await setup('owner12@example.com', 'acme13');
     const asMember = { ...ctx, role: 'member' as const };
     expect((await updateWorkspaceSettings(asMember, { timezone: 'UTC' })).ok).toBe(false);
+  });
+});
+
+describe('invitation answers', () => {
+  async function invited(slug: string) {
+    const { ctx } = await setup(`owner-${slug}@example.com`, slug);
+    const guest = await createUser(`guest-${slug}@example.com`);
+    const sent = await inviteMember(ctx, { email: guest.email, role: 'member' });
+    if (!sent.ok) throw new Error('setup failed');
+    return { ctx, guest, invitationId: sent.data.invitationId };
+  }
+
+  it('previews without joining or spending the invitation', async () => {
+    const { ctx, guest, invitationId } = await invited('preview-ws');
+
+    const preview = await getInvitationPreview(guest.email, invitationId);
+    expect(preview.ok && preview.data.workspaceName).toBe('Acme');
+
+    const members = await db.select().from(member).where(eq(member.organizationId, ctx.workspaceId));
+    expect(members.map((m) => m.userId)).not.toContain(guest.id);
+    const [row] = await db.select().from(invitation).where(eq(invitation.id, invitationId));
+    expect(row.status).toBe('pending');
+  });
+
+  it('joins on accept', async () => {
+    const { ctx, guest, invitationId } = await invited('accept-ws');
+
+    const result = await acceptInvitation(guest.id, guest.email, invitationId);
+    expect(result.ok && result.data.slug).toBe('accept-ws');
+    const members = await db.select().from(member).where(eq(member.organizationId, ctx.workspaceId));
+    expect(members.map((m) => m.userId)).toContain(guest.id);
+  });
+
+  it('spends the invitation on decline, without joining', async () => {
+    const { ctx, guest, invitationId } = await invited('decline-ws');
+
+    expect((await declineInvitation(guest.email, invitationId)).ok).toBe(true);
+    expect((await acceptInvitation(guest.id, guest.email, invitationId)).ok).toBe(false);
+    const members = await db.select().from(member).where(eq(member.organizationId, ctx.workspaceId));
+    expect(members.map((m) => m.userId)).not.toContain(guest.id);
+  });
+
+  it('refuses a decline from a different address', async () => {
+    const { guest, invitationId } = await invited('decline-other-ws');
+
+    expect((await declineInvitation('someone@example.com', invitationId)).ok).toBe(false);
+    expect((await getInvitationPreview(guest.email, invitationId)).ok).toBe(true);
   });
 });

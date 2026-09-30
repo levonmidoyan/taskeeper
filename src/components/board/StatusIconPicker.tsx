@@ -5,6 +5,7 @@ import { useOptimistic, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { derivedIcon, STATUS_ICONS, StatusIcon } from '@/components/task/StatusIcon';
 import * as Popover from '@/components/ui/popover';
+import { settle } from '@/lib/settle';
 import { STATUS_ICON_KEYS, type StatusIconKey } from '@/lib/status-icons';
 import type { StatusRow } from '@/server/projects/queries';
 import { updateStatusAction } from '@/server/statuses/actions';
@@ -36,7 +37,7 @@ export function StatusIconPicker({
     if (icon === shown) return;
     startTransition(async () => {
       setShown(icon);
-      const result = await updateStatusAction(workspaceSlug, { statusId: status.id, icon });
+      const result = await settle(updateStatusAction(workspaceSlug, { statusId: status.id, icon }));
       if (!result.ok) toast.error(result.error ?? 'Something went wrong. Please try again.');
       router.refresh();
     });

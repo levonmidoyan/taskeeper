@@ -8,6 +8,7 @@ import * as Button from '@/components/ui/button';
 import * as Hint from '@/components/ui/hint';
 import * as Label from '@/components/ui/label';
 import * as Select from '@/components/ui/select';
+import { settle } from '@/lib/settle';
 import { updateWorkspaceSettingsAction } from '@/server/settings/actions';
 
 // A short curated list. Intl.supportedValuesOf('timeZone') has ~400 entries,
@@ -32,7 +33,7 @@ export function TimezoneForm({
 
   async function onSave() {
     setPending(true);
-    const result = await updateWorkspaceSettingsAction(workspaceSlug, { timezone });
+    const result = await settle(updateWorkspaceSettingsAction(workspaceSlug, { timezone }));
     setPending(false);
 
     if (!result.ok) {

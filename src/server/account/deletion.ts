@@ -1,6 +1,7 @@
 import { APIError } from 'better-auth/api';
 import { count, eq, inArray } from 'drizzle-orm';
 import { db, member, organization, task } from '@/db';
+import { purgeWorkspaceObjects } from '@/server/attachments/cleanup';
 
 type Tx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -59,17 +60,20 @@ export async function assertAccountDeletable(userId: string): Promise<void> {
  * ON DELETE SET NULL author columns.
  */
 export async function prepareAccountDeletion(userId: string): Promise<void> {
-  await db.transaction(async (tx) => {
+  const deleted = await db.transaction(async (tx) => {
     const rows = await memberships(tx, userId);
     const stuck = rows.filter((r) => r.lastOwner && !r.solo).map((r) => r.name);
     if (stuck.length > 0) throw blocked(stuck);
 
     const solo = rows.filter((r) => r.solo).map((r) => r.id);
-    if (solo.length === 0) return;
+    if (solo.length === 0) return [];
 
     // Tasks first: task.status_id is RESTRICT, so cascading from the workspace
     // would leave the task / task_status delete order undefined (spec §3.2).
     await tx.delete(task).where(inArray(task.workspaceId, solo));
     await tx.delete(organization).where(inArray(organization.id, solo));
+    return solo;
   });
+  // After commit, so a rolled-back deletion keeps its files.
+  await purgeWorkspaceObjects(deleted);
 }

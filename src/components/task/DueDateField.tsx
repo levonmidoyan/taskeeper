@@ -10,10 +10,10 @@ import { selectVariants } from '@/components/ui/select';
 import { dateToDay, dayToDate, formatDueDate, isOverdue, todayInZone } from '@/lib/dates';
 import { cn } from '@/utils/cn';
 
-/** Due date as a popover calendar; `onChange` gets a bare YYYY-MM-DD or null. */
+/** Due date as a popover calendar; controlled. `onChange` gets a bare YYYY-MM-DD or null. */
 export function DueDateField({
   id,
-  value: initial,
+  value,
   timezone,
   onChange,
 }: {
@@ -23,13 +23,11 @@ export function DueDateField({
   onChange: (dueDate: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [value, setValue] = useState(initial);
   const { triggerRoot, triggerIcon, triggerArrow } = selectVariants({ size: 'medium' });
 
   function pick(next: string | null) {
     setOpen(false);
     if (next === value) return;
-    setValue(next);
     onChange(next);
   }
 

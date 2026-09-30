@@ -16,7 +16,8 @@ import { LabelPicker } from '@/components/task/LabelPicker';
 import { PRIORITY_LABEL, PriorityIcon } from '@/components/task/Priority';
 import { RichTextField } from '@/components/task/RichTextField';
 import { StatusIcon } from '@/components/task/StatusIcon';
-import { homeCrumb, PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
+import { homeCrumb } from '@/components/shell/crumbs';
+import { PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
 import { SubtaskSection } from '@/components/task/SubtaskSection';
 import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
@@ -25,6 +26,7 @@ import * as Modal from '@/components/ui/modal';
 import * as Select from '@/components/ui/select';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatInZone } from '@/lib/dates';
+import { settle } from '@/lib/settle';
 import type { FeedEntry } from '@/server/activity/queries';
 import type { AttachmentView } from '@/server/attachments/queries';
 import type { MemberRow } from '@/server/labels/queries';
@@ -83,7 +85,12 @@ export function TaskDetailView({
   const [, startTransition] = useTransition();
   const confirm = useConfirm();
   const [title, setTitle] = useState(task.title);
+  // Field values are held here so a save the server rejects can put the old
+  // value back; router.refresh() alone would not, as the server's is unchanged.
   const [assigneeId, setAssigneeId] = useState(task.assigneeId);
+  const [statusId, setStatusId] = useState(task.statusId);
+  const [priority, setPriority] = useState<Priority>(task.priority);
+  const [dueDate, setDueDate] = useState(task.dueDate);
 
   const tasksBase = `/${workspaceSlug}/tasks`;
   const projectHref = `/${workspaceSlug}/projects/${projectId}`;
@@ -109,10 +116,13 @@ export function TaskDetailView({
     );
   }
 
-  function patch(input: Parameters<typeof updateTaskAction>[1]) {
+  function patch(input: Parameters<typeof updateTaskAction>[1], revert?: () => void) {
     startTransition(async () => {
-      const result = await updateTaskAction(workspaceSlug, input);
-      if (!result.ok) toast.error(result.error);
+      const result = await settle(updateTaskAction(workspaceSlug, input));
+      if (!result.ok) {
+        toast.error(result.error);
+        revert?.();
+      }
       router.refresh();
     });
   }
@@ -124,7 +134,7 @@ export function TaskDetailView({
     });
     if (!ok) return;
     startTransition(async () => {
-      const result = await deleteTaskAction(workspaceSlug, { taskId: task.id });
+      const result = await settle(deleteTaskAction(workspaceSlug, { taskId: task.id }));
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -221,8 +231,12 @@ export function TaskDetailView({
         <aside className="flex flex-col gap-4 border-b border-stroke-soft-200 p-5 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:overflow-y-auto lg:border-b-0 lg:border-l">
           <Field id="task-status" label="Status">
             <Select.Root
-              defaultValue={task.statusId}
-              onValueChange={(statusId) => patch({ taskId: task.id, statusId })}
+              value={statusId}
+              onValueChange={(next) => {
+                const previous = statusId;
+                setStatusId(next);
+                patch({ taskId: task.id, statusId: next }, () => setStatusId(previous));
+              }}
             >
               <Select.Trigger id="task-status"><Select.Value /></Select.Trigger>
               <Select.Content>
@@ -238,8 +252,13 @@ export function TaskDetailView({
 
           <Field id="task-priority" label="Priority">
             <Select.Root
-              defaultValue={task.priority}
-              onValueChange={(priority) => patch({ taskId: task.id, priority: priority as Priority })}
+              value={priority}
+              onValueChange={(value) => {
+                const previous = priority;
+                const next = value as Priority;
+                setPriority(next);
+                patch({ taskId: task.id, priority: next }, () => setPriority(previous));
+              }}
             >
               <Select.Trigger id="task-priority"><Select.Value /></Select.Trigger>
               <Select.Content>
@@ -259,19 +278,24 @@ export function TaskDetailView({
               members={members}
               value={assigneeId}
               onChange={(next) => {
+                const previous = assigneeId;
                 setAssigneeId(next);
-                patch({ taskId: task.id, assigneeId: next });
+                patch({ taskId: task.id, assigneeId: next }, () => setAssigneeId(previous));
               }}
             />
           </Field>
 
           <DueDateField
             id="task-due"
-            value={task.dueDate}
+            value={dueDate}
             timezone={timezone}
             // A bare YYYY-MM-DD string, never a Date: the value is a calendar
             // day in the workspace zone (v1 spec §3.4).
-            onChange={(dueDate) => patch({ taskId: task.id, dueDate })}
+            onChange={(next) => {
+              const previous = dueDate;
+              setDueDate(next);
+              patch({ taskId: task.id, dueDate: next }, () => setDueDate(previous));
+            }}
           />
 
           <div className="flex flex-col gap-1">

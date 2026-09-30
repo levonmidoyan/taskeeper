@@ -1,11 +1,13 @@
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, label, member, project, task, taskLabel, taskStatus, user } from '@/db';
+import { isCalendarDay } from '@/lib/dates';
 import { newId } from '@/lib/ids';
 import { byId, byKey, positionBetween, positionsForCount } from '@/lib/position';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
 import { recordActivity, type ActivityKind } from '@/server/activity/service';
+import { attachmentKeysForTasks, purgeObjects } from '@/server/attachments/cleanup';
 import { lastTaskPosition, lockColumns, nextTaskPosition } from '@/server/tasks/columns';
 
 const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const;
@@ -13,12 +15,15 @@ const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const;
 const STALE_MOVE = 'The board changed while you were dragging. Try again.';
 const COLUMN_GONE = 'That column no longer exists.';
 
-/** Confirms a project belongs to this workspace. Every task write starts here. */
+/**
+ * Confirms a project belongs to this workspace and is not archived. Every task
+ * write starts here; an archived board is read-only even from a stale tab.
+ */
 async function assertProject(ctx: WorkspaceContext, projectId: string) {
   const [row] = await db
     .select({ id: project.id })
     .from(project)
-    .where(and(eq(project.id, projectId), eq(project.workspaceId, ctx.workspaceId)))
+    .where(and(eq(project.id, projectId), eq(project.workspaceId, ctx.workspaceId), isNull(project.archivedAt)))
     .limit(1);
   return row ?? null;
 }
@@ -50,6 +55,8 @@ async function loadOwnedTask(ctx: WorkspaceContext, taskId: string) {
     })
     .from(task)
     .innerJoin(taskStatus, eq(taskStatus.id, task.statusId))
+    // Tasks of an archived project are as read-only as its board.
+    .innerJoin(project, and(eq(project.id, task.projectId), isNull(project.archivedAt)))
     .where(and(eq(task.id, taskId), eq(task.workspaceId, ctx.workspaceId)))
     .limit(1);
   return row ?? null;
@@ -72,7 +79,7 @@ async function memberName(ctx: WorkspaceContext, userId: string | null): Promise
   return row?.name ?? null;
 }
 
-const dueDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a YYYY-MM-DD date.');
+const dueDateSchema = z.string().refine(isCalendarDay, 'Use a real YYYY-MM-DD date.');
 
 const createSchema = z.object({
   projectId: z.string().min(1),
@@ -194,71 +201,92 @@ export const updateSchema = z.object({
 
 export type UpdateTaskInput = z.input<typeof updateSchema>;
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+type UpdatePlan = {
+  taskId: string;
+  owned: NonNullable<Awaited<ReturnType<typeof loadOwnedTask>>>;
+  patch: Record<string, unknown>;
+  entries: { kind: ActivityKind; from?: string | null; to?: string | null }[];
+};
+
+/** Everything updateTask checks before writing. Reads only, so a failure changes nothing. */
+async function planUpdate(ctx: WorkspaceContext, input: UpdateTaskInput): Promise<Result<UpdatePlan>> {
+  const parsed = updateSchema.safeParse(input);
+  if (!parsed.success) return err(parsed.error.issues[0].message);
+
+  const owned = await loadOwnedTask(ctx, parsed.data.taskId);
+  if (!owned) return err('Task not found.');
+
+  const patch: Record<string, unknown> = { updatedAt: new Date() };
+  if (parsed.data.title !== undefined) patch.title = parsed.data.title;
+  if (parsed.data.description !== undefined) patch.description = parsed.data.description;
+  if (parsed.data.priority !== undefined) patch.priority = parsed.data.priority;
+  if (parsed.data.assigneeId !== undefined) patch.assigneeId = parsed.data.assigneeId;
+  if (parsed.data.dueDate !== undefined) patch.dueDate = parsed.data.dueDate;
+
+  let newStatusName: string | null = null;
+  if (parsed.data.statusId !== undefined) {
+    const status = await assertStatus(ctx, parsed.data.statusId, owned.projectId);
+    if (!status) return err('That column does not belong to this project.');
+    patch.statusId = parsed.data.statusId;
+    newStatusName = status.name;
+    // completed_at follows the column's is_done flag in both directions.
+    patch.completedAt = status.isDone ? (owned.completedAt ?? new Date()) : null;
+  }
+
+  const entries: UpdatePlan['entries'] = [];
+
+  if (patch.title !== undefined && patch.title !== owned.title) {
+    entries.push({ kind: 'title', from: owned.title, to: patch.title as string });
+  }
+  if (patch.priority !== undefined && patch.priority !== owned.priority) {
+    entries.push({ kind: 'priority', from: owned.priority, to: patch.priority as string });
+  }
+  if (patch.dueDate !== undefined && patch.dueDate !== owned.dueDate) {
+    entries.push({ kind: 'due_date', from: owned.dueDate, to: patch.dueDate as string | null });
+  }
+  if (patch.assigneeId !== undefined && patch.assigneeId !== owned.assigneeId) {
+    // Only a change is checked, so a stale assignee (since removed from the
+    // workspace) does not block edits to other fields.
+    const to = await memberName(ctx, patch.assigneeId as string | null);
+    if (patch.assigneeId !== null && !to) return err('That person is not in this workspace.');
+    entries.push({ kind: 'assignee', from: await memberName(ctx, owned.assigneeId), to });
+  }
+  if (patch.statusId !== undefined && patch.statusId !== owned.statusId) {
+    entries.push({ kind: 'status', from: owned.statusName, to: newStatusName });
+  }
+
+  return ok({ taskId: parsed.data.taskId, owned, patch, entries });
+}
+
+/** The writes of one planned update, inside the caller's transaction. */
+async function applyUpdate(ctx: WorkspaceContext, tx: Tx, plan: UpdatePlan): Promise<Result<null>> {
+  const { owned, entries } = plan;
+  const patch = { ...plan.patch };
+  // A task changing column goes to its end. Keeping its old key could tie
+  // with a task already there, since each column numbers its own keys.
+  if (patch.statusId !== undefined && patch.statusId !== owned.statusId) {
+    if (!(await lockColumns(tx, [patch.statusId as string]))) return err(COLUMN_GONE);
+    const last = await lastTaskPosition(tx, owned.projectId, patch.statusId as string);
+    patch.position = positionBetween(last, null);
+  }
+
+  await tx.update(task).set(patch).where(eq(task.id, plan.taskId));
+  for (const entry of entries) {
+    await recordActivity(ctx, { taskId: plan.taskId, ...entry }, tx);
+  }
+  return ok(null);
+}
+
 export async function updateTask(
   ctx: WorkspaceContext,
   input: UpdateTaskInput,
 ): Promise<Result<null>> {
   return withAction(async () => {
-    const parsed = updateSchema.safeParse(input);
-    if (!parsed.success) return err(parsed.error.issues[0].message);
-
-    const owned = await loadOwnedTask(ctx, parsed.data.taskId);
-    if (!owned) return err('Task not found.');
-
-    const patch: Record<string, unknown> = { updatedAt: new Date() };
-    if (parsed.data.title !== undefined) patch.title = parsed.data.title;
-    if (parsed.data.description !== undefined) patch.description = parsed.data.description;
-    if (parsed.data.priority !== undefined) patch.priority = parsed.data.priority;
-    if (parsed.data.assigneeId !== undefined) patch.assigneeId = parsed.data.assigneeId;
-    if (parsed.data.dueDate !== undefined) patch.dueDate = parsed.data.dueDate;
-
-    let newStatusName: string | null = null;
-    if (parsed.data.statusId !== undefined) {
-      const status = await assertStatus(ctx, parsed.data.statusId, owned.projectId);
-      if (!status) return err('That column does not belong to this project.');
-      patch.statusId = parsed.data.statusId;
-      newStatusName = status.name;
-      // completed_at follows the column's is_done flag in both directions.
-      patch.completedAt = status.isDone ? (owned.completedAt ?? new Date()) : null;
-    }
-
-    const entries: { kind: ActivityKind; from?: string | null; to?: string | null }[] = [];
-
-    if (patch.title !== undefined && patch.title !== owned.title) {
-      entries.push({ kind: 'title', from: owned.title, to: patch.title as string });
-    }
-    if (patch.priority !== undefined && patch.priority !== owned.priority) {
-      entries.push({ kind: 'priority', from: owned.priority, to: patch.priority as string });
-    }
-    if (patch.dueDate !== undefined && patch.dueDate !== owned.dueDate) {
-      entries.push({ kind: 'due_date', from: owned.dueDate, to: patch.dueDate as string | null });
-    }
-    if (patch.assigneeId !== undefined && patch.assigneeId !== owned.assigneeId) {
-      // Only a change is checked, so a stale assignee (since removed from the
-      // workspace) does not block edits to other fields.
-      const to = await memberName(ctx, patch.assigneeId as string | null);
-      if (patch.assigneeId !== null && !to) return err('That person is not in this workspace.');
-      entries.push({ kind: 'assignee', from: await memberName(ctx, owned.assigneeId), to });
-    }
-    if (patch.statusId !== undefined && patch.statusId !== owned.statusId) {
-      entries.push({ kind: 'status', from: owned.statusName, to: newStatusName });
-    }
-
-    return db.transaction(async (tx) => {
-      // A task changing column goes to its end. Keeping its old key could tie
-      // with a task already there, since each column numbers its own keys.
-      if (patch.statusId !== undefined && patch.statusId !== owned.statusId) {
-        if (!(await lockColumns(tx, [patch.statusId as string]))) return err(COLUMN_GONE);
-        const last = await lastTaskPosition(tx, owned.projectId, patch.statusId as string);
-        patch.position = positionBetween(last, null);
-      }
-
-      await tx.update(task).set(patch).where(eq(task.id, parsed.data.taskId));
-      for (const entry of entries) {
-        await recordActivity(ctx, { taskId: parsed.data.taskId, ...entry }, tx);
-      }
-      return ok(null);
-    });
+    const plan = await planUpdate(ctx, input);
+    if (!plan.ok) return plan;
+    return db.transaction((tx) => applyUpdate(ctx, tx, plan.data));
   });
 }
 
@@ -390,7 +418,13 @@ export async function deleteTask(
     if (!owned) return err('Task not found.');
 
     // Subtasks cascade on parent_task_id, so one delete is enough.
-    await db.delete(task).where(eq(task.id, input.taskId));
+    const keys = await db.transaction(async (tx) => {
+      const found = await attachmentKeysForTasks(tx, ctx.workspaceId, [input.taskId]);
+      await tx.delete(task).where(eq(task.id, input.taskId));
+      return found;
+    });
+    // After commit: a rolled-back delete must not have lost the files.
+    await purgeObjects(keys);
 
     return ok(null);
   });
@@ -408,11 +442,18 @@ const bulkUpdateSchema = z.object({
 
 export type BulkUpdateTasksInput = z.input<typeof bulkUpdateSchema>;
 
+/** Carries a failed Result out of a transaction so the transaction rolls back. */
+class RolledBack extends Error {
+  constructor(readonly result: Result<never>) {
+    super(result.ok ? 'rolled back' : result.error);
+  }
+}
+
 /**
- * The list view's bulk bar. Runs each task through updateTask so every row gets
- * the same validation, completed_at handling and activity entries as a single
- * edit. Ownership is checked for the whole set up front, so a foreign id fails
- * the call before any task is touched.
+ * The list view's bulk bar. Each task gets the same validation, completed_at
+ * handling and activity entries as a single edit, and the set is all or
+ * nothing: every task is checked before anything is written, and the writes
+ * share one transaction, so a failure part-way leaves every task unchanged.
  */
 export async function bulkUpdateTasks(
   ctx: WorkspaceContext,
@@ -429,9 +470,23 @@ export async function bulkUpdateTasks(
       .where(and(inArray(task.id, ids), eq(task.workspaceId, ctx.workspaceId)));
     if (owned.length !== ids.length) return err('Some of those tasks were not found.');
 
+    const plans: UpdatePlan[] = [];
     for (const taskId of ids) {
-      const result = await updateTask(ctx, { taskId, ...parsed.data.patch });
-      if (!result.ok) return result;
+      const plan = await planUpdate(ctx, { taskId, ...parsed.data.patch });
+      if (!plan.ok) return plan;
+      plans.push(plan.data);
+    }
+
+    try {
+      await db.transaction(async (tx) => {
+        for (const plan of plans) {
+          const result = await applyUpdate(ctx, tx, plan);
+          if (!result.ok) throw new RolledBack(result);
+        }
+      });
+    } catch (error) {
+      if (error instanceof RolledBack) return error.result;
+      throw error;
     }
 
     return ok({ updated: ids.length });
@@ -447,11 +502,16 @@ export async function bulkDeleteTasks(
     if (!parsed.success) return err(parsed.error.issues[0].message);
 
     // Scoped by workspace in the WHERE, so a foreign id simply matches nothing.
-    const deleted = await db
-      .delete(task)
-      .where(and(inArray(task.id, parsed.data), eq(task.workspaceId, ctx.workspaceId)))
-      .returning({ id: task.id });
+    const { deleted, keys } = await db.transaction(async (tx) => {
+      const found = await attachmentKeysForTasks(tx, ctx.workspaceId, parsed.data);
+      const rows = await tx
+        .delete(task)
+        .where(and(inArray(task.id, parsed.data), eq(task.workspaceId, ctx.workspaceId)))
+        .returning({ id: task.id });
+      return { deleted: rows.length, keys: found };
+    });
+    await purgeObjects(keys);
 
-    return ok({ deleted: deleted.length });
+    return ok({ deleted });
   });
 }

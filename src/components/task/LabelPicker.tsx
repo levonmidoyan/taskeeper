@@ -2,11 +2,12 @@
 
 import { IconPlus, IconTag, IconTrash } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
-import { useId, useRef, useState, useTransition } from 'react';
+import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { LabelChip } from '@/components/task/LabelChip';
 import * as Input from '@/components/ui/input';
 import * as Popover from '@/components/ui/popover';
+import { settle } from '@/lib/settle';
 import { createLabelAction, deleteLabelAction, setTaskLabelsAction } from '@/server/labels/actions';
 import type { LabelRow } from '@/server/tasks/queries';
 import { cn } from '@/utils/cn';
@@ -25,10 +26,21 @@ export function LabelPicker({
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
+  // The server's list only catches up after router.refresh(), so a second pick
+  // before then would be built from the old list and drop the first. Picks go
+  // to this local copy, which follows the server whenever the server changes.
+  const serverIds = selected.map((l) => l.id);
+  const [ids, setIds] = useState(serverIds);
+  const [synced, setSynced] = useState(serverIds.join());
+  if (synced !== serverIds.join()) {
+    setSynced(serverIds.join());
+    setIds(serverIds);
+  }
 
   function apply(labelIds: string[]) {
+    setIds(labelIds);
     startTransition(async () => {
-      const result = await setTaskLabelsAction(workspaceSlug, { taskId, labelIds });
+      const result = await settle(setTaskLabelsAction(workspaceSlug, { taskId, labelIds }));
       if (!result.ok) toast.error(result.error);
       router.refresh();
     });
@@ -38,7 +50,7 @@ export function LabelPicker({
     <LabelSelect
       workspaceSlug={workspaceSlug}
       allLabels={allLabels}
-      value={selected.map((l) => l.id)}
+      value={ids}
       onChange={apply}
       onLabelDeleted={() => router.refresh()}
     />
@@ -78,6 +90,12 @@ export function LabelSelect({
   // Labels made from this field, shown until the caller's list catches up.
   const [created, setCreated] = useState<LabelRow[]>([]);
   const [deleted, setDeleted] = useState<string[]>([]);
+  // attach/remove also run after an await (creating or deleting a label), by
+  // which time `value` in this render's closure may be out of date.
+  const latest = useRef(value);
+  useEffect(() => {
+    latest.current = value;
+  }, [value]);
   const labels = [...allLabels, ...created.filter((c) => !allLabels.some((l) => l.id === c.id))]
     .filter((l) => !deleted.includes(l.id));
   const selectedIds = new Set(value);
@@ -89,13 +107,15 @@ export function LabelSelect({
   function attach(labelId: string) {
     // A Set: typing the name of a label already selected returns that same
     // id, and sending it twice is not a selection change.
-    onChange([...new Set([...selectedIds, labelId])]);
+    latest.current = [...new Set([...latest.current, labelId])];
+    onChange(latest.current);
     setDraft('');
     setActive(-1);
   }
 
   function remove(labelId: string) {
-    onChange([...selectedIds].filter((id) => id !== labelId));
+    latest.current = latest.current.filter((id) => id !== labelId);
+    onChange(latest.current);
   }
 
   function add() {
@@ -108,7 +128,7 @@ export function LabelSelect({
     startTransition(async () => {
       // Creating an existing name returns that label, so typing a duplicate
       // simply attaches it.
-      const result = await createLabelAction(workspaceSlug, { name });
+      const result = await settle(createLabelAction(workspaceSlug, { name }));
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -120,13 +140,13 @@ export function LabelSelect({
 
   function onDelete(labelId: string) {
     startTransition(async () => {
-      const result = await deleteLabelAction(workspaceSlug, { labelId });
+      const result = await settle(deleteLabelAction(workspaceSlug, { labelId }));
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
       setDeleted((prev) => [...prev, labelId]);
-      if (selectedIds.has(labelId)) remove(labelId);
+      if (latest.current.includes(labelId)) remove(labelId);
       onLabelDeleted?.(labelId);
     });
   }

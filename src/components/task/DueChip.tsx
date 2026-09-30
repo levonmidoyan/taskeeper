@@ -1,3 +1,7 @@
+'use client';
+
+// Client: Badge.Icon takes the icon component via `as`, which can't cross the RSC boundary.
+
 import { IconCalendarDue } from '@tabler/icons-react';
 import * as Badge from '@/components/ui/badge';
 import { formatDueDate, isOverdue } from '@/lib/dates';

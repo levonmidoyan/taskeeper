@@ -1,15 +1,40 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { withAction, type Result } from '@/lib/result';
+import { headers } from 'next/headers';
+import { auth } from '@/lib/auth';
+import { err, withAction, type Result } from '@/lib/result';
 import { requireWorkspace } from '@/lib/session';
-import { changeMemberRole, inviteMember, removeMember } from './service';
+import {
+  acceptInvitation, changeMemberRole, declineInvitation, inviteMember, removeMember,
+} from './service';
 
 /**
- * Slug-taking wrappers only (Amendment A). acceptInvitation is deliberately not
- * exported here: it takes the redeeming user's id, which a caller must never
- * supply. Cache invalidation lives here because revalidatePath needs a request.
+ * Slug-taking wrappers (Amendment A), plus the two invitation answers, which
+ * take only the invitation id: the redeeming user's id and email come from the
+ * session, never from the caller. Cache invalidation lives here because
+ * revalidatePath needs a request.
  */
+
+const SIGNED_OUT = 'Sign in to answer this invitation.';
+
+export async function acceptInvitationAction(invitationId: string): Promise<Result<{ slug: string }>> {
+  return withAction(async () => {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) return err(SIGNED_OUT);
+    const result = await acceptInvitation(session.user.id, session.user.email, String(invitationId));
+    if (result.ok) revalidatePath('/', 'layout');
+    return result;
+  });
+}
+
+export async function declineInvitationAction(invitationId: string): Promise<Result<null>> {
+  return withAction(async () => {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) return err(SIGNED_OUT);
+    return declineInvitation(session.user.email, String(invitationId));
+  });
+}
 
 export async function inviteMemberAction(
   workspaceSlug: string,

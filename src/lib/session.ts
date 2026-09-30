@@ -4,6 +4,8 @@ import { notFound, redirect } from 'next/navigation';
 import { db, member, organization, workspaceSettings } from '@/db';
 import { auth } from '@/lib/auth';
 import { DEFAULT_TIMEZONE } from '@/lib/dates';
+import { safeNextPath } from '@/lib/next-path';
+import { REQUEST_PATH_HEADER } from '@/lib/request-path';
 import { ForbiddenError } from '@/lib/result';
 
 export type WorkspaceRole = 'owner' | 'admin' | 'member';
@@ -52,10 +54,16 @@ export async function resolveWorkspace(
   };
 }
 
+/** Sends a signed-out visitor to sign in, and back to the page they asked for after. */
+export async function signInRedirect(): Promise<never> {
+  const path = safeNextPath((await headers()).get(REQUEST_PATH_HEADER), '');
+  redirect(path && path !== '/' ? `/auth/sign-in?redirectTo=${encodeURIComponent(path)}` : '/auth/sign-in');
+}
+
 /** Server-component and action entry point. Redirects or 404s rather than returning null. */
 export async function requireWorkspace(slug: string): Promise<WorkspaceContext> {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect('/auth/sign-in');
+  if (!session) return signInRedirect();
 
   const ctx = await resolveWorkspace(session.user.id, slug);
   // 404, not 403: a non-member must not be able to learn which slugs exist.

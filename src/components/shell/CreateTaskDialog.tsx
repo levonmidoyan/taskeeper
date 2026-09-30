@@ -18,6 +18,7 @@ import * as Modal from '@/components/ui/modal';
 import * as Select from '@/components/ui/select';
 import * as Switch from '@/components/ui/switch';
 import { ignoreShortcut } from '@/components/shell/shortcuts';
+import { settle } from '@/lib/settle';
 import type { ProjectSummary } from '@/server/projects/queries';
 import {
   createTaskAction, getCreateTaskOptionsAction, type CreateTaskOptions,
@@ -142,7 +143,7 @@ function CreateTaskForm({
   // falls back to the new project's first column.
   useEffect(() => {
     let stale = false;
-    getCreateTaskOptionsAction(workspaceSlug, projectId).then((result) => {
+    settle(getCreateTaskOptionsAction(workspaceSlug, projectId)).then((result) => {
       if (stale) return;
       if (!result.ok) {
         setError(result.error);
@@ -165,9 +166,9 @@ function CreateTaskForm({
     setPending(true);
     setError(null);
 
-    const result = await createTaskAction(workspaceSlug, {
+    const result = await settle(createTaskAction(workspaceSlug, {
       projectId, title, statusId, description, priority, assigneeId, dueDate, labelIds,
-    });
+    }));
 
     setPending(false);
     if (!result.ok) {
