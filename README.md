@@ -81,18 +81,28 @@ storage integration filled in the unpooled value, replace it.
 
 Locally, `yarn db:up` also starts MinIO; run `yarn storage:init` once to create the buckets.
 
-### 3. Run migrations
+### 3. Create tables and seed
 
-Migrations are not part of the build, so they run from a workstation. Copy the production values
-into `.env.production.local` (git-ignored) and run:
+v1 has no migrations: `yarn db:setup` creates every table straight from `src/db/schema`, then
+applies the triggers in `src/db/sql` (which `drizzle-kit push` does not manage), and
+`yarn db:seed` adds the super admin from `SEED_ADMIN_NAME` / `SEED_ADMIN_EMAIL` /
+`SEED_ADMIN_PASSWORD`. Neither is part of the build, so they run from a workstation. Copy the
+production values into `.env.production.local` (git-ignored) and run:
 
 ```bash
-yarn db:migrate:prod
+yarn db:setup:prod
+SEED_ENV_FILE=.env.production.local yarn db:seed
 ```
 
-Set `DATABASE_URL_DIRECT` in that file to the *direct* (unpooled) endpoint. Migrations issue DDL,
-which PgBouncer's transaction pooling cannot carry; `drizzle.config.ts` prefers it over
-`DATABASE_URL` whenever it is set.
+The seed prints the admin's id as `AUTH_ADMIN_USER_IDS=<id>`; set that variable in Vercel.
+
+Set `DATABASE_URL_DIRECT` in that file to the *direct* (unpooled) endpoint. Creating tables issues
+DDL, which PgBouncer's transaction pooling cannot carry; `drizzle.config.ts` prefers it over
+`DATABASE_URL` whenever it is set. The seed is safe to rerun: an existing account with that
+email is promoted to admin rather than duplicated.
+
+Locally: `yarn db:up`, then `yarn db:init` (tables + seed) and `yarn db:setup:test`. Copy the
+printed `AUTH_ADMIN_USER_IDS` line into `.env.local`.
 
 ### 4. Redeploy
 

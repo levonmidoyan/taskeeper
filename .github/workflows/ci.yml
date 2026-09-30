@@ -65,8 +65,9 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Apply migrations
-        run: yarn db:migrate
+      # No migrations in v1: tables are created straight from the schema.
+      - name: Create tables
+        run: yarn db:setup
 
       - name: Create storage buckets
         run: yarn storage:init
