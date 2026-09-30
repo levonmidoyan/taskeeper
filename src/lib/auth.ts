@@ -109,8 +109,10 @@ export const auth = betterAuth({
   // credential stuffing against sign-in. The end-to-end suite signs up several
   // accounts in a row from one address and trips it, so the test runner opts
   // out explicitly rather than the app guessing from NODE_ENV: the e2e run is a
-  // production build, so NODE_ENV cannot tell the two apart.
-  rateLimit: { enabled: process.env.AUTH_RATE_LIMIT !== 'off' },
+  // production build, so NODE_ENV cannot tell the two apart. Counts go in the
+  // rate_limit table: serverless instances do not share memory, so the default
+  // in-memory store would give each instance its own count.
+  rateLimit: { enabled: process.env.AUTH_RATE_LIMIT !== 'off', storage: 'database' },
   plugins: [
     // Kept for its schema (organization, member, invitation, session's active
     // organization) only. Workspaces, members and invitations are managed by the
