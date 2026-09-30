@@ -18,7 +18,9 @@ export async function WorkspaceShell({
     listMyWorkspaces(ctx.userId),
   ]);
 
-  const railProps = { workspaceSlug: ctx.slug, workspaces, projects };
+  // Mirrors the role check in the project services; the server still enforces it.
+  const canManageProjects = ctx.role === 'owner' || ctx.role === 'admin';
+  const railProps = { workspaceSlug: ctx.slug, workspaces, projects, canManageProjects };
 
   return (
     <div className="flex min-h-dvh bg-bg-white-0">

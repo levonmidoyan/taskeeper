@@ -5,6 +5,7 @@ import { requireWorkspace } from '@/lib/session';
 import { withAction, type Result } from '@/lib/result';
 import {
   archiveProject, createProject, deleteProject, renameProject, setProjectColor, setProjectStar,
+  unarchiveProject,
 } from './service';
 
 /**
@@ -55,6 +56,17 @@ export async function archiveProjectAction(
 ): Promise<Result<null>> {
   return withAction(async () => {
     const result = await archiveProject(await requireWorkspace(workspaceSlug), input);
+    if (result.ok) revalidatePath(`/${workspaceSlug}`, 'layout');
+    return result;
+  });
+}
+
+export async function unarchiveProjectAction(
+  workspaceSlug: string,
+  input: { projectId: string },
+): Promise<Result<null>> {
+  return withAction(async () => {
+    const result = await unarchiveProject(await requireWorkspace(workspaceSlug), input);
     if (result.ok) revalidatePath(`/${workspaceSlug}`, 'layout');
     return result;
   });

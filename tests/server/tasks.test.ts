@@ -549,6 +549,25 @@ describe('bulkUpdateTasks', () => {
     expect(tasks.every((t) => t.completedAt !== null)).toBe(true);
   });
 
+  it('changes nothing when one task in the set cannot be updated', async () => {
+    const { ctx, projectId } = await setup('bulk-atomic@example.com', 'bulk-atomic');
+    const live = await createTask(ctx, { projectId, title: 'Live' });
+    const other = await createProject(ctx, { name: 'Shelved' });
+    if (!live.ok || !other.ok) throw new Error('setup failed');
+    const shelved = await createTask(ctx, { projectId: other.data.id, title: 'Shelved' });
+    if (!shelved.ok) throw new Error('setup failed');
+    await archiveProject(ctx, { projectId: other.data.id });
+
+    const result = await bulkUpdateTasks(ctx, {
+      taskIds: [live.data.id, shelved.data.id],
+      patch: { priority: 'urgent' },
+    });
+
+    expect(result.ok).toBe(false);
+    const [row] = await db.select().from(task).where(eq(task.id, live.data.id));
+    expect(row.priority).toBe('none');
+  });
+
   it('rejects an empty patch', async () => {
     const { ctx, projectId } = await setup('bulk2@example.com', 'bulk2');
     const a = await createTask(ctx, { projectId, title: 'A' });

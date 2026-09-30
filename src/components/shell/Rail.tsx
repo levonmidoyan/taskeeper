@@ -21,6 +21,8 @@ type Props = {
   workspaceSlug: string;
   workspaces: WorkspaceSummary[];
   projects: ProjectSummary[];
+  /** Owners and admins may recolor projects; members see the color only. */
+  canManageProjects: boolean;
 };
 
 const navItem =
@@ -33,16 +35,24 @@ function ProjectLink({
   workspaceSlug,
   project,
   active,
+  canManage,
 }: {
   workspaceSlug: string;
   project: ProjectSummary;
   active: boolean;
+  canManage: boolean;
 }) {
   // The dot is its own button beside the link, not inside it: a button nested
   // in an anchor is invalid and would navigate on every color change.
   return (
     <div className={cn(navItem, 'group relative h-9 pl-1', active ? navActive : navIdle)}>
-      <ProjectColorButton workspaceSlug={workspaceSlug} project={project} active={active} className="relative z-10" />
+      <ProjectColorButton
+        workspaceSlug={workspaceSlug}
+        project={project}
+        active={active}
+        readOnly={!canManage}
+        className="relative z-10"
+      />
       <Link
         href={`/${workspaceSlug}/projects/${project.id}`}
         aria-current={active ? 'page' : undefined}
@@ -64,7 +74,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return <span className="text-subheading-2xs uppercase text-text-soft-400">{children}</span>;
 }
 
-function RailBody({ workspaceSlug, workspaces, projects }: Props) {
+function RailBody({ workspaceSlug, workspaces, projects, canManageProjects }: Props) {
   const params = useParams<{ projectId?: string }>();
   const pathname = usePathname();
   const starred = projects.filter((p) => p.starred);
@@ -113,6 +123,7 @@ function RailBody({ workspaceSlug, workspaces, projects }: Props) {
                 workspaceSlug={workspaceSlug}
                 project={project}
                 active={params.projectId === project.id}
+                canManage={canManageProjects}
               />
             ))}
           </div>
@@ -135,6 +146,7 @@ function RailBody({ workspaceSlug, workspaces, projects }: Props) {
                 workspaceSlug={workspaceSlug}
                 project={project}
                 active={params.projectId === project.id}
+                canManage={canManageProjects}
               />
             ))
           )}

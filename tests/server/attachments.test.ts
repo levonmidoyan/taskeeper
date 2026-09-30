@@ -7,8 +7,10 @@ import { attachment, taskActivity } from '@/db';
 import { MAX_ATTACHMENT_BYTES } from '@/lib/attachments';
 import { headObject } from '@/lib/storage';
 import type { WorkspaceContext } from '@/lib/session';
-import { createProject } from '@/server/projects/service';
-import { createTask } from '@/server/tasks/service';
+import { createProject, deleteProject } from '@/server/projects/service';
+import { bulkDeleteTasks, createTask, deleteTask } from '@/server/tasks/service';
+import { prepareAccountDeletion } from '@/server/account/deletion';
+import { task } from '@/db';
 import {
   cancelUpload, confirmUpload, deleteAttachment, requestUpload,
 } from '@/server/attachments/service';
@@ -291,5 +293,56 @@ describe('listTaskAttachments', () => {
 
     expect(list.map((a) => a.id)).toEqual([second.id, first.id]);
     expect(await listTaskAttachments(other.ctx, taskId)).toEqual([]);
+  });
+});
+
+describe('files of deleted work', () => {
+  const keyOf = (ctx: WorkspaceContext, taskId: string, id: string) => `ws/${ctx.workspaceId}/tasks/${taskId}/${id}`;
+
+  it('go with a deleted task, subtasks included', async () => {
+    const { ctx, taskId } = await setup('purge-task@example.com', 'purge-task');
+    const [parent] = await db.select().from(task).where(eq(task.id, taskId));
+    const sub = await createTask(ctx, { projectId: parent.projectId, title: 'Sub', parentTaskId: taskId });
+    if (!sub.ok) throw new Error('setup failed');
+    const own = await attach(ctx, taskId);
+    const child = await attach(ctx, sub.data.id);
+
+    expect((await deleteTask(ctx, { taskId })).ok).toBe(true);
+    expect(await headObject(keyOf(ctx, taskId, own.id))).toBeNull();
+    expect(await headObject(keyOf(ctx, sub.data.id, child.id))).toBeNull();
+  });
+
+  it('go with a bulk delete', async () => {
+    const { ctx, taskId } = await setup('purge-bulk@example.com', 'purge-bulk');
+    const view = await attach(ctx, taskId);
+
+    expect((await bulkDeleteTasks(ctx, { taskIds: [taskId] })).ok).toBe(true);
+    expect(await headObject(keyOf(ctx, taskId, view.id))).toBeNull();
+  });
+
+  it('go with a deleted project', async () => {
+    const { ctx, taskId } = await setup('purge-project@example.com', 'purge-project');
+    const [row] = await db.select().from(task).where(eq(task.id, taskId));
+    const view = await attach(ctx, taskId);
+
+    expect((await deleteProject(ctx, { projectId: row.projectId })).ok).toBe(true);
+    expect(await headObject(keyOf(ctx, taskId, view.id))).toBeNull();
+  });
+
+  it('go with a solo workspace when its owner deletes their account', async () => {
+    const { ctx, taskId } = await setup('purge-account@example.com', 'purge-account');
+    const view = await attach(ctx, taskId);
+
+    await prepareAccountDeletion(ctx.userId);
+    expect(await headObject(keyOf(ctx, taskId, view.id))).toBeNull();
+  });
+
+  it('stay when another workspace deletes its task', async () => {
+    const a = await setup('purge-a@example.com', 'purge-a');
+    const b = await setup('purge-b@example.com', 'purge-b');
+    const view = await attach(b.ctx, b.taskId);
+
+    expect((await deleteTask(a.ctx, { taskId: b.taskId })).ok).toBe(false);
+    expect(await headObject(keyOf(b.ctx, b.taskId, view.id))).not.toBeNull();
   });
 });

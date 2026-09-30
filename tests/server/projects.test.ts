@@ -4,7 +4,7 @@ import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
 import { getProject, listProjects } from '@/server/projects/queries';
 import {
-  archiveProject, createProject, deleteProject, renameProject, setProjectColor,
+  archiveProject, createProject, deleteProject, renameProject, setProjectColor, unarchiveProject,
 } from '@/server/projects/service';
 import { task, taskStatus } from '@/db';
 import { ForbiddenError } from '@/lib/result';
@@ -185,6 +185,39 @@ describe('archiveProject', () => {
 
     const listedForB = await listProjects(b);
     expect(listedForB.map((p) => p.id)).toContain(created.data.id);
+  });
+});
+
+describe('project management roles', () => {
+  it('refuses rename, color, archive and unarchive for a plain member', async () => {
+    const ctx = await ctxFor('roles@example.com', 'roles-ws');
+    const created = await createProject(ctx, { name: 'Website' });
+    if (!created.ok) throw new Error('setup failed');
+    const asMember = { ...ctx, role: 'member' as const };
+    const projectId = created.data.id;
+
+    await expect(renameProject(asMember, { projectId, name: 'Mine' })).rejects.toThrow(ForbiddenError);
+    await expect(setProjectColor(asMember, { projectId, color: 'teal' })).rejects.toThrow(ForbiddenError);
+    await expect(archiveProject(asMember, { projectId })).rejects.toThrow(ForbiddenError);
+    await expect(unarchiveProject(asMember, { projectId })).rejects.toThrow(ForbiddenError);
+
+    const project = await getProject(ctx, projectId);
+    expect(project!.name).toBe('Website');
+  });
+
+  it('lets an admin archive a project and bring it back', async () => {
+    const ctx = await ctxFor('unarchive@example.com', 'unarchive-ws');
+    const created = await createProject(ctx, { name: 'Website' });
+    if (!created.ok) throw new Error('setup failed');
+    const asAdmin = { ...ctx, role: 'admin' as const };
+
+    expect((await archiveProject(asAdmin, { projectId: created.data.id })).ok).toBe(true);
+    expect(await getProject(ctx, created.data.id)).toBeNull();
+    // A second archive finds nothing to archive.
+    expect((await archiveProject(asAdmin, { projectId: created.data.id })).ok).toBe(false);
+
+    expect((await unarchiveProject(asAdmin, { projectId: created.data.id })).ok).toBe(true);
+    expect((await getProject(ctx, created.data.id))!.name).toBe('Website');
   });
 });
 

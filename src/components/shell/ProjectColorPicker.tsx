@@ -67,11 +67,14 @@ export function ProjectColorButton({
   workspaceSlug,
   project,
   active,
+  readOnly,
   className,
 }: {
   workspaceSlug: string;
   project: { id: string; name: string; color: string };
   active?: boolean;
+  /** Just the dot, for members, who cannot recolor. */
+  readOnly?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -86,6 +89,14 @@ export function ProjectColorButton({
       const result = await settle(setProjectColorAction(workspaceSlug, { projectId: project.id, color }));
       if (!result.ok) toast.error(result.error);
     });
+  }
+
+  if (readOnly) {
+    return (
+      <span aria-hidden="true" className={cn('flex size-6 shrink-0 items-center justify-center', className)}>
+        <span className={cn('size-2 rounded-[3px]', dot, active ? 'scale-125' : 'opacity-80')} />
+      </span>
+    );
   }
 
   return (
