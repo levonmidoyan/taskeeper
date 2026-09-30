@@ -162,18 +162,30 @@ describe('confirmUpload', () => {
       .toEqual({ ok: false, error: 'Upload did not finish.' });
   });
 
-  it('refuses confirming twice', async () => {
+  // A confirm whose response was lost is retried; the retry must see success,
+  // not re-upload the file, and must not record the attachment again.
+  it('answers a repeat confirm with the attachment and records it once', async () => {
     const { ctx, taskId } = await setup('b5@example.com', 'ws-b5');
     const view = await attach(ctx, taskId);
 
-    expect(await confirmUpload(ctx, { attachmentId: view.id }))
-      .toEqual({ ok: false, error: 'Upload did not finish.' });
+    const again = await confirmUpload(ctx, { attachmentId: view.id });
+
+    expect(again).toMatchObject({ ok: true, data: { id: view.id } });
     expect(await db.select().from(taskActivity).where(eq(taskActivity.kind, 'attachment_added'))).toHaveLength(1);
+  });
+
+  it('refuses a repeat confirm from someone other than the uploader', async () => {
+    const { ctx, ws, taskId } = await setup('b7@example.com', 'ws-b7');
+    const other = await addMember(ws.id, 'ws-b7', 'b7o@example.com', 'admin');
+    const view = await attach(ctx, taskId);
+
+    expect(await confirmUpload(other, { attachmentId: view.id }))
+      .toEqual({ ok: false, error: 'Upload did not finish.' });
   });
 });
 
 describe('confirmUpload concurrency', () => {
-  it('lets one of two simultaneous confirms win and records one activity', async () => {
+  it('answers both of two simultaneous confirms and records one activity', async () => {
     const { ctx, taskId } = await setup('b6@example.com', 'ws-b6');
     const req = await requestUpload(ctx, { taskId, fileName: 'x', contentType: 'text/plain', size: bytes.length });
     if (!req.ok) throw new Error();
@@ -184,8 +196,7 @@ describe('confirmUpload concurrency', () => {
       confirmUpload(ctx, { attachmentId: req.data.id }),
     ]);
 
-    expect(results.filter((r) => r.ok)).toHaveLength(1);
-    expect(results.filter((r) => !r.ok)).toEqual([{ ok: false, error: 'Upload did not finish.' }]);
+    expect(results.every((r) => r.ok)).toBe(true);
     expect(await db.select().from(taskActivity).where(eq(taskActivity.kind, 'attachment_added'))).toHaveLength(1);
   });
 });

@@ -18,6 +18,12 @@ export type UploadItem = {
   attachmentId: string | null;
   /** Bytes are up and the server is confirming; too late to cancel. */
   confirming: boolean;
+  /**
+   * The bytes are in storage under attachmentId, so a retry only confirms. A
+   * confirm whose response was lost may already have succeeded; uploading again
+   * would add the file twice.
+   */
+  uploaded: boolean;
 };
 
 export const MAX_PARALLEL = 3;
@@ -34,6 +40,7 @@ export function enqueue(items: UploadItem[], files: File[], makeId: () => string
       retryable: false,
       attachmentId: null,
       confirming: false,
+      uploaded: false,
     };
   });
   return [...items, ...added];
@@ -50,4 +57,17 @@ export function patchItem(items: UploadItem[], localId: string, patch: Partial<U
 
 export function removeItem(items: UploadItem[], localId: string): UploadItem[] {
   return items.filter((i) => i.localId !== localId);
+}
+
+/** Back in the queue; an item whose bytes are already up keeps its attachment. */
+export function retryItem(items: UploadItem[], localId: string): UploadItem[] {
+  return items.map((i) => (
+    i.localId === localId
+      ? {
+        ...i, state: 'queued', error: null, confirming: false,
+        attachmentId: i.uploaded ? i.attachmentId : null,
+        loaded: i.uploaded ? i.file.size : 0,
+      }
+      : i
+  ));
 }

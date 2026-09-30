@@ -85,13 +85,33 @@ async function loadOwnPending(ctx: WorkspaceContext, attachmentId: string) {
   return row ?? null;
 }
 
+/**
+ * A repeat confirm — the first one's response was lost, or two raced — answers
+ * with the attachment the uploader already has, so the client never uploads the
+ * file again. Nothing is written: the first confirm recorded the activity.
+ */
+async function alreadyConfirmed(ctx: WorkspaceContext, attachmentId: string): Promise<Result<AttachmentView>> {
+  const [ready] = await db
+    .select({ id: attachment.id })
+    .from(attachment)
+    .where(and(
+      eq(attachment.id, attachmentId),
+      eq(attachment.workspaceId, ctx.workspaceId),
+      eq(attachment.uploaderId, ctx.userId),
+      eq(attachment.status, 'ready'),
+    ))
+    .limit(1);
+  const view = ready ? await getAttachmentView(ctx, ready.id) : null;
+  return view ? ok(view) : err(UNFINISHED);
+}
+
 export async function confirmUpload(
   ctx: WorkspaceContext,
   input: { attachmentId: string },
 ): Promise<Result<AttachmentView>> {
   return withAction(async () => {
     const row = await loadOwnPending(ctx, input.attachmentId);
-    if (!row) return err(UNFINISHED);
+    if (!row) return alreadyConfirmed(ctx, input.attachmentId);
 
     const head = await headObject(row.key);
     if (!head) return err(UNFINISHED);
@@ -113,7 +133,7 @@ export async function confirmUpload(
       await recordActivity(ctx, { taskId: row.taskId, kind: 'attachment_added', to: row.fileName }, tx);
       return true;
     });
-    if (!confirmed) return err(UNFINISHED);
+    if (!confirmed) return alreadyConfirmed(ctx, row.id);
 
     const view = await getAttachmentView(ctx, row.id);
     return view ? ok(view) : err(UNFINISHED);
