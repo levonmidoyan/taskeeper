@@ -172,6 +172,24 @@ describe('confirmUpload', () => {
   });
 });
 
+describe('confirmUpload concurrency', () => {
+  it('lets one of two simultaneous confirms win and records one activity', async () => {
+    const { ctx, taskId } = await setup('b6@example.com', 'ws-b6');
+    const req = await requestUpload(ctx, { taskId, fileName: 'x', contentType: 'text/plain', size: bytes.length });
+    if (!req.ok) throw new Error();
+    await uploadTo(req.data.url, bytes, 'text/plain');
+
+    const results = await Promise.all([
+      confirmUpload(ctx, { attachmentId: req.data.id }),
+      confirmUpload(ctx, { attachmentId: req.data.id }),
+    ]);
+
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.filter((r) => !r.ok)).toEqual([{ ok: false, error: 'Upload did not finish.' }]);
+    expect(await db.select().from(taskActivity).where(eq(taskActivity.kind, 'attachment_added'))).toHaveLength(1);
+  });
+});
+
 describe('cancelUpload', () => {
   it('drops the caller’s pending row and object', async () => {
     const { ctx, taskId } = await setup('c1@example.com', 'ws-c1');

@@ -101,10 +101,19 @@ export async function confirmUpload(
       return err(UNFINISHED);
     }
 
-    await db.transaction(async (tx) => {
-      await tx.update(attachment).set({ status: 'ready' }).where(eq(attachment.id, row.id));
+    // Guarded on 'pending' so a concurrent confirm or delete wins cleanly and
+    // the activity is written once.
+    const confirmed = await db.transaction(async (tx) => {
+      const updated = await tx
+        .update(attachment)
+        .set({ status: 'ready' })
+        .where(and(eq(attachment.id, row.id), eq(attachment.status, 'pending')))
+        .returning({ id: attachment.id });
+      if (!updated.length) return false;
       await recordActivity(ctx, { taskId: row.taskId, kind: 'attachment_added', to: row.fileName }, tx);
+      return true;
     });
+    if (!confirmed) return err(UNFINISHED);
 
     const view = await getAttachmentView(ctx, row.id);
     return view ? ok(view) : err(UNFINISHED);
