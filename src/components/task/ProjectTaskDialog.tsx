@@ -1,6 +1,8 @@
 import { TaskDetailDialog } from '@/components/task/TaskDetailDialog';
 import type { WorkspaceContext } from '@/lib/session';
+import { storageEnabled } from '@/lib/storage';
 import { listTaskFeed } from '@/server/activity/queries';
+import { listTaskAttachments } from '@/server/attachments/queries';
 import { listLabels, listWorkspaceMembers } from '@/server/labels/queries';
 import type { StatusRow } from '@/server/projects/queries';
 import { getTaskDetail } from '@/server/tasks/queries';
@@ -26,8 +28,9 @@ export async function ProjectTaskDialog({
   const task = taskId ? await getTaskDetail(ctx, taskId) : null;
   if (!task) return null;
 
-  const [members, allLabels, feed] = await Promise.all([
+  const [members, allLabels, feed, attachments] = await Promise.all([
     listWorkspaceMembers(ctx), listLabels(ctx), listTaskFeed(ctx, task.id),
+    storageEnabled() ? listTaskAttachments(ctx, task.id) : null,
   ]);
 
   return (
@@ -45,6 +48,7 @@ export async function ProjectTaskDialog({
       currentUserId={ctx.userId}
       canModerate={ctx.role === 'owner' || ctx.role === 'admin'}
       timezone={ctx.timezone}
+      attachments={attachments}
     />
   );
 }

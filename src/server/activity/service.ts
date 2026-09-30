@@ -4,6 +4,7 @@ import type { WorkspaceContext } from '@/lib/session';
 
 export const ACTIVITY_KINDS = [
   'created', 'title', 'status', 'priority', 'assignee', 'due_date',
+  'attachment_added', 'attachment_removed',
 ] as const;
 
 export type ActivityKind = (typeof ACTIVITY_KINDS)[number];

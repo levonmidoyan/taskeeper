@@ -40,13 +40,11 @@ test('the create form sets every field before the task exists', async ({ page })
   await pick(page, create, 'Status', 'In Progress');
   await pick(page, create, 'Priority', 'High');
 
-  await create.getByRole('button', { name: 'Add labels' }).click();
-  await page.getByLabel('New label name').fill('backend');
-  await page.getByLabel('New label name').press('Enter');
-  await expect(page.getByRole('menuitem', { name: /backend/ })).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('menu')).toBeHidden();
-  await expect(create.getByRole('button', { name: /backend/ })).toBeVisible();
+  // Labels are an inline combobox now: Enter creates the label and attaches it.
+  const labels = create.getByRole('combobox', { name: 'Add labels' });
+  await labels.fill('backend');
+  await labels.press('Enter');
+  await expect(create.getByText('backend', { exact: true })).toBeVisible();
 
   await create.getByRole('button', { name: 'Create task' }).click();
   await expect(create).toBeHidden();

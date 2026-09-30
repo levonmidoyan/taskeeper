@@ -4,6 +4,10 @@ import { config } from 'dotenv';
 config({ path: '.env.local' });
 process.env.TZ = 'UTC';
 
+if (!process.env.S3_BUCKET_TEST) {
+  throw new Error('S3_BUCKET_TEST is not set. Copy the S3_* block from .env.example to .env.local.');
+}
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: false,
@@ -25,6 +29,7 @@ export default defineConfig({
     // needs an inbox the browser cannot reach.
     env: {
       DATABASE_URL: process.env.DATABASE_URL_TEST!,
+      S3_BUCKET: process.env.S3_BUCKET_TEST,
       TZ: 'UTC',
       AUTH_RATE_LIMIT: 'off',
       AUTH_EMAIL_VERIFICATION: 'off',

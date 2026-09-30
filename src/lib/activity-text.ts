@@ -22,5 +22,9 @@ export function describeActivity(entry: Extract<FeedEntry, { type: 'activity' }>
       return entry.to ? `assigned it to ${entry.to}` : entry.from ? `unassigned ${entry.from}` : 'unassigned it';
     case 'due_date':
       return entry.to ? `set the due date to ${entry.to}` : 'cleared the due date';
+    case 'attachment_added':
+      return `attached “${entry.to}”`;
+    case 'attachment_removed':
+      return `removed attachment “${entry.from}”`;
   }
 }

@@ -14,3 +14,10 @@ process.env.DATABASE_URL = process.env.DATABASE_URL_TEST;
 // Tests must never send real email. Without a key, invites log their link to
 // the console instead (see src/lib/email.ts).
 delete process.env.RESEND_API_KEY;
+
+if (!process.env.S3_BUCKET_TEST) {
+  throw new Error('S3_BUCKET_TEST is not set. Copy the S3_* block from .env.example to .env.local.');
+}
+
+// Every module that reads S3_BUCKET gets the test bucket during tests.
+process.env.S3_BUCKET = process.env.S3_BUCKET_TEST;

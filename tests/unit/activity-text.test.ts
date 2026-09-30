@@ -34,4 +34,14 @@ describe('describeActivity', () => {
     expect(text).toBe('unassigned it');
     expect(text).not.toContain('null');
   });
+
+  it('describes adding an attachment', () => {
+    expect(describeActivity(activity({ kind: 'attachment_added', to: 'spec.pdf' })))
+      .toBe('attached “spec.pdf”');
+  });
+
+  it('describes removing an attachment', () => {
+    expect(describeActivity(activity({ kind: 'attachment_removed', from: 'spec.pdf' })))
+      .toBe('removed attachment “spec.pdf”');
+  });
 });

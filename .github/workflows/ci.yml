@@ -14,6 +14,12 @@ jobs:
       DATABASE_URL_TEST: postgres://taskeeper:taskeeper@localhost:5432/taskeeper_test
       BETTER_AUTH_SECRET: ci-secret-not-used-in-production
       BETTER_AUTH_URL: http://localhost:3000
+      S3_ENDPOINT: http://localhost:9000
+      S3_REGION: auto
+      S3_ACCESS_KEY_ID: taskeeper
+      S3_SECRET_ACCESS_KEY: taskeeper-secret
+      S3_BUCKET: taskeeper
+      S3_BUCKET_TEST: taskeeper-test
 
     services:
       postgres:
@@ -26,6 +32,17 @@ jobs:
         ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U taskeeper"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+      # Same image as docker-compose.yml (Bitnami's archived MinIO build).
+      minio:
+        image: bitnamilegacy/minio:2025.7.23-debian-12-r5
+        env:
+          MINIO_ROOT_USER: taskeeper
+          MINIO_ROOT_PASSWORD: taskeeper-secret
+        ports: ['9000:9000']
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
           --health-interval 5s --health-timeout 5s --health-retries 10
 
     steps:
@@ -50,6 +67,9 @@ jobs:
 
       - name: Apply migrations
         run: yarn db:migrate
+
+      - name: Create storage buckets
+        run: yarn storage:init
 
       - name: Typecheck
         run: yarn typecheck
