@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { BoardColumn } from '@/components/board/BoardColumn';
 import { columnId, isUnchanged, neighboursAfterMove } from '@/components/board/neighbours';
 import { KanbanProvider } from '@/components/kibo-ui/kanban';
+import { settle } from '@/lib/settle';
 import type { StatusRow } from '@/server/projects/queries';
 import { moveTaskAction } from '@/server/tasks/actions';
 import type { TaskRow } from '@/server/tasks/queries';
@@ -163,7 +164,7 @@ export function Board({
     startTransition(async () => {
       applyMove({ taskId, statusId: after.statusId, index: after.index });
 
-      const result = await moveTaskAction(workspaceSlug, input);
+      const result = await settle(moveTaskAction(workspaceSlug, input));
 
       if (!result.ok) {
         toast.error(result.error, {
@@ -171,7 +172,7 @@ export function Board({
             label: 'Retry',
             onClick: () => {
               startTransition(async () => {
-                const retry = await moveTaskAction(workspaceSlug, input);
+                const retry = await settle(moveTaskAction(workspaceSlug, input));
                 if (!retry.ok) toast.error(retry.error);
                 router.refresh();
               });

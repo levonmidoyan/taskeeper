@@ -1,7 +1,8 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { PageBreadcrumb, workspaceSettingsCrumbs } from '@/components/shell/PageBreadcrumb';
+import { workspaceSettingsCrumbs } from '@/components/shell/crumbs';
+import { PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
 
 const tabLabels: Record<string, string> = {
   general: 'General',

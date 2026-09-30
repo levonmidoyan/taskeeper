@@ -1,5 +1,13 @@
 export const DEFAULT_TIMEZONE = 'Asia/Yerevan';
 
+/** 'YYYY-MM-DD' that is also a real calendar day — Postgres would throw on 2026-02-30. */
+export function isCalendarDay(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
 /** The calendar date ('YYYY-MM-DD') in the given IANA zone at the given instant. */
 export function todayInZone(tz: string, now: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {

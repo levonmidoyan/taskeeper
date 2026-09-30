@@ -5,6 +5,7 @@ import { useOptimistic, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { PROJECT_COLORS, projectColor, type ProjectColor } from '@/components/brand/tint';
 import * as Popover from '@/components/ui/popover';
+import { settle } from '@/lib/settle';
 import { setProjectColorAction } from '@/server/projects/actions';
 import { cn } from '@/utils/cn';
 
@@ -82,7 +83,7 @@ export function ProjectColorButton({
     if (color === shown) return;
     startTransition(async () => {
       setShown(color);
-      const result = await setProjectColorAction(workspaceSlug, { projectId: project.id, color });
+      const result = await settle(setProjectColorAction(workspaceSlug, { projectId: project.id, color }));
       if (!result.ok) toast.error(result.error);
     });
   }

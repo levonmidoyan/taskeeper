@@ -40,6 +40,7 @@ import * as Divider from '@/components/ui/divider';
 import * as StatusBadge from '@/components/ui/status-badge';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useTableSettings } from '@/hooks/use-table-settings';
+import { settle } from '@/lib/settle';
 import type { TableSettings } from '@/lib/task-table-settings';
 import {
   PRIORITY_RANK,
@@ -395,7 +396,7 @@ export function TaskTable({
 
   function applyPatch(taskIds: string[], patch: TaskPatch) {
     startTransition(async () => {
-      const result = await bulkUpdateTasksAction(workspaceSlug, { taskIds, patch });
+      const result = await settle(bulkUpdateTasksAction(workspaceSlug, { taskIds, patch }));
       if (!result.ok) toast.error(result.error);
       else if (taskIds.length > 1) toast.success(`Updated ${result.data.updated} tasks`);
       router.refresh();
@@ -416,7 +417,7 @@ export function TaskTable({
     );
     if (!ok) return;
     startTransition(async () => {
-      const result = await bulkDeleteTasksAction(workspaceSlug, { taskIds });
+      const result = await settle(bulkDeleteTasksAction(workspaceSlug, { taskIds }));
       if (!result.ok) {
         toast.error(result.error);
         return;

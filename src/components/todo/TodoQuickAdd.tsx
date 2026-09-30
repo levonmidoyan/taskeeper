@@ -3,6 +3,7 @@
 import { IconPlus } from '@tabler/icons-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { settle } from '@/lib/settle';
 import { createTodoAction } from '@/server/todos/actions';
 
 export function TodoQuickAdd({ workspaceSlug }: { workspaceSlug: string }) {
@@ -19,7 +20,7 @@ export function TodoQuickAdd({ workspaceSlug }: { workspaceSlug: string }) {
     if (inputRef.current) inputRef.current.value = '';
 
     setPending(true);
-    const result = await createTodoAction(workspaceSlug, { title });
+    const result = await settle(createTodoAction(workspaceSlug, { title }));
     setPending(false);
 
     if (!result.ok) {

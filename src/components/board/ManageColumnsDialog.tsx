@@ -19,6 +19,7 @@ import * as Input from '@/components/ui/input';
 import * as Modal from '@/components/ui/modal';
 import * as Select from '@/components/ui/select';
 import * as Switch from '@/components/ui/switch';
+import { settle } from '@/lib/settle';
 import type { StatusRow } from '@/server/projects/queries';
 import {
   createStatusAction, deleteStatusAction, moveStatusAction, updateStatusAction,
@@ -79,7 +80,7 @@ export function ManageColumnsDialog({
   function rename(status: StatusRow, name: string) {
     const trimmed = name.trim();
     if (trimmed === status.name) return;
-    run(() => updateStatusAction(workspaceSlug, { statusId: status.id, name: trimmed }));
+    run(() => settle(updateStatusAction(workspaceSlug, { statusId: status.id, name: trimmed })));
   }
 
   function onDragEnd({ active, over }: DragEndEvent) {
@@ -97,7 +98,7 @@ export function ManageColumnsDialog({
 
     startTransition(async () => {
       applyOrder(next);
-      const result = await moveStatusAction(workspaceSlug, { statusId: String(active.id), beforeId, afterId });
+      const result = await settle(moveStatusAction(workspaceSlug, { statusId: String(active.id), beforeId, afterId }));
       if (!result.ok) toast.error(result.error ?? 'Something went wrong. Please try again.');
       router.refresh();
     });
@@ -105,7 +106,7 @@ export function ManageColumnsDialog({
 
   function toggleDone(status: StatusRow) {
     run(
-      () => updateStatusAction(workspaceSlug, { statusId: status.id, isDone: !status.isDone }),
+      () => settle(updateStatusAction(workspaceSlug, { statusId: status.id, isDone: !status.isDone })),
       status.isDone ? `${status.name} no longer completes tasks.` : `${status.name} now completes tasks.`,
     );
   }
@@ -113,7 +114,7 @@ export function ManageColumnsDialog({
   function remove(status: StatusRow, reassignToId: string | null) {
     run(
       async () => {
-        const result = await deleteStatusAction(workspaceSlug, { statusId: status.id, reassignToId });
+        const result = await settle(deleteStatusAction(workspaceSlug, { statusId: status.id, reassignToId }));
         if (result.ok) setConfirmingId(null);
         return result;
       },
@@ -127,7 +128,7 @@ export function ManageColumnsDialog({
     if (!name) return;
     run(
       async () => {
-        const result = await createStatusAction(workspaceSlug, { projectId, name });
+        const result = await settle(createStatusAction(workspaceSlug, { projectId, name }));
         if (result.ok) setAdding('');
         return result;
       },

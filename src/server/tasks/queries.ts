@@ -184,6 +184,7 @@ export async function listMyOpenTasks(
         eq(task.assigneeId, ctx.userId),
         isNull(task.completedAt),
         isNull(task.archivedAt),
+        isNull(project.archivedAt),
       ),
     )
     // Nulls last so undated work sinks below dated work.

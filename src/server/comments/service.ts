@@ -1,6 +1,6 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
-import { comment, db, task } from '@/db';
+import { comment, db, project, task } from '@/db';
 import { newId } from '@/lib/ids';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
@@ -34,6 +34,7 @@ export async function createComment(
     const [owned] = await db
       .select({ id: task.id })
       .from(task)
+      .innerJoin(project, and(eq(project.id, task.projectId), isNull(project.archivedAt)))
       .where(and(eq(task.id, parsed.data.taskId), eq(task.workspaceId, ctx.workspaceId)))
       .limit(1);
     if (!owned) return err('Task not found.');

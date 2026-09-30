@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
-import { createProject } from '@/server/projects/service';
+import { archiveProject, createProject } from '@/server/projects/service';
 import { getProject } from '@/server/projects/queries';
 import {
   bulkDeleteTasks, bulkUpdateTasks, createTask, deleteTask, moveTask, updateTask,
@@ -622,5 +622,28 @@ describe('position order under a locale collation', () => {
       expect(tasks.map((t) => t.title)).toEqual(['A', 'B', 'C']);
       expect(tasks[1].position < tasks[2].position).toBe(true);
     });
+  });
+});
+
+describe('archived projects', () => {
+  it('404s the board, hides its tasks from My tasks, and refuses writes', async () => {
+    const { ctx, projectId } = await setup('arch@example.com', 'arch');
+    const created = await createTask(ctx, { projectId, title: 'Left behind' });
+    if (!created.ok) throw new Error('setup failed');
+    await updateTask(ctx, { taskId: created.data.id, assigneeId: ctx.userId });
+    await archiveProject(ctx, { projectId });
+
+    expect(await getProject(ctx, projectId)).toBeNull();
+    expect(await listMyOpenTasks(ctx)).toEqual([]);
+    expect((await createTask(ctx, { projectId, title: 'New' })).ok).toBe(false);
+    expect((await updateTask(ctx, { taskId: created.data.id, title: 'Edited' })).ok).toBe(false);
+  });
+});
+
+describe('due dates', () => {
+  it('rejects a well-formed string that is not a calendar day', async () => {
+    const { ctx, projectId } = await setup('due@example.com', 'due');
+    const result = await createTask(ctx, { projectId, title: 'Leap', dueDate: '2026-02-30' });
+    expect(result.ok).toBe(false);
   });
 });

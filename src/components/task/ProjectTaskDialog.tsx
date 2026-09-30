@@ -26,7 +26,9 @@ export async function ProjectTaskDialog({
   workspaceSlug: string;
 }) {
   const task = taskId ? await getTaskDetail(ctx, taskId) : null;
-  if (!task) return null;
+  // A ?task= from another project would open with this project's columns, and
+  // every status pick would then fail against the task's real project.
+  if (!task || task.projectId !== projectId) return null;
 
   const [members, allLabels, feed, attachments] = await Promise.all([
     listWorkspaceMembers(ctx), listLabels(ctx), listTaskFeed(ctx, task.id),

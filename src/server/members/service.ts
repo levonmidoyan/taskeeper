@@ -188,7 +188,15 @@ export async function acceptInvitation(
       .from(organization).where(eq(organization.id, invite.organizationId)).limit(1);
     if (!org) return err('That workspace no longer exists.');
 
-    await db.transaction(async (tx) => {
+    const accepted = await db.transaction(async (tx) => {
+      // Claim the invite first, so two tabs redeeming it at once add one membership.
+      const [claimed] = await tx
+        .update(invitation)
+        .set({ status: 'accepted' })
+        .where(and(eq(invitation.id, invite.id), eq(invitation.status, 'pending')))
+        .returning({ id: invitation.id });
+      if (!claimed) return false;
+
       const [already] = await tx
         .select({ id: member.id })
         .from(member)
@@ -201,8 +209,9 @@ export async function acceptInvitation(
           role: invite.role ?? 'member',
         });
       }
-      await tx.update(invitation).set({ status: 'accepted' }).where(eq(invitation.id, invite.id));
+      return true;
     });
+    if (!accepted) return err('This invitation is no longer valid.');
 
     return ok({ slug: org.slug });
   });

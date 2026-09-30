@@ -9,6 +9,7 @@ import { ColorSwatches } from '@/components/shell/ProjectColorPicker';
 import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Modal from '@/components/ui/modal';
+import { settle } from '@/lib/settle';
 import { createProjectAction } from '@/server/projects/actions';
 
 export function NewProjectDialog({ workspaceSlug }: { workspaceSlug: string }) {
@@ -24,7 +25,7 @@ export function NewProjectDialog({ workspaceSlug }: { workspaceSlug: string }) {
     setError(null);
 
     const name = String(new FormData(event.currentTarget).get('name'));
-    const result = await createProjectAction(workspaceSlug, { name, color });
+    const result = await settle(createProjectAction(workspaceSlug, { name, color }));
 
     setPending(false);
     if (!result.ok) {

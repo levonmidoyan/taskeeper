@@ -33,7 +33,16 @@ export async function createLabel(
       name: parsed.data.name,
       color: parsed.data.color ?? 'muted',
     };
-    await db.insert(label).values(row);
+    // Two members creating the same name at once: the loser gets the winner's row.
+    const [inserted] = await db.insert(label).values(row).onConflictDoNothing().returning({ id: label.id });
+    if (!inserted) {
+      const [winner] = await db
+        .select({ id: label.id, name: label.name, color: label.color })
+        .from(label)
+        .where(and(eq(label.workspaceId, ctx.workspaceId), eq(label.name, parsed.data.name)))
+        .limit(1);
+      if (winner) return ok(winner);
+    }
 
     return ok({ id: row.id, name: row.name, color: row.color });
   });

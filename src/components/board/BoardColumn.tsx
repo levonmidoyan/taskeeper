@@ -11,6 +11,7 @@ import { TaskCard } from '@/components/board/TaskCard';
 import { KanbanBoard, KanbanCards, KanbanHeader } from '@/components/kibo-ui/kanban';
 import { StatusIcon } from '@/components/task/StatusIcon';
 import * as CompactButton from '@/components/ui/compact-button';
+import { settle } from '@/lib/settle';
 import type { StatusRow } from '@/server/projects/queries';
 import { updateStatusAction } from '@/server/statuses/actions';
 
@@ -84,7 +85,7 @@ function ColumnName({
     const name = value.trim();
     if (!name || name === status.name) return;
     startTransition(async () => {
-      const result = await updateStatusAction(workspaceSlug, { statusId: status.id, name });
+      const result = await settle(updateStatusAction(workspaceSlug, { statusId: status.id, name }));
       if (!result.ok) toast.error(result.error ?? 'Something went wrong. Please try again.');
       router.refresh();
     });

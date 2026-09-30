@@ -1,6 +1,6 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
-import { attachment, db, task } from '@/db';
+import { attachment, db, project, task } from '@/db';
 import {
   MAX_ATTACHMENT_BYTES, attachmentKey, normalizeContentType, sanitizeFileName,
 } from '@/lib/attachments';
@@ -46,6 +46,7 @@ export async function requestUpload(
     const [owned] = await db
       .select({ id: task.id })
       .from(task)
+      .innerJoin(project, and(eq(project.id, task.projectId), isNull(project.archivedAt)))
       .where(and(eq(task.id, taskId), eq(task.workspaceId, ctx.workspaceId)))
       .limit(1);
     if (!owned) return err('Task not found.');

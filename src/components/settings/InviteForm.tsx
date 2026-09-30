@@ -7,6 +7,7 @@ import { FormError, TextField } from '@/components/forms/TextField';
 import * as Button from '@/components/ui/button';
 import * as Label from '@/components/ui/label';
 import * as Radio from '@/components/ui/radio';
+import { settle } from '@/lib/settle';
 import { inviteMemberAction } from '@/server/members/actions';
 
 const ROLES = [
@@ -27,7 +28,7 @@ export function InviteForm({ workspaceSlug }: { workspaceSlug: string }) {
 
     const form = event.currentTarget;
     const email = String(new FormData(form).get('email'));
-    const result = await inviteMemberAction(workspaceSlug, { email, role });
+    const result = await settle(inviteMemberAction(workspaceSlug, { email, role }));
 
     setPending(false);
     if (!result.ok) {

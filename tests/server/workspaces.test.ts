@@ -1,8 +1,10 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
 import { listMyWorkspaces } from '@/server/workspaces/queries';
-import { createWorkspaceForUser } from '@/server/workspaces/service';
+import { createWorkspaceForUser, RESERVED_SLUGS } from '@/server/workspaces/service';
 import { slugify } from '@/lib/slug';
 import { member, organization, workspaceSettings } from '@/db';
 import { eq } from 'drizzle-orm';
@@ -78,7 +80,7 @@ describe('createWorkspaceForUser', () => {
   it('disambiguates every reserved top-level segment that exists in src/app today', async () => {
     const ada = await createUser('ada-reserved2@example.com');
 
-    const reserved = ['New Workspace', 'Sign In', 'Sign Up', 'Api'];
+    const reserved = ['New Workspace', 'Sign In', 'Sign Up', 'Api', 'Invite'];
     for (const name of reserved) {
       const created = await createWorkspaceForUser(ada.id, name);
       expect(created.slug).not.toBe(slugify(name));
@@ -103,5 +105,17 @@ describe('listMyWorkspaces', () => {
   it('returns an empty array for a user with none', async () => {
     const carol = await createUser('carol@example.com');
     expect(await listMyWorkspaces(carol.id)).toEqual([]);
+  });
+});
+
+describe('RESERVED_SLUGS', () => {
+  it('covers every top-level route segment under src/app', () => {
+    const app = join(__dirname, '../../src/app');
+    // Route groups like (app) add no segment; look inside them instead.
+    const segments = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true })
+        .filter((e) => e.isDirectory() && !e.name.startsWith('[') && e.name !== 'fonts')
+        .flatMap((e) => (e.name.startsWith('(') ? segments(join(dir, e.name)) : [e.name]));
+    for (const segment of segments(app)) expect(RESERVED_SLUGS).toContain(segment);
   });
 });

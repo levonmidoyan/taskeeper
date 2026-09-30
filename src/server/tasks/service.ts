@@ -1,6 +1,7 @@
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, label, member, project, task, taskLabel, taskStatus, user } from '@/db';
+import { isCalendarDay } from '@/lib/dates';
 import { newId } from '@/lib/ids';
 import { byId, byKey, positionBetween, positionsForCount } from '@/lib/position';
 import { err, ok, withAction, type Result } from '@/lib/result';
@@ -13,12 +14,15 @@ const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const;
 const STALE_MOVE = 'The board changed while you were dragging. Try again.';
 const COLUMN_GONE = 'That column no longer exists.';
 
-/** Confirms a project belongs to this workspace. Every task write starts here. */
+/**
+ * Confirms a project belongs to this workspace and is not archived. Every task
+ * write starts here; an archived board is read-only even from a stale tab.
+ */
 async function assertProject(ctx: WorkspaceContext, projectId: string) {
   const [row] = await db
     .select({ id: project.id })
     .from(project)
-    .where(and(eq(project.id, projectId), eq(project.workspaceId, ctx.workspaceId)))
+    .where(and(eq(project.id, projectId), eq(project.workspaceId, ctx.workspaceId), isNull(project.archivedAt)))
     .limit(1);
   return row ?? null;
 }
@@ -50,6 +54,8 @@ async function loadOwnedTask(ctx: WorkspaceContext, taskId: string) {
     })
     .from(task)
     .innerJoin(taskStatus, eq(taskStatus.id, task.statusId))
+    // Tasks of an archived project are as read-only as its board.
+    .innerJoin(project, and(eq(project.id, task.projectId), isNull(project.archivedAt)))
     .where(and(eq(task.id, taskId), eq(task.workspaceId, ctx.workspaceId)))
     .limit(1);
   return row ?? null;
@@ -72,7 +78,7 @@ async function memberName(ctx: WorkspaceContext, userId: string | null): Promise
   return row?.name ?? null;
 }
 
-const dueDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a YYYY-MM-DD date.');
+const dueDateSchema = z.string().refine(isCalendarDay, 'Use a real YYYY-MM-DD date.');
 
 const createSchema = z.object({
   projectId: z.string().min(1),

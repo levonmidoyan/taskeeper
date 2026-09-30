@@ -2,7 +2,8 @@
 
 import { viewPaths } from '@better-auth-ui/core';
 import { usePathname } from 'next/navigation';
-import { homeCrumb, PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
+import { homeCrumb } from '@/components/shell/crumbs';
+import { PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
 
 const tabLabels: Record<string, string> = {
   [viewPaths.settings.account]: 'Profile',
