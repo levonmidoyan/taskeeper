@@ -137,6 +137,33 @@ describe('createTask', () => {
     expect(result.ok).toBe(false);
     expect(await db.select().from(task)).toHaveLength(0);
   });
+
+  it('rejects a parent task from another workspace', async () => {
+    const a = await setup('pt-a@example.com', 'pt-a');
+    const b = await setup('pt-b@example.com', 'pt-b');
+    const foreign = await createTask(b.ctx, { projectId: b.projectId, title: 'Theirs' });
+    if (!foreign.ok) throw new Error('setup failed');
+
+    const result = await createTask(a.ctx, {
+      projectId: a.projectId, title: 'Child', parentTaskId: foreign.data.id,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(await db.select().from(task)).toHaveLength(1);
+  });
+
+  it('rejects a parent task from another project', async () => {
+    const { ctx, projectId } = await setup('pt-p@example.com', 'pt-p');
+    const other = await createProject(ctx, { name: 'Other' });
+    if (!other.ok) throw new Error('setup failed');
+    const parent = await createTask(ctx, { projectId: other.data.id, title: 'Elsewhere' });
+    if (!parent.ok) throw new Error('setup failed');
+
+    const result = await createTask(ctx, { projectId, title: 'Child', parentTaskId: parent.data.id });
+
+    expect(result.ok).toBe(false);
+    expect(await db.select().from(task)).toHaveLength(1);
+  });
 });
 
 describe('updateTask', () => {

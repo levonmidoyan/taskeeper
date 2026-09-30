@@ -116,6 +116,24 @@ export async function createTask(
     const assigneeId = parsed.data.assigneeId ?? null;
     if (assigneeId && !(await memberName(ctx, assigneeId))) return err('That person is not in this workspace.');
 
+    // A subtask lives on its parent's board, so the parent must be in the same
+    // project — which also keeps it inside this workspace.
+    const parentTaskId = parsed.data.parentTaskId ?? null;
+    if (parentTaskId) {
+      const [parent] = await db
+        .select({ id: task.id })
+        .from(task)
+        .where(
+          and(
+            eq(task.id, parentTaskId),
+            eq(task.projectId, parsed.data.projectId),
+            eq(task.workspaceId, ctx.workspaceId),
+          ),
+        )
+        .limit(1);
+      if (!parent) return err('Parent task not found.');
+    }
+
     // Deduplicated, then every id must belong to this workspace (as setTaskLabels).
     const labelIds = [...new Set(parsed.data.labelIds ?? [])];
     if (labelIds.length > 0) {
@@ -143,7 +161,7 @@ export async function createTask(
         projectId: parsed.data.projectId,
         title: parsed.data.title,
         statusId,
-        parentTaskId: parsed.data.parentTaskId,
+        parentTaskId,
         position: positionBetween(last?.position ?? null, null),
         createdBy: ctx.userId,
         description: parsed.data.description,
