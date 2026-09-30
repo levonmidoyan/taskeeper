@@ -1,5 +1,5 @@
 import { dash } from '@better-auth/infra';
-import { betterAuth } from 'better-auth';
+import { betterAuth, type BetterAuthPlugin } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
 import {
@@ -33,6 +33,23 @@ import {
 } from '@/lib/email';
 import { assertAccountDeletable, prepareAccountDeletion } from '@/server/account/deletion';
 import { appUrl, trustedOrigins } from '@/lib/url';
+
+/**
+ * Answers every /organization/* request with 404, as disabledPaths would —
+ * but by prefix, so an endpoint added in a Better Auth upgrade is covered too.
+ * Server-side auth.api calls do not go through the router and are unaffected.
+ */
+function blockOrganizationEndpoints(): BetterAuthPlugin {
+  return {
+    id: 'block-organization-endpoints',
+    onRequest: async (request, ctx) => {
+      const prefix = `${new URL(ctx.baseURL).pathname.replace(/\/$/, '')}/organization/`;
+      if (new URL(request.url).pathname.toLowerCase().startsWith(prefix.toLowerCase())) {
+        return { response: new Response('Not Found', { status: 404 }) };
+      }
+    },
+  };
+}
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: 'pg', schema }),
@@ -92,10 +109,17 @@ export const auth = betterAuth({
   // credential stuffing against sign-in. The end-to-end suite signs up several
   // accounts in a row from one address and trips it, so the test runner opts
   // out explicitly rather than the app guessing from NODE_ENV: the e2e run is a
-  // production build, so NODE_ENV cannot tell the two apart.
-  rateLimit: { enabled: process.env.AUTH_RATE_LIMIT !== 'off' },
+  // production build, so NODE_ENV cannot tell the two apart. Counts go in the
+  // rate_limit table: serverless instances do not share memory, so the default
+  // in-memory store would give each instance its own count.
+  rateLimit: { enabled: process.env.AUTH_RATE_LIMIT !== 'off', storage: 'database' },
   plugins: [
+    // Kept for its schema (organization, member, invitation, session's active
+    // organization) only. Workspaces, members and invitations are managed by the
+    // app's own services, which enforce its role rules, reserved slugs and the
+    // settings row; the plugin's HTTP endpoints would bypass all of that.
     organization(),
+    blockOrganizationEndpoints(),
     // App-wide admin (user management, bans, impersonation) — separate from the
     // per-workspace owner/admin/member roles, which live on `member`.
     admin({ adminUserIds: adminUserIds() }),

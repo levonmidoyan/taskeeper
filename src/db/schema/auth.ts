@@ -1,4 +1,4 @@
-import { boolean, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { bigint, boolean, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -120,3 +120,14 @@ export const twoFactor = pgTable('two_factor', {
   failedVerificationCount: integer('failed_verification_count').default(0),
   lockedUntil: timestamp('locked_until', { withTimezone: true }),
 }, (t) => [index('two_factor_user_idx').on(t.userId), index('two_factor_secret_idx').on(t.secret)]);
+
+// Better Auth rate limiter counts, one row per client IP and path. In the
+// database rather than in memory because serverless instances do not share
+// memory: in-memory counts reset on every cold start and split across
+// instances, which lets sign-in attempts through far past the limit.
+export const rateLimit = pgTable('rate_limit', {
+  id: text('id').primaryKey(),
+  key: text('key').notNull().unique(),
+  count: integer('count').notNull(),
+  lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
+});

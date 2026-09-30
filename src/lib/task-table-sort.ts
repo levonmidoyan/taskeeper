@@ -28,6 +28,8 @@ export function boardOrder(tasks: TaskRow[], statuses: StatusRow[]): TaskRow[] {
   return [...tasks].sort(
     (a, b) =>
       compareKeys(statusPosition.get(a.statusId) ?? '', statusPosition.get(b.statusId) ?? '')
+      // Tied columns break by id, as the server orders them (lib/position byId).
+      || compareKeys(a.statusId, b.statusId)
       || compareKeys(a.position, b.position),
   );
 }

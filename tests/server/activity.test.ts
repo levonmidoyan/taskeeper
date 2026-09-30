@@ -112,18 +112,18 @@ describe('activity recording', () => {
   });
 
   // Review Focus (fix round 1): memberName must be scoped to the caller's
-  // workspace, not a bare lookup by id.
+  // workspace, not a bare lookup by id. An assignee outside it is now refused
+  // outright, so no row can carry their name.
   it('does not disclose a name for an assignee outside the workspace', async () => {
     const a = await setup('a8@example.com', 'ws-a8');
     const b = await setup('b8@example.com', 'ws-b8');
     const created = await createTask(a.ctx, { projectId: a.projectId, title: 'Ship v1' });
     if (!created.ok) throw new Error('create failed');
 
-    await updateTask(a.ctx, { taskId: created.data.id, assigneeId: b.user.id });
+    const result = await updateTask(a.ctx, { taskId: created.data.id, assigneeId: b.user.id });
 
-    const entries = await rows(created.data.id);
-    expect(entries.map((e) => e.kind)).toEqual(['created', 'assignee']);
-    expect(entries[1].toValue).toBeNull();
+    expect(result.ok).toBe(false);
+    expect((await rows(created.data.id)).map((e) => e.kind)).toEqual(['created']);
   });
 
   // Review Focus 4.

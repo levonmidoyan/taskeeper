@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useSyncExternalStore } from 'react';
 import { toast } from 'sonner';
 import {
-  enqueue, patchItem, removeItem, startable, type UploadItem,
+  enqueue, patchItem, removeItem, retryItem, startable, type UploadItem,
 } from '@/lib/upload-queue';
 import {
   cancelUploadAction, confirmUploadAction, deleteAttachmentAction, requestUploadAction,
@@ -67,7 +67,9 @@ export function pumpStore(store: Store, router: ReturnType<typeof useRouter>, wo
   for (const item of startable(store.items)) void run(item);
 
   async function run(item: UploadItem) {
-    update(store, patchItem(store.items, item.localId, { state: 'uploading', loaded: 0, error: null }));
+    update(store, patchItem(store.items, item.localId, {
+      state: 'uploading', loaded: item.uploaded ? item.file.size : 0, error: null,
+    }));
     // ✕ removes the item at once, even while an await below is pending; each
     // step checks, so a cancelled upload never goes on to confirm.
     const gone = () => !store.items.some((i) => i.localId === item.localId);
@@ -79,46 +81,61 @@ export function pumpStore(store: Store, router: ReturnType<typeof useRouter>, wo
     // A rejected action call (network drop, stale deploy, expired session)
     // must not leave the card uploading forever with its slot held.
     try {
-      const req = await requestUploadAction(workspaceSlug, {
-        taskId, fileName: item.file.name, contentType: item.file.type, size: item.file.size,
-      });
-      if (!req.ok) {
-        if (!gone()) fail(req.error, req.error === 'Upload failed.' || req.error.startsWith('Something went wrong'));
-        return pumpStore(store, router, workspaceSlug, taskId);
-      }
-      if (gone()) {
-        void cancelUploadAction(workspaceSlug, { attachmentId: req.data.id });
-        return pumpStore(store, router, workspaceSlug, taskId);
-      }
-      update(store, patchItem(store.items, item.localId, { attachmentId: req.data.id }));
+      let attachmentId = item.uploaded ? item.attachmentId : null;
+      if (!attachmentId) {
+        const req = await requestUploadAction(workspaceSlug, {
+          taskId, fileName: item.file.name, contentType: item.file.type, size: item.file.size,
+        });
+        if (!req.ok) {
+          if (!gone()) fail(req.error, req.error === 'Upload failed.' || req.error.startsWith('Something went wrong'));
+          return pumpStore(store, router, workspaceSlug, taskId);
+        }
+        if (gone()) {
+          void cancelUploadAction(workspaceSlug, { attachmentId: req.data.id });
+          return pumpStore(store, router, workspaceSlug, taskId);
+        }
+        update(store, patchItem(store.items, item.localId, { attachmentId: req.data.id }));
 
-      try {
-        await putFile(
-          req.data.url, item.file, req.data.contentType,
-          (loaded) => update(store, patchItem(store.items, item.localId, { loaded })),
-          (xhr) => store.xhrs.set(item.localId, xhr),
-        );
-      } catch (error) {
+        try {
+          await putFile(
+            req.data.url, item.file, req.data.contentType,
+            (loaded) => update(store, patchItem(store.items, item.localId, { loaded })),
+            (xhr) => store.xhrs.set(item.localId, xhr),
+          );
+        } catch (error) {
+          store.xhrs.delete(item.localId);
+          void cancelUploadAction(workspaceSlug, { attachmentId: req.data.id });
+          // A cancel already removed the item; nothing left to mark.
+          if (!(error instanceof DOMException && error.name === 'AbortError')) fail('Upload failed.', true);
+          return pumpStore(store, router, workspaceSlug, taskId);
+        }
         store.xhrs.delete(item.localId);
-        void cancelUploadAction(workspaceSlug, { attachmentId: req.data.id });
-        // A cancel already removed the item; nothing left to mark.
-        if (!(error instanceof DOMException && error.name === 'AbortError')) fail('Upload failed.', true);
-        return pumpStore(store, router, workspaceSlug, taskId);
-      }
-      store.xhrs.delete(item.localId);
-      if (gone()) {
-        void cancelUploadAction(workspaceSlug, { attachmentId: req.data.id });
-        return pumpStore(store, router, workspaceSlug, taskId);
+        if (gone()) {
+          void cancelUploadAction(workspaceSlug, { attachmentId: req.data.id });
+          return pumpStore(store, router, workspaceSlug, taskId);
+        }
+        attachmentId = req.data.id;
+        update(store, patchItem(store.items, item.localId, { uploaded: true }));
       }
 
-      const done = await confirmUploadAction(workspaceSlug, { attachmentId: req.data.id });
-      if (!done.ok) fail(done.error, true);
-      else {
+      // Past this point a cancel would race the confirm, so ✕ is hidden and ignored.
+      update(store, patchItem(store.items, item.localId, { confirming: true }));
+      const done = await confirmUploadAction(workspaceSlug, { attachmentId });
+      update(store, patchItem(store.items, item.localId, { confirming: false }));
+      if (!done.ok) {
+        // A definite answer (the object is missing or the row is gone) means
+        // the next retry starts over; a generic failure may have confirmed.
+        if (!done.error.startsWith('Something went wrong')) {
+          update(store, patchItem(store.items, item.localId, { uploaded: false, attachmentId: null }));
+        }
+        fail(done.error, true);
+      } else {
         update(store, patchItem(store.items, item.localId, { state: 'done', loaded: item.file.size }));
         router.refresh();
       }
     } catch {
       store.xhrs.delete(item.localId);
+      update(store, patchItem(store.items, item.localId, { confirming: false }));
       if (!gone()) fail('Upload failed.', true);
     }
     pumpStore(store, router, workspaceSlug, taskId);
@@ -149,13 +166,14 @@ export function useAttachmentUploads(workspaceSlug: string, taskId: string) {
   }, [pump, store]);
 
   const cancel = useCallback((localId: string) => {
+    if (store.items.find((i) => i.localId === localId)?.confirming) return;
     store.xhrs.get(localId)?.abort();
     update(store, removeItem(store.items, localId));
     pump();
   }, [pump, store]);
 
   const retry = useCallback((localId: string) => {
-    update(store, patchItem(store.items, localId, { state: 'queued', error: null, attachmentId: null, loaded: 0 }));
+    update(store, retryItem(store.items, localId));
     pump();
   }, [pump, store]);
 

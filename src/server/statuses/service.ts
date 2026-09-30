@@ -1,11 +1,12 @@
-import { and, asc, count, desc, eq, ne, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, project, task, taskStatus } from '@/db';
 import { newId } from '@/lib/ids';
 import { STATUS_ICON_KEYS } from '@/lib/status-icons';
-import { positionBetween, positionsAfter } from '@/lib/position';
+import { byId, byKey, positionBetween, positionsAfter, positionsForCount } from '@/lib/position';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import { requireRole, type WorkspaceContext } from '@/lib/session';
+import { lastTaskPosition, lockColumns } from '@/server/tasks/columns';
 
 /**
  * Columns are project structure, not task data: creating, renaming, reordering
@@ -17,8 +18,24 @@ import { requireRole, type WorkspaceContext } from '@/lib/session';
 /** A board stays readable at this width, and it bounds the reorder queries. */
 const MAX_STATUSES = 12;
 
+const STALE_MOVE = 'The columns changed while you were dragging. Try again.';
+
 const nameSchema = z
   .string().trim().min(1, 'Name the column.').max(32, 'Keep it under 32 characters.');
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Locks the project's row for the rest of the transaction, so writes that
+ * place its columns run one at a time and each reads the keys the previous one
+ * left: two appends would otherwise take the same key, and two reorders into
+ * one gap would land on the same one. NO KEY UPDATE does not block the
+ * key-share locks that inserting a row referencing the project takes.
+ */
+async function lockProjectColumns(tx: Tx, projectId: string): Promise<void> {
+  await tx.select({ id: project.id }).from(project)
+    .where(eq(project.id, projectId)).for('no key update');
+}
 
 type OwnedStatus = { id: string; projectId: string; position: string; isDone: boolean };
 
@@ -69,32 +86,38 @@ export async function createStatus(
       .limit(1);
     if (!owned) return err('Project not found.');
 
-    const [existing] = await db
-      .select({ total: count() })
-      .from(taskStatus)
-      .where(eq(taskStatus.projectId, parsed.data.projectId));
-    if ((existing?.total ?? 0) >= MAX_STATUSES) {
-      return err(`A project can have at most ${MAX_STATUSES} columns.`);
-    }
+    return db.transaction(async (tx) => {
+      // Counted and appended under the lock, so concurrent creates neither
+      // share a key nor together pass the column limit.
+      await lockProjectColumns(tx, parsed.data.projectId);
 
-    const [last] = await db
-      .select({ position: taskStatus.position })
-      .from(taskStatus)
-      .where(eq(taskStatus.projectId, parsed.data.projectId))
-      .orderBy(desc(taskStatus.position))
-      .limit(1);
+      const [existing] = await tx
+        .select({ total: count() })
+        .from(taskStatus)
+        .where(eq(taskStatus.projectId, parsed.data.projectId));
+      if ((existing?.total ?? 0) >= MAX_STATUSES) {
+        return err(`A project can have at most ${MAX_STATUSES} columns.`);
+      }
 
-    const id = newId();
-    await db.insert(taskStatus).values({
-      id,
-      projectId: parsed.data.projectId,
-      name: parsed.data.name,
-      color: parsed.data.color ?? 'muted',
-      position: positionBetween(last?.position ?? null, null),
-      isDone: parsed.data.isDone ?? false,
+      const [last] = await tx
+        .select({ position: taskStatus.position })
+        .from(taskStatus)
+        .where(eq(taskStatus.projectId, parsed.data.projectId))
+        .orderBy(desc(byKey(taskStatus.position)))
+        .limit(1);
+
+      const id = newId();
+      await tx.insert(taskStatus).values({
+        id,
+        projectId: parsed.data.projectId,
+        name: parsed.data.name,
+        color: parsed.data.color ?? 'muted',
+        position: positionBetween(last?.position ?? null, null),
+        isDone: parsed.data.isDone ?? false,
+      });
+
+      return ok({ id });
     });
-
-    return ok({ id });
   });
 }
 
@@ -204,30 +227,75 @@ export async function moveStatus(
     const owned = await loadOwnedStatus(ctx, parsed.data.statusId);
     if (!owned) return err('Column not found.');
 
-    const neighbourPosition = async (id: string | null) => {
-      if (!id) return null;
-      if (id === owned.id) return undefined;
-      const [row] = await db
-        .select({ position: taskStatus.position })
+    return db.transaction(async (tx) => {
+      // Neighbours are read under the lock: two reorders into one gap that both
+      // read its keys first would compute the same key between them.
+      await lockProjectColumns(tx, owned.projectId);
+
+      const neighbourPosition = async (id: string | null) => {
+        if (!id) return null;
+        if (id === owned.id) return undefined;
+        const [row] = await tx
+          .select({ position: taskStatus.position })
+          .from(taskStatus)
+          // Scoped to the same project: a neighbour from another board would
+          // produce a key that sorts this column into a nonsense place.
+          .where(and(eq(taskStatus.id, id), eq(taskStatus.projectId, owned.projectId)))
+          .limit(1);
+        return row?.position;
+      };
+
+      const before = await neighbourPosition(parsed.data.beforeId);
+      const after = await neighbourPosition(parsed.data.afterId);
+
+      if (before === undefined || after === undefined) return err('That move is not valid.');
+      // Reversed neighbours mean someone reordered the columns since this dialog
+      // loaded. Tied keys are ordered by id (codepoint, as the board query sorts them).
+      if (before !== null && after !== null) {
+        if (before > after) return err(STALE_MOVE);
+        if (before === after && parsed.data.beforeId! > parsed.data.afterId!) return err(STALE_MOVE);
+      }
+
+      if (before === null || before !== after) {
+        // Against the column right after `before` now, not the neighbour the
+        // client saw: a reorder that has landed in the same gap since sits
+        // there, and a key between `before` and it is still unused.
+        const [next] = await tx
+          .select({ position: taskStatus.position })
+          .from(taskStatus)
+          .where(
+            and(
+              eq(taskStatus.projectId, owned.projectId),
+              ne(taskStatus.id, owned.id),
+              before === null ? undefined : gt(byKey(taskStatus.position), before),
+            ),
+          )
+          .orderBy(byKey(taskStatus.position))
+          .limit(1);
+        const position = positionBetween(before, next?.position ?? null);
+        await tx.update(taskStatus).set({ position }).where(eq(taskStatus.id, owned.id));
+        return ok({ position });
+      }
+
+      // Two columns share a key, so nothing fits between them. Renumber the
+      // project's columns in their displayed order, then place this one.
+      const columns = await tx
+        .select({ id: taskStatus.id })
         .from(taskStatus)
-        // Scoped to the same project: a neighbour from another board would
-        // produce a key that sorts this column into a nonsense place.
-        .where(and(eq(taskStatus.id, id), eq(taskStatus.projectId, owned.projectId)))
-        .limit(1);
-      return row?.position;
-    };
-
-    const [before, after] = await Promise.all([
-      neighbourPosition(parsed.data.beforeId),
-      neighbourPosition(parsed.data.afterId),
-    ]);
-
-    if (before === undefined || after === undefined) return err('That move is not valid.');
-
-    const position = positionBetween(before, after);
-    await db.update(taskStatus).set({ position }).where(eq(taskStatus.id, owned.id));
-
-    return ok({ position });
+        .where(and(eq(taskStatus.projectId, owned.projectId), ne(taskStatus.id, owned.id)))
+        .orderBy(byKey(taskStatus.position), byId(taskStatus.id));
+      const keys = positionsForCount(columns.length);
+      const renumbered = new Map(columns.map((row, i) => [row.id, keys[i]]));
+      for (const [id, key] of renumbered) {
+        await tx.update(taskStatus).set({ position: key }).where(eq(taskStatus.id, id));
+      }
+      const position = positionBetween(
+        renumbered.get(parsed.data.beforeId!)!,
+        renumbered.get(parsed.data.afterId!)!,
+      );
+      await tx.update(taskStatus).set({ position }).where(eq(taskStatus.id, owned.id));
+      return ok({ position });
+    });
   });
 }
 
@@ -260,6 +328,11 @@ export async function deleteStatus(
     if (reassignToId === owned.id) return err('Pick a different column to move the tasks to.');
 
     return db.transaction(async (tx) => {
+      // Both columns, before anything is read: a task created in this column
+      // after the holdout read would hit the RESTRICT constraint on delete, and
+      // one appended to the target at the same moment would share a key.
+      await lockColumns(tx, reassignToId ? [owned.id, reassignToId] : [owned.id]);
+
       const siblings = await tx
         .select({ id: taskStatus.id, isDone: taskStatus.isDone })
         .from(taskStatus)
@@ -273,14 +346,11 @@ export async function deleteStatus(
         return err('A project needs at least one done column.');
       }
 
-      // Read-then-write inside the transaction: outside it, a task created in
-      // this column between the count and the DELETE would hit the RESTRICT
-      // constraint and fail the request with a database error.
       const holdouts = await tx
         .select({ id: task.id, completedAt: task.completedAt })
         .from(task)
         .where(and(eq(task.statusId, owned.id), eq(task.workspaceId, ctx.workspaceId)))
-        .orderBy(asc(task.position));
+        .orderBy(byKey(task.position), byId(task.id));
 
       if (holdouts.length > 0) {
         const target = reassignToId
@@ -294,14 +364,8 @@ export async function deleteStatus(
           );
         }
 
-        const [last] = await tx
-          .select({ position: task.position })
-          .from(task)
-          .where(and(eq(task.projectId, owned.projectId), eq(task.statusId, target.id)))
-          .orderBy(desc(task.position))
-          .limit(1);
-
-        const positions = positionsAfter(last?.position ?? null, holdouts.length);
+        const last = await lastTaskPosition(tx, owned.projectId, target.id);
+        const positions = positionsAfter(last, holdouts.length);
         const now = new Date();
 
         for (const [i, row] of holdouts.entries()) {

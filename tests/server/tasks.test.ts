@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { eq, sql } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
 import { createProject } from '@/server/projects/service';
@@ -76,6 +77,18 @@ describe('createTask', () => {
     expect(tasks[0].position < tasks[1].position).toBe(true);
   });
 
+  it('gives concurrent creates in one column distinct positions', async () => {
+    const { ctx, projectId } = await setup('ada-race@example.com', 'acme-race');
+
+    const results = await Promise.all(
+      Array.from({ length: 8 }, (_, i) => createTask(ctx, { projectId, title: `T${i}` })),
+    );
+
+    expect(results.every((r) => r.ok)).toBe(true);
+    const positions = (await listProjectTasks(ctx, projectId)).map((t) => t.position);
+    expect(new Set(positions).size).toBe(8);
+  });
+
   it('sets every field the create form offers in one call', async () => {
     const { ctx, projectId, statuses } = await setup('full@example.com', 'full');
     const label = await createLabel(ctx, { name: 'bug' });
@@ -137,6 +150,33 @@ describe('createTask', () => {
     expect(result.ok).toBe(false);
     expect(await db.select().from(task)).toHaveLength(0);
   });
+
+  it('rejects a parent task from another workspace', async () => {
+    const a = await setup('pt-a@example.com', 'pt-a');
+    const b = await setup('pt-b@example.com', 'pt-b');
+    const foreign = await createTask(b.ctx, { projectId: b.projectId, title: 'Theirs' });
+    if (!foreign.ok) throw new Error('setup failed');
+
+    const result = await createTask(a.ctx, {
+      projectId: a.projectId, title: 'Child', parentTaskId: foreign.data.id,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(await db.select().from(task)).toHaveLength(1);
+  });
+
+  it('rejects a parent task from another project', async () => {
+    const { ctx, projectId } = await setup('pt-p@example.com', 'pt-p');
+    const other = await createProject(ctx, { name: 'Other' });
+    if (!other.ok) throw new Error('setup failed');
+    const parent = await createTask(ctx, { projectId: other.data.id, title: 'Elsewhere' });
+    if (!parent.ok) throw new Error('setup failed');
+
+    const result = await createTask(ctx, { projectId, title: 'Child', parentTaskId: parent.data.id });
+
+    expect(result.ok).toBe(false);
+    expect(await db.select().from(task)).toHaveLength(1);
+  });
 });
 
 describe('updateTask', () => {
@@ -185,6 +225,43 @@ describe('updateTask', () => {
 
     expect(result.ok).toBe(false);
     expect((await getTask(b.ctx, created.data.id))!.title).toBe('Theirs');
+  });
+
+  it('rejects an assignee outside the workspace', async () => {
+    const a = await setup('ua-a@example.com', 'ua-a');
+    const b = await setup('ua-b@example.com', 'ua-b');
+    const created = await createTask(a.ctx, { projectId: a.projectId, title: 'Mine' });
+    if (!created.ok) throw new Error('setup failed');
+
+    const result = await updateTask(a.ctx, { taskId: created.data.id, assigneeId: b.ctx.userId });
+
+    expect(result.ok).toBe(false);
+    expect((await getTask(a.ctx, created.data.id))!.assigneeId).toBeNull();
+  });
+
+  it('still allows clearing the assignee', async () => {
+    const { ctx, projectId } = await setup('ua-c@example.com', 'ua-c');
+    const created = await createTask(ctx, { projectId, title: 'Mine', assigneeId: ctx.userId });
+    if (!created.ok) throw new Error('setup failed');
+
+    const result = await updateTask(ctx, { taskId: created.data.id, assigneeId: null });
+
+    expect(result.ok).toBe(true);
+    expect((await getTask(ctx, created.data.id))!.assigneeId).toBeNull();
+  });
+
+  it('appends a task to the end of the column it moves to', async () => {
+    const { ctx, projectId, statuses } = await setup('ada-col@example.com', 'acme-col');
+    const a = await createTask(ctx, { projectId, title: 'A', statusId: statuses[1].id });
+    // Created first in its own column, so it holds the same key as A.
+    const b = await createTask(ctx, { projectId, title: 'B' });
+    if (!a.ok || !b.ok) throw new Error('setup failed');
+
+    expect((await updateTask(ctx, { taskId: b.data.id, statusId: statuses[1].id })).ok).toBe(true);
+
+    const column = (await listProjectTasks(ctx, projectId)).filter((t) => t.statusId === statuses[1].id);
+    expect(column.map((t) => t.title)).toEqual(['A', 'B']);
+    expect(column[0].position < column[1].position).toBe(true);
   });
 
   it('refuses a status that belongs to a different project', async () => {
@@ -254,6 +331,75 @@ describe('moveTask', () => {
 
     const ordered = await listProjectTasks(ctx, projectId);
     expect(ordered.map((t) => t.title)).toEqual(['A', 'C', 'B']);
+  });
+
+  it('gives concurrent drops into the same gap distinct positions', async () => {
+    const { ctx, projectId, statuses } = await setup('ada-gap@example.com', 'acme-gap');
+    // One at a time, so A sorts before B.
+    const ids: string[] = [];
+    for (const title of ['A', 'B', 'C', 'D']) {
+      const made = await createTask(ctx, { projectId, title });
+      if (!made.ok) throw new Error('setup failed');
+      ids.push(made.data.id);
+    }
+    const [a, b, c, d] = ids;
+
+    const results = await Promise.all([c, d].map((taskId) =>
+      moveTask(ctx, { taskId, statusId: statuses[0].id, beforeId: a, afterId: b })));
+
+    expect(results.every((r) => r.ok)).toBe(true);
+    const positions = (await listProjectTasks(ctx, projectId)).map((t) => t.position);
+    expect(new Set(positions).size).toBe(4);
+  });
+
+  it('drops between two tasks that share a position', async () => {
+    const { ctx, projectId, statuses } = await setup('tie@example.com', 'tie');
+    const a = await createTask(ctx, { projectId, title: 'A' });
+    const b = await createTask(ctx, { projectId, title: 'B' });
+    const c = await createTask(ctx, { projectId, title: 'C' });
+    if (!a.ok || !b.ok || !c.ok) throw new Error('setup failed');
+    // What two concurrent creates in one column leave behind.
+    const [bRow] = await db.select().from(task).where(eq(task.id, b.data.id));
+    await db.update(task).set({ position: bRow.position }).where(eq(task.id, c.data.id));
+    const [first, second] = [b.data, c.data].sort((x, y) => (x.id < y.id ? -1 : 1));
+
+    const result = await moveTask(ctx, {
+      taskId: a.data.id, statusId: statuses[0].id, beforeId: first.id, afterId: second.id,
+    });
+
+    expect(result.ok).toBe(true);
+    const ordered = await listProjectTasks(ctx, projectId);
+    expect(ordered.map((t) => t.id)).toEqual([first.id, a.data.id, second.id]);
+  });
+
+  it('refuses neighbours that are out of order with a clear message', async () => {
+    const { ctx, projectId, statuses } = await setup('stale@example.com', 'stale');
+    const a = await createTask(ctx, { projectId, title: 'A' });
+    const b = await createTask(ctx, { projectId, title: 'B' });
+    const c = await createTask(ctx, { projectId, title: 'C' });
+    if (!a.ok || !b.ok || !c.ok) throw new Error('setup failed');
+
+    const result = await moveTask(ctx, {
+      taskId: b.data.id, statusId: statuses[0].id, beforeId: c.data.id, afterId: a.data.id,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).not.toMatch(/Something went wrong/);
+    expect((await listProjectTasks(ctx, projectId)).map((t) => t.title)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('refuses a neighbour from a different column', async () => {
+    const { ctx, projectId, statuses } = await setup('col@example.com', 'col');
+    const a = await createTask(ctx, { projectId, title: 'A' });
+    const x = await createTask(ctx, { projectId, title: 'X', statusId: statuses[1].id });
+    if (!a.ok || !x.ok) throw new Error('setup failed');
+
+    const result = await moveTask(ctx, {
+      taskId: a.data.id, statusId: statuses[0].id, beforeId: x.data.id, afterId: null,
+    });
+
+    expect(result.ok).toBe(false);
   });
 
   it('refuses to move a task into another workspace’s column', async () => {
@@ -446,5 +592,35 @@ describe('bulkDeleteTasks', () => {
     expect(result).toEqual({ ok: true, data: { deleted: 2 } });
     expect((await listProjectTasks(a.ctx, a.projectId)).map((t) => t.title)).toEqual(['Keep']);
     expect(await listProjectTasks(b.ctx, b.projectId)).toHaveLength(1);
+  });
+});
+
+describe('position order under a locale collation', () => {
+  // Alpine's Postgres sorts en_US like "C", so this borrows an ICU collation to
+  // stand in for a glibc host, where 'aB' sorts after 'ab'.
+  async function withLocaleCollation(run: () => Promise<void>) {
+    await db.execute(sql`alter table task alter column position type text collate "en-US-x-icu"`);
+    try {
+      await run();
+    } finally {
+      await db.execute(sql`alter table task alter column position type text collate "default"`);
+    }
+  }
+
+  it('lists a column and appends to it in key order', async () => {
+    await withLocaleCollation(async () => {
+      const { ctx, projectId } = await setup('ada-icu@example.com', 'acme-icu');
+      const a = await createTask(ctx, { projectId, title: 'A' });
+      const b = await createTask(ctx, { projectId, title: 'B' });
+      if (!a.ok || !b.ok) throw new Error('setup failed');
+      await db.update(task).set({ position: 'aB' }).where(eq(task.id, a.data.id));
+      await db.update(task).set({ position: 'ab' }).where(eq(task.id, b.data.id));
+
+      expect((await createTask(ctx, { projectId, title: 'C' })).ok).toBe(true);
+
+      const tasks = await listProjectTasks(ctx, projectId);
+      expect(tasks.map((t) => t.title)).toEqual(['A', 'B', 'C']);
+      expect(tasks[1].position < tasks[2].position).toBe(true);
+    });
   });
 });

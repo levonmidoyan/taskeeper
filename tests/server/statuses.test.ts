@@ -7,7 +7,7 @@ import { createProject } from '@/server/projects/service';
 import { createStatus, deleteStatus, moveStatus, updateStatus } from '@/server/statuses/service';
 import { createTask, updateTask } from '@/server/tasks/service';
 import { getTask, listProjectTasks } from '@/server/tasks/queries';
-import { task } from '@/db';
+import { task, taskStatus } from '@/db';
 import type { WorkspaceContext } from '@/lib/session';
 
 beforeEach(resetDb);
@@ -36,6 +36,20 @@ describe('createStatus', () => {
 
     expect(result.ok).toBe(true);
     expect(await names(ctx, projectId)).toEqual(['Todo', 'In Progress', 'Done', 'Review']);
+  });
+
+  it('gives concurrent creates distinct positions and holds the cap', async () => {
+    const { ctx, projectId } = await setup('ada-race@example.com', 'acme-race');
+
+    const results = await Promise.all(
+      Array.from({ length: 12 }, (_, i) => createStatus(ctx, { projectId, name: `Extra ${i}` })),
+    );
+
+    // Three defaults plus nine: the cap is 12.
+    expect(results.filter((r) => r.ok)).toHaveLength(9);
+    const positions = (await getProject(ctx, projectId))!.statuses.map((s) => s.position);
+    expect(positions).toHaveLength(12);
+    expect(new Set(positions).size).toBe(12);
   });
 
   it('rejects an empty name', async () => {
@@ -176,6 +190,46 @@ describe('moveStatus', () => {
     });
 
     expect(result.ok).toBe(false);
+    expect(await names(ctx, projectId)).toEqual(['Todo', 'In Progress', 'Done']);
+  });
+
+  it('gives concurrent drops into the same gap distinct positions', async () => {
+    const { ctx, projectId, statuses } = await setup('ada-gap@example.com', 'acme-gap');
+    const extra = await createStatus(ctx, { projectId, name: 'Review' });
+    if (!extra.ok) throw new Error('setup failed');
+
+    const results = await Promise.all([statuses[2].id, extra.data.id].map((statusId) =>
+      moveStatus(ctx, { statusId, beforeId: statuses[0].id, afterId: statuses[1].id })));
+
+    expect(results.every((r) => r.ok)).toBe(true);
+    const positions = (await getProject(ctx, projectId))!.statuses.map((s) => s.position);
+    expect(new Set(positions).size).toBe(4);
+  });
+
+  it('drops between two columns that share a position', async () => {
+    const { ctx, projectId, statuses } = await setup('stie@example.com', 'stie');
+    await db.update(taskStatus).set({ position: statuses[0].position })
+      .where(eq(taskStatus.id, statuses[1].id));
+    const [first, second] = [statuses[0], statuses[1]].sort((x, y) => (x.id < y.id ? -1 : 1));
+
+    const result = await moveStatus(ctx, {
+      statusId: statuses[2].id, beforeId: first.id, afterId: second.id,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(await names(ctx, projectId)).toEqual([first.name, 'Done', second.name]);
+  });
+
+  it('refuses neighbours that are out of order with a clear message', async () => {
+    const { ctx, projectId, statuses } = await setup('sstale@example.com', 'sstale');
+
+    const result = await moveStatus(ctx, {
+      statusId: statuses[1].id, beforeId: statuses[2].id, afterId: statuses[0].id,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).not.toMatch(/Something went wrong/);
     expect(await names(ctx, projectId)).toEqual(['Todo', 'In Progress', 'Done']);
   });
 

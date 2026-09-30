@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { comment, db, label, project, task, taskActivity, taskLabel, taskStatus, user } from '@/db';
 import { isOverdue } from '@/lib/dates';
+import { byId, byKey } from '@/lib/position';
 import type { WorkspaceContext } from '@/lib/session';
 
 export type Priority = 'none' | 'low' | 'medium' | 'high' | 'urgent';
@@ -94,7 +95,7 @@ export async function listProjectTasks(
         isNull(task.parentTaskId),
       ),
     )
-    .orderBy(asc(task.position));
+    .orderBy(byKey(task.position), byId(task.id));
 
   return attachLabels(rows);
 }
@@ -156,7 +157,7 @@ export async function getTaskDetail(
         isNull(task.archivedAt),
       ),
     )
-    .orderBy(asc(task.position));
+    .orderBy(byKey(task.position), byId(task.id));
 
   return {
     ...withLabels,
@@ -186,7 +187,7 @@ export async function listMyOpenTasks(
       ),
     )
     // Nulls last so undated work sinks below dated work.
-    .orderBy(sql`${task.dueDate} asc nulls last`, asc(task.position));
+    .orderBy(sql`${task.dueDate} asc nulls last`, byKey(task.position), byId(task.id));
 
   const enriched = await attachLabels(rows);
 
@@ -210,7 +211,7 @@ export async function listStatuses(ctx: WorkspaceContext, projectId: string) {
     .from(taskStatus)
     .innerJoin(project, eq(project.id, taskStatus.projectId))
     .where(and(eq(taskStatus.projectId, projectId), eq(project.workspaceId, ctx.workspaceId)))
-    .orderBy(asc(taskStatus.position));
+    .orderBy(byKey(taskStatus.position), byId(taskStatus.id));
 }
 
 export type TaskSearchHit = {

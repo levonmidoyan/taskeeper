@@ -9,8 +9,20 @@ import { requireRole, type WorkspaceContext } from '@/lib/session';
 
 const INVITE_TTL_DAYS = 7;
 
-async function ownerCount(workspaceId: string): Promise<number> {
-  const [row] = await db
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Locks the workspace row for the rest of the transaction, so owner changes in
+ * one workspace run one at a time: two owners demoting or removing each other
+ * at once must not both pass the last-owner check.
+ */
+async function lockWorkspace(tx: Tx, workspaceId: string): Promise<void> {
+  await tx.select({ id: organization.id }).from(organization)
+    .where(eq(organization.id, workspaceId)).for('update');
+}
+
+async function ownerCount(tx: Tx, workspaceId: string): Promise<number> {
+  const [row] = await tx
     .select({ n: count() })
     .from(member)
     .where(and(eq(member.organizationId, workspaceId), eq(member.role, 'owner')));
@@ -75,24 +87,28 @@ export async function removeMember(
   return withAction(async () => {
     requireRole(ctx, 'owner', 'admin');
 
-    const [target] = await db
-      .select({ role: member.role })
-      .from(member)
-      .where(and(eq(member.organizationId, ctx.workspaceId), eq(member.userId, input.userId)))
-      .limit(1);
-    if (!target) return err('That person is not in this workspace.');
+    return db.transaction(async (tx) => {
+      await lockWorkspace(tx, ctx.workspaceId);
 
-    // Removing the last owner would leave nobody able to manage the workspace.
-    if (target.role === 'owner' && (await ownerCount(ctx.workspaceId)) <= 1) {
-      return err('A workspace must keep at least one owner.');
-    }
-    if (target.role === 'owner') requireRole(ctx, 'owner');
+      const [target] = await tx
+        .select({ role: member.role })
+        .from(member)
+        .where(and(eq(member.organizationId, ctx.workspaceId), eq(member.userId, input.userId)))
+        .limit(1);
+      if (!target) return err('That person is not in this workspace.');
 
-    await db
-      .delete(member)
-      .where(and(eq(member.organizationId, ctx.workspaceId), eq(member.userId, input.userId)));
+      // Removing the last owner would leave nobody able to manage the workspace.
+      if (target.role === 'owner' && (await ownerCount(tx, ctx.workspaceId)) <= 1) {
+        return err('A workspace must keep at least one owner.');
+      }
+      if (target.role === 'owner') requireRole(ctx, 'owner');
 
-    return ok(null);
+      await tx
+        .delete(member)
+        .where(and(eq(member.organizationId, ctx.workspaceId), eq(member.userId, input.userId)));
+
+      return ok(null);
+    });
   });
 }
 
@@ -109,30 +125,34 @@ export async function changeMemberRole(
       .safeParse(input);
     if (!parsed.success) return err('That role is not valid.');
 
-    const [target] = await db
-      .select({ role: member.role })
-      .from(member)
-      .where(
-        and(eq(member.organizationId, ctx.workspaceId), eq(member.userId, parsed.data.userId)),
-      )
-      .limit(1);
-    if (!target) return err('That person is not in this workspace.');
+    return db.transaction(async (tx) => {
+      await lockWorkspace(tx, ctx.workspaceId);
 
-    if (
-      target.role === 'owner' && parsed.data.role !== 'owner'
-      && (await ownerCount(ctx.workspaceId)) <= 1
-    ) {
-      return err('A workspace must keep at least one owner.');
-    }
+      const [target] = await tx
+        .select({ role: member.role })
+        .from(member)
+        .where(
+          and(eq(member.organizationId, ctx.workspaceId), eq(member.userId, parsed.data.userId)),
+        )
+        .limit(1);
+      if (!target) return err('That person is not in this workspace.');
 
-    await db
-      .update(member)
-      .set({ role: parsed.data.role })
-      .where(
-        and(eq(member.organizationId, ctx.workspaceId), eq(member.userId, parsed.data.userId)),
-      );
+      if (
+        target.role === 'owner' && parsed.data.role !== 'owner'
+        && (await ownerCount(tx, ctx.workspaceId)) <= 1
+      ) {
+        return err('A workspace must keep at least one owner.');
+      }
 
-    return ok(null);
+      await tx
+        .update(member)
+        .set({ role: parsed.data.role })
+        .where(
+          and(eq(member.organizationId, ctx.workspaceId), eq(member.userId, parsed.data.userId)),
+        );
+
+      return ok(null);
+    });
   });
 }
 
