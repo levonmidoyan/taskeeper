@@ -29,9 +29,11 @@ test('a comment survives a reload and priority changes show in the feed', async 
   await page.getByRole('button', { name: 'Talk about me', exact: true }).click();
   await expect(page).toHaveURL(/\?task=/);
 
-  // The feed opens with the creation entry already in it.
+  // The feed opens on Comments; the creation entry is in History.
+  await page.getByRole('tab', { name: 'History' }).click();
   await expect(page.getByText('created this task')).toBeVisible();
 
+  await page.getByRole('tab', { name: 'Comments' }).click();
   await page.getByLabel('Comment').fill('First thoughts');
   await page.getByRole('button', { name: 'Comment' }).click();
   await expect(page.getByText('First thoughts')).toBeVisible();
@@ -45,6 +47,7 @@ test('a comment survives a reload and priority changes show in the feed', async 
   // activity sentence below uses.
   await page.getByLabel('Priority').click();
   await page.getByRole('option', { name: 'High' }).click();
+  await page.getByRole('tab', { name: 'History' }).click();
   await expect(page.getByText('changed priority from none to high')).toBeVisible();
 });
 
