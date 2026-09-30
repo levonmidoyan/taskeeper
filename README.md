@@ -48,10 +48,36 @@ Set these under **Settings -> Environment Variables** for Production and Preview
 | `BETTER_AUTH_URL` | Public origin of the deployment |
 | `RESEND_API_KEY` | Resend key, or empty to log invitation and verification emails |
 | `TZ` | `UTC` |
+| `S3_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` |
+| `S3_REGION` | `auto` |
+| `S3_BUCKET` | R2 bucket name, or empty to turn attachments off |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | R2 API token (Object Read & Write, this bucket only) |
 
 `DATABASE_URL` must point at the provider's *pooled* endpoint (`-pooler` in a Neon host, port
 6543 on Supabase). The direct endpoint runs out of connections once functions fan out. If a
 storage integration filled in the unpooled value, replace it.
+
+### Attachments on Cloudflare R2
+
+1. R2 → **Create bucket**. Leave public access off; the app only ever hands out five-minute signed links.
+2. R2 → **Manage API tokens** → create a token with **Object Read & Write** scoped to that bucket. Its access key id and secret go in `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`.
+3. Bucket → **Settings → CORS policy**, so browsers can upload straight to the bucket:
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://your-app.example.com"],
+       "AllowedMethods": ["PUT", "GET", "HEAD"],
+       "AllowedHeaders": ["content-type"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+4. Uploads that never finish and files of deleted tasks stay in the bucket until swept:
+   `SWEEP_ENV_FILE=.env.production.local yarn attachments:sweep` (add `--dry-run` to preview). Run it daily or weekly.
+
+Locally, `yarn db:up` also starts MinIO; run `yarn storage:init` once to create the buckets.
 
 ### 3. Run migrations
 
