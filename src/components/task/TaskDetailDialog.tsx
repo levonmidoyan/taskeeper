@@ -25,6 +25,12 @@ export function TaskDetailDialog(props: TaskDetailViewProps) {
         // its own, so the page behind never needs to. Full screen on phones.
         overlayClassName="p-0 sm:p-4"
         className="flex h-dvh max-w-6xl flex-col overflow-hidden rounded-none sm:h-[90vh] sm:rounded-20"
+        // Focus the dialog itself, not its first button: that is Delete, and it
+        // opened with a focus ring one keypress away from the confirm.
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          (event.currentTarget as HTMLElement).focus();
+        }}
         // Escape that closes an editor's slash menu or link field stops there.
         onEscapeKeyDown={(event) => { if (handleEditorEscape(event)) event.preventDefault(); }}
       >
