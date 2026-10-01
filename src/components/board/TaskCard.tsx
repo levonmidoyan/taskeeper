@@ -28,7 +28,7 @@ export function TaskCard({
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <PriorityChip priority={task.priority} />
-        <DueChip dueDate={task.dueDate} timezone={timezone} />
+        <DueChip dueDate={task.dueDate} timezone={timezone} done={task.completedAt !== null} />
         {task.subtaskCount > 0 && (
           <span className="tabular text-paragraph-xs text-text-sub-600">
             {task.subtaskDoneCount}/{task.subtaskCount}

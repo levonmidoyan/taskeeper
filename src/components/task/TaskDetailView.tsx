@@ -288,6 +288,7 @@ export function TaskDetailView({
           <DueDateField
             id="task-due"
             value={dueDate}
+            done={statuses.find((s) => s.id === statusId)?.isDone ?? false}
             timezone={timezone}
             // A bare YYYY-MM-DD string, never a Date: the value is a calendar
             // day in the workspace zone (v1 spec §3.4).

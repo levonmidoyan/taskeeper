@@ -163,7 +163,7 @@ function buildColumns(statusById: Map<string, StatusRow>, timezone: string) {
       sortFn: (a, b, id) => compareKeys(a.getValue<string>(id), b.getValue<string>(id)),
       cell: ({ row }) =>
         row.original.dueDate
-          ? <DueChip dueDate={row.original.dueDate} timezone={timezone} />
+          ? <DueChip dueDate={row.original.dueDate} timezone={timezone} done={row.original.completedAt !== null} />
           : <span className="text-paragraph-xs text-text-soft-400">—</span>,
     }),
     column.accessor((task) => task.createdAt.getTime(), {
