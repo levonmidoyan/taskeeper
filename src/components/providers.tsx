@@ -19,11 +19,14 @@ import { getQueryClient } from '@/lib/query-client';
 export function Providers({
   requireEmailVerification,
   google,
+  redirectTo,
   children,
 }: {
   requireEmailVerification: boolean;
   /** Whether the server has Google OAuth credentials; see googleCredentials(). */
   google: boolean;
+  /** ?redirectTo= as the server saw it; the client reads it from the URL. */
+  redirectTo: string;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -33,7 +36,7 @@ export function Providers({
       <AuthProvider
         authClient={authClient}
         queryClient={getQueryClient()}
-        redirectTo="/"
+        redirectTo={redirectTo}
         plugins={[
           adminPlugin({ impersonationRedirectTo: '/' }),
           deviceAuthorizationPlugin(),

@@ -13,6 +13,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Pages only: not the auth API, Next's own assets, or files in public/.
-  matcher: ['/((?!api/|_next/|auth/|.*\\.[a-z0-9]+$).*)'],
+  // Pages only, auth pages included (the root layout reads ?redirectTo= off
+  // the header): not the API, Next's own assets, or files in public/.
+  matcher: ['/((?!api/|_next/|.*\\.[a-z0-9]+$).*)'],
 };
