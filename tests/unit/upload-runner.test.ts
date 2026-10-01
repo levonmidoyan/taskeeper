@@ -2,17 +2,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const requestUploadAction = vi.fn();
 const confirmUploadAction = vi.fn();
+const cancelUploadAction = vi.fn();
+const deleteAttachmentAction = vi.fn();
 vi.mock('@/server/attachments/actions', () => ({
   requestUploadAction: (...a: unknown[]) => requestUploadAction(...a),
   confirmUploadAction: (...a: unknown[]) => confirmUploadAction(...a),
-  cancelUploadAction: vi.fn(),
-  deleteAttachmentAction: vi.fn(),
+  cancelUploadAction: (...a: unknown[]) => cancelUploadAction(...a),
+  deleteAttachmentAction: (...a: unknown[]) => deleteAttachmentAction(...a),
 }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 import { enqueue, retryItem } from '@/lib/upload-queue';
-import { pumpStore, storeFor } from '@/components/task/use-attachment-uploads';
+import { discardItem, pumpStore, storeFor } from '@/components/task/use-attachment-uploads';
 
 const router = { refresh: vi.fn() } as never;
 const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -28,6 +30,8 @@ function queue(taskId: string, count: number) {
 beforeEach(() => {
   requestUploadAction.mockReset();
   confirmUploadAction.mockReset();
+  cancelUploadAction.mockReset();
+  deleteAttachmentAction.mockReset();
   vi.unstubAllGlobals();
 });
 
@@ -121,5 +125,56 @@ describe('pumpStore when the confirm call fails', () => {
 
     expect(store.items[0].state).toBe('done');
     expect(requestUploadAction).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('discardItem', () => {
+  function failedAfterUpload(taskId: string) {
+    const store = queue(taskId, 1);
+    store.items = [{ ...store.items[0], state: 'failed', error: 'Upload failed.', retryable: true, uploaded: true, attachmentId: 'att-1' }];
+    return store;
+  }
+
+  it('cancels the pending upload on the server before dropping the card', async () => {
+    cancelUploadAction.mockResolvedValue({ ok: true, data: null });
+    const store = failedAfterUpload('t-discard-pending');
+
+    expect(await discardItem(store, router, 'ws', store.items[0].localId)).toBe(true);
+
+    expect(cancelUploadAction).toHaveBeenCalledWith('ws', { attachmentId: 'att-1' });
+    expect(deleteAttachmentAction).not.toHaveBeenCalled();
+    expect(store.items).toHaveLength(0);
+  });
+
+  // The confirm whose response was lost did attach the file; dismissing must
+  // still take it off the task.
+  it('deletes the attachment when the failed confirm went through', async () => {
+    cancelUploadAction.mockResolvedValue({ ok: false, error: 'Attachment not found.' });
+    deleteAttachmentAction.mockResolvedValue({ ok: true, data: null });
+    const store = failedAfterUpload('t-discard-ready');
+
+    expect(await discardItem(store, router, 'ws', store.items[0].localId)).toBe(true);
+
+    expect(deleteAttachmentAction).toHaveBeenCalledWith('ws', { attachmentId: 'att-1' });
+    expect(store.items).toHaveLength(0);
+  });
+
+  it('keeps the card when the server cleanup fails', async () => {
+    cancelUploadAction.mockRejectedValue(new Error('Failed to fetch'));
+    const store = failedAfterUpload('t-discard-error');
+
+    expect(await discardItem(store, router, 'ws', store.items[0].localId)).toBe(false);
+
+    expect(store.items).toHaveLength(1);
+  });
+
+  it('drops an item with nothing on the server without calling it', async () => {
+    const store = queue('t-discard-local', 1);
+    store.items = [{ ...store.items[0], state: 'failed', error: 'Files can be up to 25 MB.' }];
+
+    expect(await discardItem(store, router, 'ws', store.items[0].localId)).toBe(true);
+
+    expect(cancelUploadAction).not.toHaveBeenCalled();
+    expect(store.items).toHaveLength(0);
   });
 });

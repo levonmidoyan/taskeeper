@@ -142,6 +142,41 @@ export function pumpStore(store: Store, router: ReturnType<typeof useRouter>, wo
   }
 }
 
+/**
+ * ✕ on a card that is not running. Bytes already in storage mean the server
+ * has a row: a pending one to cancel, or a ready one when a confirm whose
+ * response was lost went through. Either way the file must not stay attached
+ * once the card is gone, so the card stays (with a toast) if cleanup fails.
+ */
+export async function discardItem(
+  store: Store, router: ReturnType<typeof useRouter>, workspaceSlug: string, localId: string,
+): Promise<boolean> {
+  const item = store.items.find((i) => i.localId === localId);
+  if (item?.uploaded && item.attachmentId) {
+    const input = { attachmentId: item.attachmentId };
+    try {
+      const cancelled = await cancelUploadAction(workspaceSlug, input);
+      if (!cancelled.ok) {
+        if (cancelled.error !== 'Attachment not found.') {
+          toast.error(cancelled.error);
+          return false;
+        }
+        const deleted = await deleteAttachmentAction(workspaceSlug, input);
+        if (!deleted.ok && deleted.error !== 'Attachment not found.') {
+          toast.error(deleted.error);
+          return false;
+        }
+        router.refresh();
+      }
+    } catch {
+      toast.error('Something went wrong. Please try again.');
+      return false;
+    }
+  }
+  update(store, removeItem(store.items, localId));
+  return true;
+}
+
 export function useAttachmentUploads(workspaceSlug: string, taskId: string) {
   const router = useRouter();
   const store = storeFor(taskId);
@@ -166,11 +201,16 @@ export function useAttachmentUploads(workspaceSlug: string, taskId: string) {
   }, [pump, store]);
 
   const cancel = useCallback((localId: string) => {
-    if (store.items.find((i) => i.localId === localId)?.confirming) return;
+    const item = store.items.find((i) => i.localId === localId);
+    if (item?.confirming) return;
+    if (item?.state === 'failed') {
+      void discardItem(store, router, workspaceSlug, localId);
+      return;
+    }
     store.xhrs.get(localId)?.abort();
     update(store, removeItem(store.items, localId));
     pump();
-  }, [pump, store]);
+  }, [pump, router, store, workspaceSlug]);
 
   const retry = useCallback((localId: string) => {
     update(store, retryItem(store.items, localId));
