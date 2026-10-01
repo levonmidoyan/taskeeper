@@ -12,6 +12,11 @@ describe('redirectToFromPath', () => {
     expect(redirectToFromPath('/auth/sign-in?redirectTo=%20%2Fx%20')).toBe('/x');
   });
 
+  it('never returns an off-site destination', () => {
+    expect(redirectToFromPath('/auth/sign-in?redirectTo=https%3A%2F%2Fevil.example')).toBe('/');
+    expect(redirectToFromPath('/auth/sign-in?redirectTo=%2F%2Fevil.example')).toBe('/');
+  });
+
   it('falls back to / when it is missing or blank', () => {
     expect(redirectToFromPath('/auth/sign-in')).toBe('/');
     expect(redirectToFromPath('/auth/sign-in?redirectTo=%20')).toBe('/');
