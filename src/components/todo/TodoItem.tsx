@@ -114,6 +114,7 @@ export function TodoItem({
       <TodoDuePicker
         title={item.title}
         dueDate={item.dueDate}
+        done={done}
         timezone={timezone}
         onChange={(dueDate) => onDue(item, dueDate)}
       />

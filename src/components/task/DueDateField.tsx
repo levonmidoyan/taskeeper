@@ -14,11 +14,14 @@ import { cn } from '@/utils/cn';
 export function DueDateField({
   id,
   value,
+  done = false,
   timezone,
   onChange,
 }: {
   id: string;
   value: string | null;
+  /** A finished task is never shown as overdue. */
+  done?: boolean;
   timezone: string;
   onChange: (dueDate: string | null) => void;
 }) {
@@ -32,7 +35,7 @@ export function DueDateField({
   }
 
   const today = todayInZone(timezone);
-  const overdue = value !== null && isOverdue(value, timezone);
+  const overdue = !done && value !== null && isOverdue(value, timezone);
 
   return (
     <div className="flex flex-col gap-1">

@@ -11,11 +11,13 @@ import { dateToDay, dayToDate, todayInZone } from '@/lib/dates';
 export function TodoDuePicker({
   title,
   dueDate,
+  done = false,
   timezone,
   onChange,
 }: {
   title: string;
   dueDate: string | null;
+  done?: boolean;
   timezone: string;
   onChange: (dueDate: string | null) => void;
 }) {
@@ -35,7 +37,7 @@ export function TodoDuePicker({
         className="inline-flex min-h-9 shrink-0 items-center rounded-lg px-2 text-text-soft-400 transition-colors duration-150 hover:bg-bg-weak-50 hover:text-text-strong-950 data-[state=open]:bg-bg-weak-50"
       >
         {dueDate
-          ? <DueChip dueDate={dueDate} timezone={timezone} />
+          ? <DueChip dueDate={dueDate} timezone={timezone} done={done} />
           : <IconCalendarPlus className="size-4" aria-hidden="true" />}
       </Popover.Trigger>
       <Popover.Content align="end" sideOffset={8} showArrow={false} className="p-0">

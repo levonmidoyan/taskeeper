@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
@@ -10,7 +10,17 @@ import { listWorkspaceMembers } from '@/server/labels/queries';
 import { invitation, member, workspaceSettings } from '@/db';
 import type { WorkspaceContext } from '@/lib/session';
 
+const sendInviteEmail = vi.fn();
+vi.mock('@/lib/email', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/email')>()),
+  sendInviteEmail: (...a: unknown[]) => sendInviteEmail(...a),
+}));
+
 beforeEach(resetDb);
+beforeEach(() => {
+  sendInviteEmail.mockReset();
+  sendInviteEmail.mockResolvedValue(undefined);
+});
 afterAll(closeDb);
 
 async function setup(email: string, slug: string, role: 'owner' | 'admin' | 'member' = 'owner') {
@@ -33,6 +43,18 @@ describe('inviteMember', () => {
     expect(row.email).toBe('new@example.com');
     expect(row.status).toBe('pending');
     expect(row.expiresAt.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  // The sender sees an error and tries again; a live invite left behind would
+  // pile up a duplicate on every retry.
+  it('leaves no invitation behind when the email cannot be sent', async () => {
+    const { ctx } = await setup('owner@example.com', 'acme');
+    sendInviteEmail.mockRejectedValueOnce(new Error('Resend invite failed: domain not verified'));
+
+    const result = await inviteMember(ctx, { email: 'new@example.com', role: 'member' });
+
+    expect(result).toEqual({ ok: false, error: 'The invitation email could not be sent. Please try again.' });
+    expect(await db.select().from(invitation).where(eq(invitation.email, 'new@example.com'))).toHaveLength(0);
   });
 
   it('refuses a plain member', async () => {

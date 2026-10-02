@@ -67,14 +67,22 @@ export async function inviteMember(
       .select({ name: user.name, email: user.email })
       .from(user).where(eq(user.id, ctx.userId)).limit(1);
 
-    await sendInviteEmail({
-      to: parsed.data.email,
-      url: `${appUrl()}/invite/${id}`,
-      workspaceName: ws?.name ?? 'the workspace',
-      role: parsed.data.role,
-      inviter,
-      expiresInDays: INVITE_TTL_DAYS,
-    });
+    // The sender is told it failed and tries again, so the invite must not
+    // stay live: every retry would leave another one behind.
+    try {
+      await sendInviteEmail({
+        to: parsed.data.email,
+        url: `${appUrl()}/invite/${id}`,
+        workspaceName: ws?.name ?? 'the workspace',
+        role: parsed.data.role,
+        inviter,
+        expiresInDays: INVITE_TTL_DAYS,
+      });
+    } catch (error) {
+      console.error('invite email failed', error);
+      await db.delete(invitation).where(eq(invitation.id, id));
+      return err('The invitation email could not be sent. Please try again.');
+    }
 
     return ok({ invitationId: id });
   });

@@ -2,6 +2,7 @@
 
 import {
   authMutationKeys,
+  getAuthLinkURL,
   validateEmailAddress,
   validateStringLength
 } from "@better-auth-ui/core"
@@ -77,6 +78,7 @@ export function SignIn({
     emailAndPassword,
     localization,
     plugins,
+    redirectTo,
     socialProviders,
     viewPaths,
     navigate,
@@ -371,7 +373,10 @@ export function SignIn({
             <FieldDescription className="text-center">
               {localization.auth.needToCreateAnAccount}{" "}
               <Link
-                href={`${basePaths.auth}/${viewPaths.auth.signUp}`}
+                href={getAuthLinkURL(
+                  `${basePaths.auth}/${viewPaths.auth.signUp}`,
+                  redirectTo
+                )}
                 className="underline underline-offset-4"
               >
                 {localization.auth.signUp}
