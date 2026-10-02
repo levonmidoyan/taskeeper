@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { ProjectHeader } from '@/components/shell/ProjectHeader';
+import { ProjectMenu } from '@/components/shell/ProjectMenu';
 import { StarButton } from '@/components/shell/StarButton';
 import { ProjectTaskDialog } from '@/components/task/ProjectTaskDialog';
 import { TaskTable } from '@/components/task/TaskTable';
@@ -16,6 +17,7 @@ export default async function ProjectListPage({
 }) {
   const { workspaceSlug, projectId } = await params;
   const ctx = await requireWorkspace(workspaceSlug);
+  const canManage = ctx.role === 'owner' || ctx.role === 'admin';
 
   const project = await getProject(ctx, projectId);
   if (!project) notFound();
@@ -31,6 +33,7 @@ export default async function ProjectListPage({
         name={project.name}
         basePath={basePath}
         star={<StarButton workspaceSlug={workspaceSlug} projectId={projectId} starred={project.starred} />}
+        menu={canManage && <ProjectMenu workspaceSlug={workspaceSlug} projectId={projectId} name={project.name} />}
       />
       <TaskTable
         tasks={tasks}

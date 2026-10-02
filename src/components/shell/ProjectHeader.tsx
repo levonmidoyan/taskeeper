@@ -6,12 +6,15 @@ export function ProjectHeader({
   name,
   basePath,
   star,
+  menu,
   children,
 }: {
   name: string;
   basePath: string;
   /** Sits right after the title, like Jira's star beside a board name. */
   star?: React.ReactNode;
+  /** Project actions, after the star; absent for members who cannot manage the project. */
+  menu?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
@@ -19,6 +22,7 @@ export function ProjectHeader({
       <div className="flex min-w-0 flex-1 items-center gap-1 max-sm:basis-full">
         <h1 className="min-w-0 truncate text-label-lg text-text-strong-950">{name}</h1>
         {star}
+        {menu}
       </div>
       <ViewTabs basePath={basePath} />
       {children}

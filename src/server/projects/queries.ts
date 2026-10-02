@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { db, project, projectStar, task, taskStatus } from '@/db';
 import { byId, byKey } from '@/lib/position';
 import type { WorkspaceContext } from '@/lib/session';
@@ -68,6 +68,25 @@ export async function listProjects(ctx: WorkspaceContext): Promise<ProjectSummar
   return rows;
 }
 
+export type ArchivedProject = {
+  id: string;
+  name: string;
+  color: string;
+  archivedAt: Date;
+};
+
+/** Archived projects, most recently archived first. Their only way back is unarchiveProject. */
+export async function listArchivedProjects(ctx: WorkspaceContext): Promise<ArchivedProject[]> {
+  const rows = await db
+    .select({ id: project.id, name: project.name, color: project.color, archivedAt: project.archivedAt })
+    .from(project)
+    .where(and(eq(project.workspaceId, ctx.workspaceId), isNotNull(project.archivedAt)))
+    .orderBy(desc(project.archivedAt), asc(project.name));
+
+  // isNotNull above guarantees it; drizzle still types the column as nullable.
+  return rows.map((row) => ({ ...row, archivedAt: row.archivedAt! }));
+}
+
 export async function getProject(
   ctx: WorkspaceContext,
   projectId: string,
@@ -83,8 +102,8 @@ export async function getProject(
       and(eq(projectStar.projectId, project.id), eq(projectStar.userId, ctx.userId)),
     )
     // Both conditions, always: the id alone would read across tenants. Archived
-    // projects are gone from the sidebar and have no way back, so a bookmark to
-    // one 404s rather than opening an editable board.
+    // projects are gone from the sidebar and only come back from workspace
+    // settings, so a bookmark to one 404s rather than opening an editable board.
     .where(and(eq(project.id, projectId), eq(project.workspaceId, ctx.workspaceId), isNull(project.archivedAt)))
     .limit(1);
 

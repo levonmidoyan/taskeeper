@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { Board } from '@/components/board/Board';
 import { ManageColumnsDialog } from '@/components/board/ManageColumnsDialog';
 import { ProjectHeader } from '@/components/shell/ProjectHeader';
+import { ProjectMenu } from '@/components/shell/ProjectMenu';
 import { StarButton } from '@/components/shell/StarButton';
 import { ProjectTaskDialog } from '@/components/task/ProjectTaskDialog';
 import { requireWorkspace } from '@/lib/session';
@@ -25,7 +26,7 @@ export default async function ProjectBoardPage({
   const basePath = `/${workspaceSlug}/projects/${projectId}`;
 
   const { task: openTaskId } = await searchParams;
-  const canEditColumns = ctx.role === 'owner' || ctx.role === 'admin';
+  const canManage = ctx.role === 'owner' || ctx.role === 'admin';
 
   // Viewport minus the h-14 app header, so the board scrolls inside itself.
   return (
@@ -34,12 +35,13 @@ export default async function ProjectBoardPage({
         name={project.name}
         basePath={basePath}
         star={<StarButton workspaceSlug={workspaceSlug} projectId={projectId} starred={project.starred} />}
+        menu={canManage && <ProjectMenu workspaceSlug={workspaceSlug} projectId={projectId} name={project.name} />}
       >
         <ManageColumnsDialog
           workspaceSlug={workspaceSlug}
           projectId={projectId}
           statuses={project.statuses}
-          canEdit={canEditColumns}
+          canEdit={canManage}
         />
       </ProjectHeader>
       <Board
@@ -47,7 +49,7 @@ export default async function ProjectBoardPage({
         statuses={project.statuses}
         tasks={tasks}
         timezone={ctx.timezone}
-        canEditColumns={canEditColumns}
+        canEditColumns={canManage}
       />
       <ProjectTaskDialog
         ctx={ctx}
