@@ -4,6 +4,7 @@ import { viewPaths } from '@better-auth-ui/core';
 import {
   IconAdjustmentsHorizontal,
   IconChevronRight,
+  IconFolders,
   IconShield,
   IconUser,
   IconUsers,
@@ -87,6 +88,7 @@ export function WorkspaceSettingsTabs({
       tabs={[
         { label: 'General', href: `/${workspaceSlug}/settings/general`, icon: IconAdjustmentsHorizontal },
         { label: 'Members', href: `/${workspaceSlug}/settings/members`, icon: IconUsers },
+        { label: 'Projects', href: `/${workspaceSlug}/settings/projects`, icon: IconFolders },
       ]}
     >
       {children}

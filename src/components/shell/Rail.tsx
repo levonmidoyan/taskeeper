@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { UserButton } from '@/components/auth/user/user-button';
 import { NewProjectDialog } from '@/components/shell/NewProjectDialog';
 import { ProjectColorButton } from '@/components/shell/ProjectColorPicker';
+import { ProjectMenu } from '@/components/shell/ProjectMenu';
 import { ThemeControl } from '@/components/shell/ThemeControl';
 import { WorkspaceSwitcher } from '@/components/shell/WorkspaceSwitcher';
 import * as CompactButton from '@/components/ui/compact-button';
@@ -21,7 +22,7 @@ type Props = {
   workspaceSlug: string;
   workspaces: WorkspaceSummary[];
   projects: ProjectSummary[];
-  /** Owners and admins may recolor projects; members see the color only. */
+  /** Owners and admins may recolor and manage projects; members see the color only. */
   canManageProjects: boolean;
 };
 
@@ -42,8 +43,8 @@ function ProjectLink({
   active: boolean;
   canManage: boolean;
 }) {
-  // The dot is its own button beside the link, not inside it: a button nested
-  // in an anchor is invalid and would navigate on every color change.
+  // The dot and the menu are their own buttons beside the link, not inside it: a
+  // button nested in an anchor is invalid and would navigate on every click.
   return (
     <div className={cn(navItem, 'group relative h-9 pl-1', active ? navActive : navIdle)}>
       <ProjectColorButton
@@ -61,11 +62,27 @@ function ProjectLink({
       >
         <span className="truncate">{project.name}</span>
         {project.openTaskCount > 0 && (
-          <span className="tabular ml-auto text-label-xs text-text-soft-400">
+          <span
+            className={cn(
+              'tabular ml-auto text-label-xs text-text-soft-400',
+              // The menu takes the count's place while the row is hovered or focused.
+              canManage && 'group-focus-within:hidden group-hover:hidden',
+            )}
+          >
             {project.openTaskCount}
           </span>
         )}
       </Link>
+      {canManage && (
+        <ProjectMenu
+          workspaceSlug={workspaceSlug}
+          projectId={project.id}
+          name={project.name}
+          placement="rail"
+          // Shown on hover and focus; always on touch screens, which have no hover.
+          className="relative z-10 -mr-1 hidden shrink-0 group-focus-within:flex group-hover:flex data-[state=open]:flex pointer-coarse:flex"
+        />
+      )}
     </div>
   );
 }

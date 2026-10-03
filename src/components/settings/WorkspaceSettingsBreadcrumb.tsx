@@ -7,6 +7,7 @@ import { PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
 const tabLabels: Record<string, string> = {
   general: 'General',
   members: 'Members',
+  projects: 'Projects',
 };
 
 /** Workspace settings share one layout, so the current tab comes from the URL. */
