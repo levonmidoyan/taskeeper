@@ -4,9 +4,9 @@
 
 **Goal:** Search tasks by title and description with Postgres full-text search, through a ⌘K command palette that replaces the header search box.
 
-**Architecture:** A stored generated `tsvector` column on `task` (title weight A, description B) with a GIN index. `searchTasks` matches a sanitized prefix `to_tsquery` OR a title `ILIKE`, ranks with `ts_rank`, and returns a `ts_headline` snippet for description-only hits. A `cmdk` palette in the existing Radix `Modal` shows recent tasks, projects, task hits and navigation actions; `AppHeader` owns the create-task dialog's open state so the palette can open it.
+**Architecture:** A stored generated `tsvector` column on `task` (title weight A, description B) with a GIN index. `searchTasks` matches a sanitized prefix `to_tsquery` OR a title `ILIKE`, ranks with `ts_rank`, and returns a `ts_headline` snippet for description-only hits. A palette built from Align UI's Command Menu (vendored, `cmdk` + Align `Modal`) shows recent tasks, projects, task hits and navigation actions; `AppHeader` owns the create-task dialog's open state so the palette can open it.
 
-**Tech Stack:** Next.js 16 (App Router, server actions), drizzle-orm 0.45 / drizzle-kit 0.31 on Postgres, cmdk 1.1.1, Radix dialog via `@/components/ui/modal`, vitest, Playwright.
+**Tech Stack:** Next.js 16 (App Router, server actions), drizzle-orm 0.45 / drizzle-kit 0.31 on Postgres, Align UI Command Menu (cmdk 1.1.1) and Modal, vitest, Playwright.
 
 **Spec:** `docs/superpowers/specs/2026-10-03-search-palette-design.md`
 
@@ -507,13 +507,16 @@ git commit -m "feat(search): snippet highlight parser and palette action list"
 ### Task 3: Command palette replaces header search
 
 **Files:**
-- Create: `src/components/shell/CommandPalette.tsx`
+- Create: `src/components/ui/command-menu.tsx` (vendored Align UI Command Menu, one marked edit)
+- Create: `src/components/shell/CommandPalette.tsx` (app wiring on top of it)
+- Modify: `tests/unit/vendored-ui.test.ts` (list `command-menu.tsx`)
 - Create: `tests/e2e/search.spec.ts`
 - Modify: `src/components/shell/AppHeader.tsx` (whole file)
 - Modify: `src/components/shell/CreateTaskDialog.tsx:44-74` (controlled `open`)
 - Delete: `src/components/shell/TaskSearch.tsx`
 
 **Interfaces:**
+- Consumes: Align `CommandMenu` parts — `Dialog` (+ local `commandProps`/`contentProps`), `DialogTitle`, `Input`, `List`, `Group`, `Item`, `ItemIcon`, `Footer`, `FooterKeyBox`.
 - Consumes: `searchTasksAction`, `recentTasksAction`, `TaskSearchHit`, `RecentTask` (Task 1); `splitHighlights`, `paletteActions`, `matchActions`, `PaletteAction` (Task 2); `ignoreShortcut` (`src/components/shell/shortcuts.ts`); `projectDot` (`src/components/brand/tint`).
 - Produces: `CommandPalette({ workspaceSlug, projects, onNewTask }: { workspaceSlug: string; projects: ProjectSummary[]; onNewTask: () => void })`
 - Produces: `CreateTaskDialog` gains required props `open: boolean; onOpenChange: (open: boolean) => void`.
@@ -655,19 +658,86 @@ export function CreateTaskDialog({
 
 The rest of the file is unchanged: the `c` shortcut keeps calling `onOpenChange(true)` and `<Modal.Root open={open} onOpenChange={onOpenChange}>` now uses the props.
 
-- [ ] **Step 4: Write `src/components/shell/CommandPalette.tsx`**
+- [ ] **Step 4a: Vendor Align UI's Command Menu**
+
+Download the upstream file unchanged first, so the diff of our edit stays reviewable:
+
+```bash
+curl -s https://raw.githubusercontent.com/alignui/alignui-nextjs-typescript-starter/master/components/ui/command-menu.tsx \
+  -o src/components/ui/command-menu.tsx
+head -1 src/components/ui/command-menu.tsx   # expect: // AlignUI CommandMenu v0.0.0
+```
+
+It imports `@/utils/cn`, `@/utils/tv`, `@/utils/polymorphic`, `@/components/ui/modal`, `cmdk` and `@radix-ui/react-dialog` — all already in the repo. No icons inside, so the Tabler rule needs no change.
+
+Upstream `CommandDialog` swallows the props we need: nothing reaches `<Command>` (`label`, `shouldFilter`, `loop`) or `<Modal.Content>` (`onCloseAutoFocus`, `aria-describedby`). Replace the `CommandDialog` component (upstream lines 15-46) with this one — the only local edit to the file:
+
+```tsx
+// Taskeeper: forwards commandProps to <Command> and contentProps to
+// <Modal.Content>; upstream passed neither, so filtering, the accessible label
+// and focus-on-close could not be controlled.
+const CommandDialog = ({
+  children,
+  className,
+  overlayClassName,
+  commandProps,
+  contentProps,
+  ...rest
+}: DialogProps & {
+  className?: string;
+  overlayClassName?: string;
+  commandProps?: Omit<React.ComponentPropsWithoutRef<typeof Command>, 'children'>;
+  contentProps?: Omit<React.ComponentPropsWithoutRef<typeof Modal.Content>, 'children' | 'className' | 'overlayClassName'>;
+}) => {
+  return (
+    <Modal.Root {...rest}>
+      <Modal.Content
+        overlayClassName={cn('justify-start pt-20', overlayClassName)}
+        showClose={false}
+        className={cn(
+          'flex max-h-full max-w-[600px] flex-col overflow-hidden rounded-2xl',
+          className,
+        )}
+        {...contentProps}
+      >
+        <Command
+          {...commandProps}
+          className={cn(
+            'divide-y divide-stroke-soft-200',
+            'grid min-h-0 auto-cols-auto grid-flow-row',
+            '[&>[cmdk-label]+*]:!border-t-0',
+            commandProps?.className,
+          )}
+        >
+          {children}
+        </Command>
+      </Modal.Content>
+    </Modal.Root>
+  );
+};
+```
+
+Add `'command-menu.tsx'` to the `expect.arrayContaining([...])` list in `tests/unit/vendored-ui.test.ts`, then:
+
+Run: `yarn vitest run tests/unit/vendored-ui.test.ts`
+Expected: PASS (exists, Tabler-only, no `-[--`, starts with the header comment then `'use client';`).
+
+- [ ] **Step 4b: Write `src/components/shell/CommandPalette.tsx` on top of it**
+
+The palette is only the app wiring — shortcuts, data fetching, what to list. Every visual part comes from `@/components/ui/command-menu`.
 
 ```tsx
 'use client';
 
-import { IconArrowRight, IconCircleCheck, IconPlus, IconSearch } from '@tabler/icons-react';
-import { Command } from 'cmdk';
+import {
+  IconArrowDown, IconArrowRight, IconArrowUp, IconCircleCheck, IconCornerDownLeft, IconPlus, IconSearch,
+} from '@tabler/icons-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { projectDot } from '@/components/brand/tint';
 import { matchActions, paletteActions, type PaletteAction } from '@/components/shell/palette-actions';
 import { ignoreShortcut } from '@/components/shell/shortcuts';
-import * as Modal from '@/components/ui/modal';
+import * as CommandMenu from '@/components/ui/command-menu';
 import { splitHighlights } from '@/lib/highlights';
 import { settle } from '@/lib/settle';
 import type { ProjectSummary } from '@/server/projects/queries';
@@ -675,17 +745,13 @@ import type { RecentTask, TaskSearchHit } from '@/server/tasks/queries';
 import { recentTasksAction, searchTasksAction } from '@/server/tasks/actions';
 import { cn } from '@/utils/cn';
 
-const itemClass =
-  'flex min-h-10 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-label-sm text-text-strong-950 data-[selected=true]:bg-bg-weak-50';
-const groupClass =
-  '[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-label-xs [&_[cmdk-group-heading]]:text-text-soft-400';
-
 type TaskLike = Pick<TaskSearchHit, 'id' | 'title' | 'projectName' | 'completed'> & { snippet?: string | null };
 
 /**
  * ⌘K / Ctrl+K, "/" or the header button. Empty, it offers recent tasks and
  * actions; typed into, projects match locally, tasks come from full-text search
- * after a short pause, and actions filter by label.
+ * after a short pause, and actions filter by label. Built on Align's Command
+ * Menu; this file only decides what to list and when.
  */
 export function CommandPalette({
   workspaceSlug,
@@ -723,7 +789,7 @@ export function CommandPalette({
         // Another dialog or menu owns the screen; leave it alone.
         if (!open && document.querySelector('[role="dialog"], [role="menu"]')) return;
         e.preventDefault();
-        setOpen((o) => !o);
+        onOpenChange(!open);
         return;
       }
       if (e.key === '/' && !open && !ignoreShortcut(e)) {
@@ -733,7 +799,7 @@ export function CommandPalette({
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -779,128 +845,136 @@ export function CommandPalette({
   const taskRows: TaskLike[] = trimmed ? tasks : recent;
   const nothing = !projectHits.length && !taskRows.length && !actions.length;
 
-  function taskItem(t: TaskLike) {
-    return (
-      <Command.Item
-        key={`task-${t.id}`}
-        value={`task-${t.id}`}
-        onSelect={() => go(`/${workspaceSlug}/tasks/${t.id}`)}
-        className={itemClass}
-      >
-        <IconCircleCheck
-          aria-hidden="true"
-          className={cn('size-4 shrink-0 self-start mt-0.5', t.completed ? 'text-success-base' : 'text-text-soft-400')}
-        />
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className={cn('truncate', t.completed && 'text-text-sub-600 line-through')}>{t.title}</span>
-          {t.snippet && (
-            <span className="truncate text-paragraph-xs text-text-sub-600">
-              {splitHighlights(t.snippet).map((p, i) =>
-                p.mark ? (
-                  <mark key={i} className="rounded-sm bg-primary-alpha-16 text-text-strong-950">{p.text}</mark>
-                ) : (
-                  <span key={i}>{p.text}</span>
-                ),
-              )}
-            </span>
-          )}
-        </span>
-        <span className="ml-2 shrink-0 truncate text-paragraph-xs text-text-soft-400">{t.projectName}</span>
-      </Command.Item>
-    );
-  }
-
   return (
-    <Modal.Root open={open} onOpenChange={onOpenChange}>
-      <Modal.Trigger asChild>
-        <button
-          type="button"
-          aria-label="Search"
-          className="flex h-9 w-full max-w-md items-center gap-2 rounded-10 bg-bg-white-0 px-2.5 text-paragraph-sm text-text-soft-400 ring-1 ring-inset ring-stroke-soft-200 transition hover:bg-bg-weak-50 max-sm:w-9 max-sm:justify-center max-sm:px-0"
-        >
-          <IconSearch aria-hidden="true" className="size-5 shrink-0" />
-          <span className="flex-1 text-left max-sm:sr-only">Search…</span>
-          <kbd className="hidden rounded border border-stroke-soft-200 px-1.5 text-label-xs lg:inline">
-            {isMac ? '⌘K' : 'Ctrl K'}
-          </kbd>
-        </button>
-      </Modal.Trigger>
-      <Modal.Content
-        aria-describedby={undefined}
-        showClose={false}
-        overlayClassName="items-start pt-[12vh] max-sm:p-0"
-        className="max-w-xl overflow-hidden p-0 max-sm:h-dvh max-sm:max-w-none max-sm:rounded-none"
-        onCloseAutoFocus={(e) => {
-          if (!pendingNewTask.current) return;
-          pendingNewTask.current = false;
-          e.preventDefault();
-          onNewTask();
+    <>
+      <button
+        type="button"
+        aria-label="Search"
+        onClick={() => setOpen(true)}
+        className="flex h-9 w-full max-w-md items-center gap-2 rounded-10 bg-bg-white-0 px-2.5 text-paragraph-sm text-text-soft-400 ring-1 ring-inset ring-stroke-soft-200 transition hover:bg-bg-weak-50 max-sm:w-9 max-sm:justify-center max-sm:px-0"
+      >
+        <IconSearch aria-hidden="true" className="size-5 shrink-0" />
+        <span className="flex-1 text-left max-sm:sr-only">Search…</span>
+        <kbd className="hidden rounded border border-stroke-soft-200 px-1.5 text-label-xs lg:inline">
+          {isMac ? '⌘K' : 'Ctrl K'}
+        </kbd>
+      </button>
+
+      <CommandMenu.Dialog
+        open={open}
+        onOpenChange={onOpenChange}
+        // Full screen on phones, like the other dialogs.
+        overlayClassName="max-sm:p-0 max-sm:pt-0"
+        className="max-sm:h-dvh max-sm:max-w-none max-sm:rounded-none"
+        commandProps={{ label: 'Search', shouldFilter: false, loop: true }}
+        contentProps={{
+          'aria-describedby': undefined,
+          onCloseAutoFocus: (e) => {
+            if (!pendingNewTask.current) return;
+            pendingNewTask.current = false;
+            e.preventDefault();
+            onNewTask();
+          },
         }}
       >
-        <Modal.Title className="sr-only">Search</Modal.Title>
-        <Command label="Search" shouldFilter={false} loop>
-          <div className="flex items-center gap-2 border-b border-stroke-soft-200 px-3">
-            <IconSearch className="size-5 shrink-0 text-text-soft-400" aria-hidden="true" />
-            <Command.Input
-              value={term}
-              onValueChange={setTerm}
-              maxLength={100}
-              placeholder="Search tasks, projects and actions"
-              // 16px on phones stops iOS zooming the page when the field is focused.
-              className="h-12 w-full bg-transparent text-paragraph-sm text-text-strong-950 outline-none placeholder:text-text-soft-400 max-lg:text-paragraph-md"
-            />
-          </div>
-          <Command.List className="max-h-[min(26rem,70dvh)] overflow-y-auto p-1.5 max-sm:max-h-none">
-            {trimmed && (!searchable || loading || nothing) && (
-              <p className="px-2.5 py-3 text-paragraph-sm text-text-sub-600">
-                {!searchable ? 'Keep typing…' : loading ? 'Searching…' : 'No matches.'}
-              </p>
-            )}
-            {projectHits.length > 0 && (
-              <Command.Group heading="Projects" className={groupClass}>
-                {projectHits.map((p) => (
-                  <Command.Item
-                    key={`project-${p.id}`}
-                    value={`project-${p.id}`}
-                    onSelect={() => go(`/${workspaceSlug}/projects/${p.id}`)}
-                    className={itemClass}
-                  >
-                    <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-[3px]', projectDot(p))} />
-                    <span className="truncate">{p.name}</span>
-                  </Command.Item>
-                ))}
-              </Command.Group>
-            )}
-            {taskRows.length > 0 && (
-              <Command.Group heading={trimmed ? 'Tasks' : 'Recent'} className={groupClass}>
-                {taskRows.map(taskItem)}
-              </Command.Group>
-            )}
-            {actions.length > 0 && (
-              <Command.Group heading="Actions" className={groupClass}>
-                {actions.map((a) => (
-                  <Command.Item key={a.id} value={`action-${a.id}`} onSelect={() => run(a)} className={itemClass}>
-                    {a.command === 'new-task' ? (
-                      <IconPlus aria-hidden="true" className="size-4 shrink-0 text-text-soft-400" />
-                    ) : (
-                      <IconArrowRight aria-hidden="true" className="size-4 shrink-0 text-text-soft-400" />
+        <CommandMenu.DialogTitle className="sr-only">Search</CommandMenu.DialogTitle>
+        <div className="group/cmd-input flex h-12 items-center gap-2 px-5">
+          <IconSearch aria-hidden="true" className="size-5 shrink-0 text-text-sub-600" />
+          <CommandMenu.Input
+            value={term}
+            onValueChange={setTerm}
+            maxLength={100}
+            placeholder="Search tasks, projects and actions"
+            // 16px on phones stops iOS zooming the page when the field is focused.
+            className="h-12 max-lg:text-paragraph-md"
+          />
+        </div>
+        <CommandMenu.List className="max-h-[min(26rem,70dvh)] max-sm:max-h-none">
+          {trimmed && (!searchable || loading || nothing) && (
+            <p className="px-5 py-4 text-paragraph-sm text-text-sub-600">
+              {!searchable ? 'Keep typing…' : loading ? 'Searching…' : 'No matches.'}
+            </p>
+          )}
+          {projectHits.length > 0 && (
+            <CommandMenu.Group heading="Projects">
+              {projectHits.map((p) => (
+                <CommandMenu.Item
+                  key={`project-${p.id}`}
+                  value={`project-${p.id}`}
+                  onSelect={() => go(`/${workspaceSlug}/projects/${p.id}`)}
+                >
+                  <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-[3px]', projectDot(p))} />
+                  <span className="truncate">{p.name}</span>
+                </CommandMenu.Item>
+              ))}
+            </CommandMenu.Group>
+          )}
+          {taskRows.length > 0 && (
+            <CommandMenu.Group heading={trimmed ? 'Tasks' : 'Recent'}>
+              {taskRows.map((t) => (
+                <CommandMenu.Item
+                  key={`task-${t.id}`}
+                  value={`task-${t.id}`}
+                  onSelect={() => go(`/${workspaceSlug}/tasks/${t.id}`)}
+                >
+                  <CommandMenu.ItemIcon
+                    as={IconCircleCheck}
+                    aria-hidden="true"
+                    className={cn('self-start', t.completed ? 'text-success-base' : 'text-text-soft-400')}
+                  />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className={cn('truncate', t.completed && 'text-text-sub-600 line-through')}>{t.title}</span>
+                    {t.snippet && (
+                      <span className="truncate text-paragraph-xs text-text-sub-600">
+                        {splitHighlights(t.snippet).map((part, i) =>
+                          part.mark ? (
+                            <mark key={i} className="rounded-sm bg-primary-alpha-16 text-text-strong-950">{part.text}</mark>
+                          ) : (
+                            <span key={i}>{part.text}</span>
+                          ),
+                        )}
+                      </span>
                     )}
-                    <span className="truncate">{a.label}</span>
-                  </Command.Item>
-                ))}
-              </Command.Group>
-            )}
-          </Command.List>
-        </Command>
-      </Modal.Content>
-    </Modal.Root>
+                  </span>
+                  <span className="ml-2 shrink-0 truncate text-paragraph-xs text-text-soft-400">{t.projectName}</span>
+                </CommandMenu.Item>
+              ))}
+            </CommandMenu.Group>
+          )}
+          {actions.length > 0 && (
+            <CommandMenu.Group heading="Actions">
+              {actions.map((a) => (
+                <CommandMenu.Item key={a.id} value={`action-${a.id}`} onSelect={() => run(a)}>
+                  <CommandMenu.ItemIcon as={a.command === 'new-task' ? IconPlus : IconArrowRight} aria-hidden="true" />
+                  <span className="truncate">{a.label}</span>
+                </CommandMenu.Item>
+              ))}
+            </CommandMenu.Group>
+          )}
+        </CommandMenu.List>
+        <CommandMenu.Footer className="max-sm:hidden">
+          <div className="flex items-center gap-2 text-paragraph-xs text-text-sub-600">
+            <CommandMenu.FooterKeyBox><IconArrowUp className="size-3.5" aria-hidden="true" /></CommandMenu.FooterKeyBox>
+            <CommandMenu.FooterKeyBox><IconArrowDown className="size-3.5" aria-hidden="true" /></CommandMenu.FooterKeyBox>
+            Navigate
+            <CommandMenu.FooterKeyBox><IconCornerDownLeft className="size-3.5" aria-hidden="true" /></CommandMenu.FooterKeyBox>
+            Open
+          </div>
+          <div className="flex items-center gap-2 text-paragraph-xs text-text-sub-600">
+            <CommandMenu.FooterKeyBox className="w-auto px-1">esc</CommandMenu.FooterKeyBox>
+            Close
+          </div>
+        </CommandMenu.Footer>
+      </CommandMenu.Dialog>
+    </>
   );
 }
 ```
 
 Notes for the implementer:
-- If `bg-primary-alpha-16`, `rounded-10` or `items-start` on the overlay are not in this project's tokens/overlay, grep `src/styles` and `src/components/ui/modal.tsx` and use the nearest existing class; do not add tokens.
+- If `bg-primary-alpha-16` is not an Align token here, grep `src/styles` for the nearest primary alpha class; do not add tokens.
 - `ignoreShortcut` already returns true while any dialog is open, so "/" never fires over the create dialog.
+- The keydown effect has no dependency array on purpose (same as `CreateTaskDialog`), so it always sees the current `open`.
 
 - [ ] **Step 5: Rewrite `src/components/shell/AppHeader.tsx`**
 
@@ -970,7 +1044,7 @@ rm playwright.3100.config.ts
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/components/shell/CommandPalette.tsx src/components/shell/AppHeader.tsx src/components/shell/CreateTaskDialog.tsx tests/e2e/search.spec.ts
+git add src/components/ui/command-menu.tsx tests/unit/vendored-ui.test.ts src/components/shell/CommandPalette.tsx src/components/shell/AppHeader.tsx src/components/shell/CreateTaskDialog.tsx tests/e2e/search.spec.ts
 git commit -m "feat(search): ⌘K command palette replaces the header search box"
 ```
 

@@ -86,8 +86,10 @@ Actions in `src/server/tasks/actions.ts`:
 
 ## Palette UI
 
-`src/components/shell/CommandPalette.tsx`: `cmdk` `Command` inside the existing `Modal`
-(Radix dialog: focus trap, Esc, labelling). `shouldFilter={false}`; we decide what shows.
+Built on Align UI's Command Menu, vendored as `src/components/ui/command-menu.tsx` (cmdk inside
+Align `Modal`) with one local edit: its `Dialog` forwards props to `<Command>` and
+`<Modal.Content>`. `src/components/shell/CommandPalette.tsx` only wires shortcuts, data and
+what to list; `shouldFilter={false}`, we decide what shows. Footer shows key hints.
 
 Open triggers:
 
