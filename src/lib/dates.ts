@@ -109,6 +109,10 @@ export function recencyBucket(instant: Date, tz: string, now: Date = new Date())
 
 /** Asks the runtime whether a zone exists rather than shipping a list that goes stale. */
 export function isValidTimezone(tz: string): boolean {
+  // Region/City names (and UTC) only. Intl also accepts raw offsets like
+  // "+04:00", but Postgres reads those as POSIX zones with the sign flipped,
+  // so a reminder would go out eight hours off.
+  if (tz !== 'UTC' && !/^[A-Za-z]+(?:\/[A-Za-z0-9_+-]+)+$/.test(tz)) return false;
   try {
     new Intl.DateTimeFormat('en', { timeZone: tz });
     return true;

@@ -5,3 +5,4 @@ export * from './task';
 export * from './activity';
 export * from './todo';
 export * from './attachment';
+export * from './reminder';

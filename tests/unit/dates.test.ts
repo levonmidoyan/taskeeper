@@ -109,4 +109,14 @@ describe('isValidTimezone', () => {
     expect(isValidTimezone('Mars/Olympus')).toBe(false);
     expect(isValidTimezone('')).toBe(false);
   });
+
+  it('rejects raw offsets, which Postgres would read with the sign flipped', () => {
+    expect(isValidTimezone('+04:00')).toBe(false);
+    expect(isValidTimezone('-0700')).toBe(false);
+  });
+
+  it('still accepts Etc zones and multi-part names', () => {
+    expect(isValidTimezone('Etc/GMT+4')).toBe(true);
+    expect(isValidTimezone('America/Argentina/Buenos_Aires')).toBe(true);
+  });
 });
