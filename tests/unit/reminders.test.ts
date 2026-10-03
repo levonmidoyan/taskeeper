@@ -22,8 +22,14 @@ describe('copy', () => {
   });
 
   it('builds the reminder subject with curly quotes', () => {
-    expect(reminderSubject({ title: 'Ship v2', projectName: 'Web', dueDate: '2026-10-10', offsetDays: 1 }))
+    expect(reminderSubject({ title: 'Ship v2', projectName: 'Web', dueDate: '2026-10-10', offsetDays: 1, daysLeft: 1 }))
       .toBe('“Ship v2” is due tomorrow');
+  });
+
+  it('says when it is actually due, not which reminder fired', () => {
+    // A "1 day before" reminder sent on the due day itself (a daily run caught it late).
+    expect(reminderSubject({ title: 'Ship v2', projectName: 'Web', dueDate: '2026-10-10', offsetDays: 1, daysLeft: 0 }))
+      .toBe('“Ship v2” is due today');
   });
 
   it('builds the digest subject from the non-zero counts', () => {
@@ -48,7 +54,7 @@ describe('isReminderOffset', () => {
 
 describe('bell item text and link', () => {
   it('describes a reminder by its task', () => {
-    const item = { kind: 'reminder' as const, taskId: 't1', data: { title: 'Ship', projectName: 'Web', dueDate: '2026-10-10', offsetDays: 0 as const } };
+    const item = { kind: 'reminder' as const, taskId: 't1', data: { title: 'Ship', projectName: 'Web', dueDate: '2026-10-10', offsetDays: 0 as const, daysLeft: 0 } };
     expect(notificationText(item)).toEqual({ title: 'Ship', detail: 'Due today · Web' });
     expect(notificationHref('acme', item)).toBe('/acme/tasks/t1');
   });

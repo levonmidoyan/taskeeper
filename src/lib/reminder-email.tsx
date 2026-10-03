@@ -28,12 +28,12 @@ export function ReminderEmail({ data, url }: { data: ReminderData; url: string }
   return (
     <Html>
       <Head />
-      <Preview>{`${data.title} is due ${dueInLabel(data.offsetDays)}`}</Preview>
+      <Preview>{`${data.title} is due ${dueInLabel(data.daysLeft)}`}</Preview>
       <Body style={body}>
         <Container style={card}>
           <Heading style={heading}>{data.title}</Heading>
           <Text style={text}>
-            {data.projectName} · due {dueInLabel(data.offsetDays)} ({dateLabel(data.dueDate)})
+            {data.projectName} · due {dueInLabel(data.daysLeft)} ({dateLabel(data.dueDate)})
           </Text>
           <Section style={{ marginTop: 16 }}>
             <Button href={url} style={button}>Open task</Button>

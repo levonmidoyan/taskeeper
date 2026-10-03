@@ -42,7 +42,7 @@ describe('reminder table', () => {
     await db.insert(reminder).values({ id: newId(), workspaceId: ctx.workspaceId, taskId, userId: ctx.userId, offsetDays: 0 });
     await db.insert(notification).values({
       id: newId(), userId: ctx.userId, workspaceId: ctx.workspaceId, kind: 'reminder', taskId,
-      dedupeKey: 'rem:x', data: { title: 'T', projectName: 'P', dueDate: '2026-10-10', offsetDays: 0 },
+      dedupeKey: 'rem:x', data: { title: 'T', projectName: 'P', dueDate: '2026-10-10', offsetDays: 0, daysLeft: 0 },
     });
 
     await db.delete(task).where(eq(task.id, taskId));

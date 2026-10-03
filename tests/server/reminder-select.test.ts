@@ -15,6 +15,8 @@ beforeEach(resetDb);
 afterAll(closeDb);
 
 const at = (iso: string) => new Date(iso);
+// The exact-hour rule; the shipped daily schedule is covered under 'daily schedule'.
+const HOURLY = { hourly: true };
 
 /** Workspace in Asia/Yerevan (the factory default), one project, one task due 2026-10-10. */
 async function setup(slug = 'ws-sel') {
@@ -36,14 +38,14 @@ describe('selectDueReminders', () => {
     const { ctx, taskId } = await setup();
     await setTaskReminders(ctx, { taskId, offsets: [1] });
 
-    expect(await selectDueReminders(at('2026-10-09T04:59:00Z'))).toEqual([]);
-    expect(await selectDueReminders(at('2026-10-09T05:00:00Z'))).toEqual([{
+    expect(await selectDueReminders(at('2026-10-09T04:59:00Z'), HOURLY)).toEqual([]);
+    expect(await selectDueReminders(at('2026-10-09T05:00:00Z'), HOURLY)).toEqual([{
       kind: 'reminder', userId: ctx.userId, workspaceId: ctx.workspaceId, taskId,
       dedupeKey: `rem:${taskId}:${ctx.userId}:2026-10-10:1`,
-      data: { title: 'Ship', projectName: 'Website', dueDate: '2026-10-10', offsetDays: 1 },
+      data: { title: 'Ship', projectName: 'Website', dueDate: '2026-10-10', offsetDays: 1, daysLeft: 1 },
     }]);
-    expect(await selectDueReminders(at('2026-10-10T16:59:00Z'))).toHaveLength(1);
-    expect(await selectDueReminders(at('2026-10-10T17:00:00Z'))).toEqual([]);
+    expect(await selectDueReminders(at('2026-10-10T16:59:00Z'), HOURLY)).toHaveLength(1);
+    expect(await selectDueReminders(at('2026-10-10T17:00:00Z'), HOURLY)).toEqual([]);
   });
 
   it('uses the user’s own zone and hour over the workspace’s', async () => {
@@ -51,12 +53,12 @@ describe('selectDueReminders', () => {
     await updateUserTimezone(ctx, 'America/Los_Angeles');
     await setTaskReminders(ctx, { taskId, offsets: [0] });
 
-    expect(await selectDueReminders(at('2026-10-10T15:59:00Z'))).toEqual([]);
-    expect(await selectDueReminders(at('2026-10-10T16:00:00Z'))).toHaveLength(1);
+    expect(await selectDueReminders(at('2026-10-10T15:59:00Z'), HOURLY)).toEqual([]);
+    expect(await selectDueReminders(at('2026-10-10T16:00:00Z'), HOURLY)).toHaveLength(1);
 
     await updateReminderPrefs(ctx, { reminderHour: 18, digestEnabled: true });
-    expect(await selectDueReminders(at('2026-10-10T16:00:00Z'))).toEqual([]);
-    expect(await selectDueReminders(at('2026-10-11T01:00:00Z'))).toHaveLength(1);
+    expect(await selectDueReminders(at('2026-10-10T16:00:00Z'), HOURLY)).toEqual([]);
+    expect(await selectDueReminders(at('2026-10-11T01:00:00Z'), HOURLY)).toHaveLength(1);
   });
 
   it('skips done, archived, undated, archived-project and ex-member tasks', async () => {
@@ -114,6 +116,41 @@ describe('selectDueReminders', () => {
     await updateTask(ctx, { taskId, dueDate: '2026-10-10' });
     const [back] = await selectDueReminders(at('2026-10-10T06:00:00Z'));
     expect(back.dedupeKey).toBe(first.dedupeKey);
+  });
+});
+
+describe('selectDueReminders on the daily schedule', () => {
+  const DAILY = { hourly: false };
+
+  it('sends on the reminder day itself west of the run, not a day late', async () => {
+    const { ctx, taskId } = await setup();
+    await updateUserTimezone(ctx, 'Europe/Berlin');
+    await setTaskReminders(ctx, { taskId, offsets: [0, 1] });
+
+    // 06:00 UTC = 08:00 Berlin, before the 09:00 hour that an hourly run would wait for.
+    const onDay = await selectDueReminders(at('2026-10-10T06:00:00Z'), DAILY);
+    expect(onDay.map((d) => [d.data, d.dedupeKey])).toEqual([
+      [{ title: 'Ship', projectName: 'Website', dueDate: '2026-10-10', offsetDays: 0, daysLeft: 0 }, `rem:${taskId}:${ctx.userId}:2026-10-10:0`],
+      // The day-before run was missed: still sent, and its copy says today, not tomorrow.
+      [{ title: 'Ship', projectName: 'Website', dueDate: '2026-10-10', offsetDays: 1, daysLeft: 0 }, `rem:${taskId}:${ctx.userId}:2026-10-10:1`],
+    ]);
+  });
+
+  it('never sends once the task is overdue, nor for a reminder day long past', async () => {
+    const { ctx, taskId } = await setup();
+    await setTaskReminders(ctx, { taskId, offsets: [0, 7] });
+
+    expect(await selectDueReminders(at('2026-10-11T06:00:00Z'), DAILY)).toEqual([]);
+    // Due 2026-10-10: "7 days before" was the 3rd; by the 9th it is stale.
+    expect((await selectDueReminders(at('2026-10-09T06:00:00Z'), DAILY)).map((d) => d.data)).toEqual([]);
+  });
+
+  it('a late hour does not push the reminder to the next day', async () => {
+    const { ctx, taskId } = await setup();
+    await updateReminderPrefs(ctx, { reminderHour: 23, digestEnabled: true });
+    await setTaskReminders(ctx, { taskId, offsets: [0] });
+
+    expect(await selectDueReminders(at('2026-10-10T06:00:00Z'), DAILY)).toHaveLength(1);
   });
 });
 

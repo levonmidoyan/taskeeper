@@ -3,7 +3,7 @@ import { db, notification } from '@/db';
 import { DEFAULT_TIMEZONE } from '@/lib/dates';
 import { newId } from '@/lib/ids';
 import {
-  DEFAULT_REMINDER_HOUR, DIGEST_TASK_CAP, digestKey, reminderKey,
+  DEFAULT_REMINDER_HOUR, DIGEST_TASK_CAP, digestKey, REMINDER_CRON_HOURLY, reminderKey,
   type DigestData, type NotificationData, type ReminderOffset,
 } from '@/lib/reminders';
 
@@ -23,11 +23,27 @@ export type NotificationDraft = {
  * one bad stored zone skips its own rows instead of failing the whole query.
  */
 
-export async function selectDueReminders(now: Date): Promise<NotificationDraft[]> {
+/**
+ * Hourly runs send at the recipient's local hour (moment in (now - 36h, now]).
+ * A daily run cannot hit a local hour, so it sends on the reminder's local day
+ * instead (or the day after, if a run was missed) and never once the task is
+ * overdue; otherwise every zone whose hour falls after the run would get its
+ * reminders a day late.
+ */
+export async function selectDueReminders(
+  now: Date,
+  { hourly = REMINDER_CRON_HOURLY }: { hourly?: boolean } = {},
+): Promise<NotificationDraft[]> {
   const at = sql`${now.toISOString()}::timestamptz`;
+  const due = hourly
+    ? sql`((due_date - offset_days) + make_time(hour, 0, 0)) AT TIME ZONE zone <= ${at}
+      AND ((due_date - offset_days) + make_time(hour, 0, 0)) AT TIME ZONE zone > ${at} - interval '36 hours'`
+    : sql`due_date - offset_days <= today
+      AND due_date - offset_days >= today - 1
+      AND due_date >= today`;
   const result = await db.execute<{
     user_id: string; workspace_id: string; task_id: string; title: string;
-    project_name: string; due_date: string; offset_days: number;
+    project_name: string; due_date: string; offset_days: number; days_left: number;
   }>(sql`
     WITH zones AS MATERIALIZED (SELECT name FROM pg_timezone_names),
     pending AS MATERIALIZED (
@@ -47,11 +63,14 @@ export async function selectDueReminders(now: Date): Promise<NotificationDraft[]
         AND NOT s.is_done
         AND p.archived_at IS NULL
         AND coalesce(us.timezone, ws.timezone, ${DEFAULT_TIMEZONE}) IN (SELECT name FROM zones)
+    ),
+    dated AS MATERIALIZED (
+      SELECT pending.*, (${at} AT TIME ZONE zone)::date AS today FROM pending
     )
-    SELECT user_id, workspace_id, task_id, title, project_name, due_date::text AS due_date, offset_days
-    FROM pending
-    WHERE ((due_date - offset_days) + make_time(hour, 0, 0)) AT TIME ZONE zone <= ${at}
-      AND ((due_date - offset_days) + make_time(hour, 0, 0)) AT TIME ZONE zone > ${at} - interval '36 hours'
+    SELECT user_id, workspace_id, task_id, title, project_name, due_date::text AS due_date, offset_days,
+           (due_date - today)::int AS days_left
+    FROM dated
+    WHERE ${due}
     ORDER BY user_id, task_id, offset_days
   `);
 
@@ -66,6 +85,7 @@ export async function selectDueReminders(now: Date): Promise<NotificationDraft[]
       projectName: r.project_name,
       dueDate: r.due_date,
       offsetDays: r.offset_days as ReminderOffset,
+      daysLeft: r.days_left,
     },
   }));
 }

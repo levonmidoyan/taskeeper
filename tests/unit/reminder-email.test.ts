@@ -7,7 +7,7 @@ describe('ReminderEmail', () => {
   it('names the task, project and when it is due, with a link', async () => {
     const text = await render(
       createElement(ReminderEmail, {
-        data: { title: 'Ship v2', projectName: 'Website', dueDate: '2026-10-10', offsetDays: 1 },
+        data: { title: 'Ship v2', projectName: 'Website', dueDate: '2026-10-10', offsetDays: 1, daysLeft: 1 },
         url: 'https://app.test/acme/tasks/t1',
       }),
       { plainText: true },

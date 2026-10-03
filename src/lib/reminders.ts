@@ -23,7 +23,14 @@ export const REMINDER_CRON_HOURLY = false;
 
 export const DIGEST_TASK_CAP = 20;
 
-export type ReminderData = { title: string; projectName: string; dueDate: string; offsetDays: ReminderOffset };
+export type ReminderData = {
+  title: string;
+  projectName: string;
+  dueDate: string;
+  offsetDays: ReminderOffset;
+  /** Days from the recipient's local send date to the due date; the copy says this, not the offset. */
+  daysLeft: number;
+};
 export type DigestData = {
   localDate: string;
   dueToday: number;
@@ -52,7 +59,7 @@ export function dueInLabel(offsetDays: number): string {
 }
 
 export function reminderSubject(d: ReminderData): string {
-  return `“${d.title}” is due ${dueInLabel(d.offsetDays)}`;
+  return `“${d.title}” is due ${dueInLabel(d.daysLeft)}`;
 }
 
 export function digestSummary(d: Pick<DigestData, 'dueToday' | 'overdue'>): string {
@@ -83,7 +90,7 @@ type BellItem = { kind: 'reminder' | 'digest'; taskId: string | null; data: Noti
 export function notificationText(item: Pick<BellItem, 'kind' | 'data'>): { title: string; detail: string } {
   if (item.kind === 'reminder') {
     const d = item.data as ReminderData;
-    const when = dueInLabel(d.offsetDays);
+    const when = dueInLabel(d.daysLeft);
     return { title: d.title, detail: `Due ${when} · ${d.projectName}` };
   }
   return { title: 'Daily digest', detail: digestSummary(item.data as DigestData) };
