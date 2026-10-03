@@ -65,9 +65,10 @@ jobs:
         run: yarn test
 
   e2e:
-    # The PR run already covered e2e for what lands on master, so the push
-    # run after a merge only repeats the checks job.
-    if: github.event_name == 'pull_request'
+    # Only PRs into master run e2e: v2 work collects on develop and reaches
+    # master once, at go-live, where this run gates it. The push run after a
+    # merge only repeats the checks job.
+    if: github.event_name == 'pull_request' && github.base_ref == 'master'
     runs-on: ubuntu-latest
     env: *env
     services: *services
