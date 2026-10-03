@@ -1,12 +1,55 @@
 # Taskeeper v2 — Deferred Scope Roadmap
 
 **Source:** `docs/superpowers/specs/2026-09-20-taskeeper-design.md` §9 (Deferred), §2 non-goals.
-**Status of v1:** complete on `feat/taskeeper-v1` (`9b078c7..3ff2cc0`).
+**Status of v1:** released as `1.0.0` (tag on `209a3c6`, 2026-10-03).
 
 This is a sequencing document, not an implementation plan. Each slice below gets its own
 plan in `docs/superpowers/plans/` when it is reached, written with the
 `superpowers:writing-plans` skill and executed task-by-task. Only Slice 1 has a plan today:
 `docs/superpowers/plans/2026-09-23-comments-and-activity.md`.
+
+## Priority order (2026-10-03)
+
+Set after the 1.0.0 release; supersedes the value order in **Ordering** below. The slice
+table and slice notes stay as the design reference for each slice.
+
+**P0: before real users touch prod** — done with 1.0.0.
+
+1. ~~Prod R2 and `CRON_SECRET`.~~
+2. ~~One green CI run on GitHub Actions with the MinIO service.~~
+3. ~~Attachment ✕ bug: dismissing an upload before confirm left the file attached.~~
+4. ~~Real-browser crawl of every route as admin and member, with overdue, archived and empty data.~~
+5. ~~Release version: `1.0.0`.~~
+
+**P1: small, high value**
+
+6. Project archive / unarchive UI. The services and actions exist in `src/server/projects/`,
+   but no component calls archive, unarchive, rename or delete, so a project can be neither
+   archived nor brought back from the UI.
+7. Slice 2: per-user timezone. Must land before reminders.
+8. Slice 3: full-text search + ⌘K. Today's `ilike` search covers titles only.
+
+**P2: core team features**
+
+9. Slice 5: calendar + reminders. Cron and email already exist.
+10. Slice 6: saved filters and views, on slice 3's filter predicates.
+11. Slice 8: realtime sync, decision only. Leaning to polling on an `updated_at` cursor; build
+    after P2 only if teammates see stale boards.
+
+**P3: bigger or more niche**
+
+12. Slice 9: public share links. New read-only auth path; needs a security review.
+13. Slice 7: custom per-project properties. Only if custom fields are actually needed.
+
+**P4: last or optional**
+
+14. Slice 10: REST API / mobile. Last on purpose: it freezes `server/*` signatures.
+15. Polish: coloured status dots on board columns; relative dates on attachment cards; a test
+    for the 401 response on the attachment route.
+16. Slice 4: rich text — closed. Shipped as Markdown through Tiptap (`@tiptap/markdown`);
+    `task.description` stays `text`, not the `jsonb` the slice note below planned.
+
+Slice 1 (comments + activity log) shipped in v1.
 
 ## Ordering
 
