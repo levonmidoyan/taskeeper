@@ -17,6 +17,14 @@ import { appUrl } from '@/lib/url';
 
 const apiKey = process.env.RESEND_API_KEY;
 
+/** A send Resend refused. `code` is Resend's error name, e.g. 'rate_limit_exceeded'. */
+export class EmailSendError extends Error {
+  constructor(message: string, readonly code: string) {
+    super(message);
+    this.name = 'EmailSendError';
+  }
+}
+
 /**
  * Sender address. The domain must be verified in Resend, otherwise every send
  * is rejected. `onboarding@resend.dev` is Resend's shared sandbox sender and
@@ -281,6 +289,6 @@ async function send(
   const { error } = await resend.emails.send({ from, to, subject: message.subject, html, text });
 
   if (error) {
-    throw new Error(`Resend rejected the ${kind} email to ${to}: ${error.name} — ${error.message}`);
+    throw new EmailSendError(`Resend rejected the ${kind} email to ${to}: ${error.name} — ${error.message}`, error.name);
   }
 }

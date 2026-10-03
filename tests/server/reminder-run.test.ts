@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
 import { notification } from '@/db';
+import { EmailSendError } from '@/lib/email';
 import type { OutgoingMail } from '@/lib/reminders';
 import type { WorkspaceContext } from '@/lib/session';
 import { createProject } from '@/server/projects/service';
@@ -102,7 +103,7 @@ describe('runReminders', () => {
     const send = async (m: OutgoingMail) => {
       calls += 1;
       // What send() throws for Resend's 429.
-      if (calls === 1) throw new Error('Resend rejected the reminder email to x: rate_limit_exceeded — Too many requests');
+      if (calls === 1) throw new EmailSendError('Resend rejected the reminder email', 'rate_limit_exceeded');
       sent.push(m);
     };
 
@@ -111,6 +112,35 @@ describe('runReminders', () => {
     expect(result).toEqual({ claimed: 2, emailed: 2, failed: 0 });
     const rows = await db.select({ attempts: notification.emailAttempts }).from(notification);
     expect(rows.map((r) => r.attempts)).toEqual([1, 1]);
+  });
+
+  it('does not mistake another failure for a rate limit because of its text', async () => {
+    await setup();
+    let calls = 0;
+    // The address is user-controlled and ends up in the message.
+    const send = async () => {
+      calls += 1;
+      throw new EmailSendError('Resend rejected the email to rate_limit_exceeded@example.com', 'validation_error');
+    };
+
+    const result = await runReminders({ now: NOW, send, gapMs: 10 });
+
+    expect(result).toEqual({ claimed: 2, emailed: 0, failed: 2 });
+    expect(calls).toBe(2);
+  });
+
+  it('stops sending at its time budget and leaves the rest unspent for the next run', async () => {
+    await setup();
+    const slow = async () => { await new Promise((r) => setTimeout(r, 60)); };
+
+    const first = await runReminders({ now: NOW, send: slow, gapMs: 0, budgetMs: 20 });
+    expect(first).toEqual({ claimed: 2, emailed: 1, failed: 0 });
+    const left = await db.select({ attempts: notification.emailAttempts, claimed: notification.emailClaimedAt })
+      .from(notification).where(sql`email_sent_at is null`);
+    expect(left).toEqual([{ attempts: 0, claimed: null }]);
+
+    // No 10-minute lock to wait out: the next run sends it.
+    expect(await runReminders({ now: NOW, send: slow, gapMs: 0 })).toEqual({ claimed: 0, emailed: 1, failed: 0 });
   });
 
   it('spaces sends to stay under Resend’s rate limit', async () => {

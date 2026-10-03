@@ -1,21 +1,34 @@
 import { eq, inArray, sql } from 'drizzle-orm';
 import { db, notification, organization, user } from '@/db';
-import { sendNotificationEmail } from '@/lib/email';
+import { EmailSendError, sendNotificationEmail } from '@/lib/email';
 import type { MailSender, OutgoingMail } from '@/lib/reminders';
 import { claimNotifications, selectDueDigests, selectDueReminders } from './select';
 
 const EMAIL_BATCH = 500;
 
-/**
- * Pause between sends. Resend's default limit is 2 requests a second per team;
- * 500 sends at this pace still fit the route's 300 s maxDuration.
- */
+/** Pause between sends. Resend's default limit is 2 requests a second per team. */
 const SEND_GAP_MS = 550;
 const RATE_LIMIT_RETRIES = 2;
 
+/**
+ * Sending stops here, well inside the route's 300 s maxDuration, so the job is
+ * never killed mid-batch with rows claimed but unsent. What is left is released
+ * for the next run.
+ */
+const SEND_BUDGET_MS = 240_000;
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-// send() in email.tsx rethrows Resend's `{ error }`, whose name says why.
-const rateLimited = (error: unknown) => error instanceof Error && error.message.includes('rate_limit_exceeded');
+// Resend's own error code, never the message: the message carries the address.
+const rateLimited = (error: unknown) => error instanceof EmailSendError && error.code === 'rate_limit_exceeded';
+
+/** Hands claimed rows back untouched: no attempt spent, no lock to wait out. */
+async function releaseClaims(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await db
+    .update(notification)
+    .set({ emailClaimedAt: null, emailAttempts: sql`${notification.emailAttempts} - 1` })
+    .where(inArray(notification.id, ids));
+}
 
 /**
  * Locks up to `limit` unsent notifications for this run. SKIP LOCKED plus the
@@ -67,7 +80,9 @@ export async function runReminders({
   now = new Date(),
   send = sendNotificationEmail,
   gapMs = SEND_GAP_MS,
-}: { now?: Date; send?: MailSender; gapMs?: number } = {}): Promise<{ claimed: number; emailed: number; failed: number }> {
+  budgetMs = SEND_BUDGET_MS,
+}: { now?: Date; send?: MailSender; gapMs?: number; budgetMs?: number } = {}): Promise<{ claimed: number; emailed: number; failed: number }> {
+  const started = Date.now();
   const drafts = [...(await selectDueReminders(now)), ...(await selectDueDigests(now))];
   const claimed = await claimNotifications(drafts);
 
@@ -75,7 +90,15 @@ export async function runReminders({
   let failed = 0;
   const mails = await claimUnsentEmails();
   for (const [i, mail] of mails.entries()) {
-    if (i > 0) await sleep(gapMs);
+    if (i > 0) {
+      if (Date.now() - started > budgetMs) {
+        const rest = mails.slice(i).map((m) => m.notificationId);
+        await releaseClaims(rest);
+        console.warn(`[reminders] time budget spent; ${rest.length} emails left for the next run`);
+        break;
+      }
+      await sleep(gapMs);
+    }
     try {
       // A 429 is waited out here: the next run is a day away on the daily schedule.
       for (let retry = 0; ; retry++) {
