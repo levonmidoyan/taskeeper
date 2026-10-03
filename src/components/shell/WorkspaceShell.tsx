@@ -2,6 +2,7 @@ import { AppHeader } from '@/components/shell/AppHeader';
 import { RememberWorkspace } from '@/components/shell/RememberWorkspace';
 import { Rail } from '@/components/shell/Rail';
 import type { WorkspaceContext } from '@/lib/session';
+import { unreadCount } from '@/server/notifications/queries';
 import { listProjects } from '@/server/projects/queries';
 import { listMyWorkspaces } from '@/server/workspaces/queries';
 
@@ -13,9 +14,10 @@ export async function WorkspaceShell({
   ctx: WorkspaceContext;
   children: React.ReactNode;
 }) {
-  const [projects, workspaces] = await Promise.all([
+  const [projects, workspaces, unread] = await Promise.all([
     listProjects(ctx),
     listMyWorkspaces(ctx.userId),
+    unreadCount(ctx),
   ]);
 
   // Mirrors the role check in the project services; the server still enforces it.
@@ -27,7 +29,7 @@ export async function WorkspaceShell({
       <RememberWorkspace slug={ctx.slug} />
       <Rail {...railProps} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppHeader {...railProps} />
+        <AppHeader {...railProps} unread={unread} />
         {children}
       </div>
     </div>

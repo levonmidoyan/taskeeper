@@ -77,3 +77,18 @@ export type OutgoingMail = { notificationId: string; to: string; slug: string; w
 );
 
 export type MailSender = (mail: OutgoingMail) => Promise<void>;
+
+type BellItem = { kind: 'reminder' | 'digest'; taskId: string | null; data: NotificationData };
+
+export function notificationText(item: Pick<BellItem, 'kind' | 'data'>): { title: string; detail: string } {
+  if (item.kind === 'reminder') {
+    const d = item.data as ReminderData;
+    const when = dueInLabel(d.offsetDays);
+    return { title: d.title, detail: `Due ${when} · ${d.projectName}` };
+  }
+  return { title: 'Daily digest', detail: digestSummary(item.data as DigestData) };
+}
+
+export function notificationHref(slug: string, item: Pick<BellItem, 'kind' | 'taskId'>): string {
+  return item.kind === 'reminder' && item.taskId ? `/${slug}/tasks/${item.taskId}` : `/${slug}/calendar`;
+}

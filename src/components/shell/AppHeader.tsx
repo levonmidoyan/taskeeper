@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { CommandPalette } from '@/components/shell/CommandPalette';
 import { CreateTaskDialog } from '@/components/shell/CreateTaskDialog';
+import { NotificationBell } from '@/components/shell/NotificationBell';
 import { MobileNav, type RailProps } from '@/components/shell/Rail';
 
 /**
@@ -11,7 +12,7 @@ import { MobileNav, type RailProps } from '@/components/shell/Rail';
  * floating button, and the create dialog's open state, which the command
  * palette's "New task" also drives.
  */
-export function AppHeader(props: RailProps) {
+export function AppHeader({ unread, ...props }: RailProps & { unread: number }) {
   const [creating, setCreating] = useState(false);
   const canCreate = props.projects.length > 0;
 
@@ -25,6 +26,7 @@ export function AppHeader(props: RailProps) {
           onNewTask={() => { if (canCreate) setCreating(true); }}
         />
       </div>
+      <NotificationBell workspaceSlug={props.workspaceSlug} initialUnread={unread} />
       <CreateTaskDialog
         workspaceSlug={props.workspaceSlug}
         projects={props.projects}

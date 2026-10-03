@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  digestKey, digestSubject, dueInLabel, hourLabel, isReminderOffset, reminderKey, reminderSubject,
+  digestKey, digestSubject, dueInLabel, hourLabel, isReminderOffset, notificationHref, notificationText,
+  reminderKey, reminderSubject,
 } from '@/lib/reminders';
 
 describe('dedupe keys', () => {
@@ -42,5 +43,19 @@ describe('isReminderOffset', () => {
   it('accepts only 0, 1, 2 and 7', () => {
     expect([0, 1, 2, 7].every(isReminderOffset)).toBe(true);
     expect([3, -1, 1.5, '1', null].some(isReminderOffset)).toBe(false);
+  });
+});
+
+describe('bell item text and link', () => {
+  it('describes a reminder by its task', () => {
+    const item = { kind: 'reminder' as const, taskId: 't1', data: { title: 'Ship', projectName: 'Web', dueDate: '2026-10-10', offsetDays: 0 as const } };
+    expect(notificationText(item)).toEqual({ title: 'Ship', detail: 'Due today · Web' });
+    expect(notificationHref('acme', item)).toBe('/acme/tasks/t1');
+  });
+
+  it('describes a digest by its counts and links to my calendar', () => {
+    const item = { kind: 'digest' as const, taskId: null, data: { localDate: '2026-10-10', dueToday: 2, overdue: 1, tasks: [] } };
+    expect(notificationText(item)).toEqual({ title: 'Daily digest', detail: '2 due today · 1 overdue' });
+    expect(notificationHref('acme', item)).toBe('/acme/calendar');
   });
 });
