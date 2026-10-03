@@ -42,9 +42,9 @@ describe('UI dependency rules (spec §9)', () => {
     // Email templates get the Align palette as literal hex: mail clients
     // understand neither CSS variables nor oklch.
     const vendored = [join('src', 'components', 'ui'), join('src', 'components', 'kibo-ui')];
-    const emails = join('src', 'lib', 'email.tsx');
+    const emails = [join('src', 'lib', 'email.tsx'), join('src', 'lib', 'reminder-email.tsx')];
     const appFiles = files.filter(
-      (f) => /\.tsx?$/.test(f) && f !== emails && !vendored.some((v) => f.startsWith(v)),
+      (f) => /\.tsx?$/.test(f) && !emails.includes(f) && !vendored.some((v) => f.startsWith(v)),
     );
     for (const file of appFiles) {
       expect(read(file), file).not.toMatch(/#[0-9a-fA-F]{3,8}\b(?![\w-])/);

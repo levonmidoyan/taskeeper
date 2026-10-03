@@ -1,6 +1,6 @@
 'use client';
 
-import { IconChartPie, IconLayoutKanban, IconList } from '@tabler/icons-react';
+import { IconCalendar, IconChartPie, IconLayoutKanban, IconList } from '@tabler/icons-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/utils/cn';
@@ -9,11 +9,13 @@ export function ViewTabs({ basePath }: { basePath: string }) {
   const pathname = usePathname();
   const onSummary = pathname.endsWith('/summary');
   const onList = pathname.endsWith('/list');
+  const onCalendar = pathname.endsWith('/calendar');
 
   const views = [
     { href: `${basePath}/summary`, label: 'Summary', icon: IconChartPie, active: onSummary },
-    { href: basePath, label: 'Board', icon: IconLayoutKanban, active: !onSummary && !onList },
+    { href: basePath, label: 'Board', icon: IconLayoutKanban, active: !onSummary && !onList && !onCalendar },
     { href: `${basePath}/list`, label: 'List', icon: IconList, active: onList },
+    { href: `${basePath}/calendar`, label: 'Calendar', icon: IconCalendar, active: onCalendar },
   ];
 
   return (

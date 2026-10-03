@@ -12,6 +12,7 @@ import { ActivityFeed } from '@/components/task/ActivityFeed';
 import { AssigneePicker } from '@/components/task/AssigneePicker';
 import { AttachmentSection } from '@/components/task/AttachmentSection';
 import { DueDateField } from '@/components/task/DueDateField';
+import { ReminderField } from '@/components/task/ReminderField';
 import { LabelPicker } from '@/components/task/LabelPicker';
 import { PRIORITY_LABEL, PriorityIcon } from '@/components/task/Priority';
 import { RichTextField } from '@/components/task/RichTextField';
@@ -33,6 +34,7 @@ import type { MemberRow } from '@/server/labels/queries';
 import type { StatusRow } from '@/server/projects/queries';
 import { deleteTaskAction, updateTaskAction } from '@/server/tasks/actions';
 import type { LabelRow, Priority, TaskDetail } from '@/server/tasks/queries';
+import type { ReminderOffset } from '@/lib/reminders';
 
 const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
 
@@ -58,6 +60,8 @@ export type TaskDetailViewProps = {
   timezone: string;
   /** Null when storage is not configured; the section is then hidden. */
   attachments: AttachmentView[] | null;
+  /** My own reminders on this task. */
+  reminders: ReminderOffset[];
 };
 
 /**
@@ -79,6 +83,7 @@ export function TaskDetailView({
   canModerate,
   timezone,
   attachments,
+  reminders,
 }: TaskDetailViewProps & { mode: 'modal' | 'page'; projectName?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -297,6 +302,13 @@ export function TaskDetailView({
               setDueDate(next);
               patch({ taskId: task.id, dueDate: next }, () => setDueDate(previous));
             }}
+          />
+          <ReminderField
+            id="task-reminders"
+            workspaceSlug={workspaceSlug}
+            taskId={task.id}
+            value={reminders}
+            hasDueDate={dueDate !== null}
           />
 
           <div className="flex flex-col gap-1">

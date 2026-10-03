@@ -3,7 +3,9 @@ import { eq } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser } from '../setup/factories';
 import { user, userSettings } from '@/db';
-import { getUserTimezone, updateUserTimezone } from '@/server/user-settings/service';
+import {
+  getReminderPrefs, getUserTimezone, updateReminderPrefs, updateUserTimezone,
+} from '@/server/user-settings/service';
 
 beforeEach(resetDb);
 afterAll(closeDb);
@@ -30,7 +32,7 @@ describe('user timezone', () => {
     await updateUserTimezone({ userId: ada.id }, 'Asia/Tokyo');
 
     const rows = await db.select().from(userSettings).where(eq(userSettings.userId, ada.id));
-    expect(rows).toEqual([{ userId: ada.id, timezone: 'Asia/Tokyo' }]);
+    expect(rows).toEqual([{ userId: ada.id, timezone: 'Asia/Tokyo', reminderHour: 9, digestEnabled: true }]);
   });
 
   it('null clears the override so the user follows the workspace again', async () => {
@@ -58,6 +60,33 @@ describe('user timezone', () => {
 
     await db.delete(user).where(eq(user.id, ada.id));
 
+    expect(await db.select().from(userSettings)).toEqual([]);
+  });
+});
+
+describe('reminder preferences', () => {
+  it('defaults to 09:00 with the digest on when the user has no row', async () => {
+    const ada = await createUser('ada-rp@example.com');
+    expect(await getReminderPrefs({ userId: ada.id })).toEqual({ reminderHour: 9, digestEnabled: true });
+  });
+
+  it('stores hour and digest switch, and keeps an existing timezone', async () => {
+    const ada = await createUser('ada-rp2@example.com');
+    await updateUserTimezone({ userId: ada.id }, 'Europe/Berlin');
+
+    const result = await updateReminderPrefs({ userId: ada.id }, { reminderHour: 18, digestEnabled: false });
+
+    expect(result.ok).toBe(true);
+    expect(await getReminderPrefs({ userId: ada.id })).toEqual({ reminderHour: 18, digestEnabled: false });
+    expect(await getUserTimezone({ userId: ada.id })).toBe('Europe/Berlin');
+  });
+
+  it.each([-1, 24, 9.5])('rejects hour %j and writes nothing', async (hour) => {
+    const ada = await createUser(`ada-rp-bad-${String(hour).replace('.', '_')}@example.com`);
+
+    const result = await updateReminderPrefs({ userId: ada.id }, { reminderHour: hour, digestEnabled: true });
+
+    expect(result).toEqual({ ok: false, error: 'Pick an hour between 00:00 and 23:00.' });
     expect(await db.select().from(userSettings)).toEqual([]);
   });
 });

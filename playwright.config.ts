@@ -35,6 +35,8 @@ export default defineConfig({
       AUTH_EMAIL_VERIFICATION: 'off',
       // Invitation emails go to the log, never to a real inbox.
       RESEND_API_KEY: '',
+      // Lets reminders.spec.ts trigger the reminders cron like Vercel does.
+      CRON_SECRET: 'e2e-cron-secret',
     },
   },
 });

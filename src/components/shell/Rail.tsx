@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  IconChecklist, IconClock, IconClockFilled, IconMenu2, IconSparkles, IconStar, IconStarFilled,
+  IconCalendar, IconCalendarFilled, IconChecklist, IconClock, IconClockFilled, IconMenu2, IconSparkles, IconStar, IconStarFilled,
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
@@ -101,6 +101,7 @@ function RailBody({ workspaceSlug, workspaces, projects, canManageProjects }: Pr
     { href: `/${workspaceSlug}/recent`, label: 'Recent', icon: IconClock, activeIcon: IconClockFilled },
     { href: `/${workspaceSlug}/starred`, label: 'Starred', icon: IconStar, activeIcon: IconStarFilled },
     { href: `/${workspaceSlug}/todo`, label: 'To-do', icon: IconChecklist, activeIcon: IconChecklist },
+    { href: `/${workspaceSlug}/calendar`, label: 'My calendar', icon: IconCalendar, activeIcon: IconCalendarFilled },
   ];
 
   return (
