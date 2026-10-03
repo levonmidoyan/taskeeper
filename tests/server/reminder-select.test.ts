@@ -225,4 +225,17 @@ describe('claimNotifications', () => {
   it('does nothing for an empty list', async () => {
     expect(await claimNotifications([])).toBe(0);
   });
+
+  it('skips a draft whose task was deleted since the select, and keeps the rest', async () => {
+    const { ctx, taskId } = await setup();
+    await setTaskReminders(ctx, { taskId, offsets: [0] });
+    const drafts = [
+      ...(await selectDueReminders(at('2026-10-10T06:00:00Z'))),
+      ...(await selectDueDigests(at('2026-10-10T06:00:00Z'))),
+    ];
+    const gone = drafts.find((d) => d.kind === 'reminder')!;
+
+    expect(await claimNotifications([...drafts, { ...gone, taskId: 'deleted-task', dedupeKey: 'gone' }])).toBe(2);
+    expect(await db.select().from(notification)).toHaveLength(2);
+  });
 });

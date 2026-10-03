@@ -25,7 +25,7 @@ export function CalendarChip({
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
-    data: { day: task.dueDate },
+    data: { day: task.dueDate, title: task.title },
   });
   const overdue = !task.isDone && task.dueDate < today;
 

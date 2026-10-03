@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, reminder, task } from '@/db';
 import { newId } from '@/lib/ids';
@@ -46,6 +46,9 @@ export async function setTaskReminders(
     const offsets = [...new Set(parsed.data.offsets as ReminderOffset[])].sort((a, b) => a - b);
 
     await db.transaction(async (tx) => {
+      // Two saves at once would both delete, then both insert the same offset
+      // and trip the unique index. The lock makes the second wait its turn.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`reminder:${owned.id}:${ctx.userId}`}))`);
       await tx
         .delete(reminder)
         .where(and(eq(reminder.taskId, owned.id), eq(reminder.userId, ctx.userId)));

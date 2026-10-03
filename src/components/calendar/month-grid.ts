@@ -7,8 +7,24 @@ import { addDays, isCalendarDay } from '@/lib/dates';
 
 const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
 
+/*
+ * Years the calendar shows. Date.UTC reads years 0–99 as 1900–1999, and the
+ * grid of December 9999 runs into year 10000, which toISOString writes as
+ * '+010000-…' and no day parses back from. Both stay well outside this range.
+ */
+const MIN_YEAR = 1900;
+const MAX_YEAR = 2999;
+
+/** True for a 'YYYY-MM' the calendar can show. */
+export function isShownMonth(month: string): boolean {
+  const match = MONTH.exec(month);
+  if (!match) return false;
+  const year = Number(match[1]);
+  return year >= MIN_YEAR && year <= MAX_YEAR;
+}
+
 export function parseMonth(param: string | undefined, today: string): string {
-  return param && MONTH.test(param) ? param : today.slice(0, 7);
+  return param && isShownMonth(param) ? param : today.slice(0, 7);
 }
 
 export function shiftMonth(month: string, delta: number): string {
@@ -35,6 +51,13 @@ export function monthLabel(month: string): string {
   const [y, m] = month.split('-').map(Number);
   return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
     .format(new Date(Date.UTC(y, m - 1, 15)));
+}
+
+/** Spoken name of a day cell, e.g. 'Monday, October 5, 2026'. */
+export function dayLabel(day: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-US', { dateStyle: 'full', timeZone: 'UTC' })
+    .format(new Date(Date.UTC(y, m - 1, d, 12)));
 }
 
 export function weekdayLabels(weekStart: number): string[] {

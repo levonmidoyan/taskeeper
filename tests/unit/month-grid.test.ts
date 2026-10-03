@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  dropTarget, monthLabel, monthWeeks, parseMonth, shiftMonth, weekdayLabels,
+  dayLabel, dropTarget, isShownMonth, monthLabel, monthWeeks, parseMonth, shiftMonth, weekdayLabels,
 } from '@/components/calendar/month-grid';
 
 describe('parseMonth', () => {
@@ -10,6 +10,24 @@ describe('parseMonth', () => {
 
   it.each([undefined, '', '2026-13', '2026-1', 'abc', '2026-10-01'])('falls back to today’s month for %j', (bad) => {
     expect(parseMonth(bad, '2026-10-03')).toBe('2026-10');
+  });
+});
+
+describe('isShownMonth', () => {
+  it('keeps years the date math handles, so a crafted ?m= cannot break the page', () => {
+    expect(isShownMonth('1900-01')).toBe(true);
+    expect(isShownMonth('2999-12')).toBe(true);
+    // Date.UTC reads year 50 as 1950; December 9999's grid runs into year 10000.
+    expect(isShownMonth('0050-01')).toBe(false);
+    expect(isShownMonth('9999-12')).toBe(false);
+    expect(parseMonth('0050-01', '2026-10-03')).toBe('2026-10');
+    expect(parseMonth('9999-12', '2026-10-03')).toBe('2026-10');
+  });
+});
+
+describe('dayLabel', () => {
+  it('names the day in full for screen readers', () => {
+    expect(dayLabel('2026-10-05')).toBe('Monday, October 5, 2026');
   });
 });
 

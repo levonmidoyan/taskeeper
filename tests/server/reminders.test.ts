@@ -35,6 +35,18 @@ describe('setTaskReminders', () => {
     expect(await listMyReminders(ctx, taskId)).toEqual([1, 7]);
   });
 
+  it('two saves at once both succeed, and one of the two sets is what is stored', async () => {
+    const { ctx, taskId } = await setup();
+
+    const results = await Promise.all([
+      setTaskReminders(ctx, { taskId, offsets: [0, 1] }),
+      setTaskReminders(ctx, { taskId, offsets: [0, 1, 7] }),
+    ]);
+
+    expect(results.every((r) => r.ok)).toBe(true);
+    expect([[0, 1], [0, 1, 7]]).toContainEqual(await listMyReminders(ctx, taskId));
+  });
+
   it('replaces my previous set', async () => {
     const { ctx, taskId } = await setup();
     await setTaskReminders(ctx, { taskId, offsets: [0, 1] });

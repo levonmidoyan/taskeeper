@@ -2,7 +2,7 @@
 
 import { IconBell, IconBellRinging, IconCheck } from '@tabler/icons-react';
 import * as DropdownPrimitive from '@radix-ui/react-dropdown-menu';
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import * as Dropdown from '@/components/ui/dropdown';
 import * as Hint from '@/components/ui/hint';
@@ -28,17 +28,21 @@ export function ReminderField({
 }) {
   const [offsets, setOffsets] = useState(value);
   const [, startTransition] = useTransition();
+  // What the server last confirmed, and which save is the newest. Each save
+  // sends the whole set, so only the newest one decides what is shown: a
+  // failure rolls back to the confirmed set, never over a later toggle.
+  const saved = useRef(value);
+  const latest = useRef(0);
 
   function toggle(offset: ReminderOffset) {
-    const previous = offsets;
     const next = offsets.includes(offset) ? offsets.filter((o) => o !== offset) : [...offsets, offset].sort((a, b) => a - b);
+    const call = ++latest.current;
     setOffsets(next);
     startTransition(async () => {
       const result = await settle(setTaskRemindersAction(workspaceSlug, { taskId, offsets: next }));
-      if (!result.ok) {
-        toast.error(result.error);
-        setOffsets(previous);
-      }
+      if (result.ok) saved.current = result.data;
+      else toast.error(result.error);
+      if (call === latest.current && !result.ok) setOffsets(saved.current);
     });
   }
 

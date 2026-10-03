@@ -12,6 +12,14 @@ async function dueToday(page: Page) {
   await expect(page.getByRole('button', { name: 'Today', exact: true })).toBeHidden();
 }
 
+/** A day cell, found by the full date its screen-reader text names ('Sunday, October 4, 2026'). */
+function dayCell(page: Page, day: string): Locator {
+  const [y, m, d] = day.split('-').map(Number);
+  const name = new Intl.DateTimeFormat('en-US', { dateStyle: 'full', timeZone: 'UTC' })
+    .format(new Date(Date.UTC(y, m - 1, d, 12)));
+  return page.getByRole('cell', { name });
+}
+
 async function signUpWithProject(page: Page) {
   const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   await page.goto('/auth/sign-up');
@@ -61,25 +69,25 @@ test('a task shows on its day and can be dragged to another day', async ({ page 
   await page.goto(`${projectUrl}/calendar`);
   const today = yerevanToday();
   const target = today.slice(0, 7) === yerevanToday(1).slice(0, 7) ? yerevanToday(1) : yerevanToday(-1);
-  const chip = page.getByRole('gridcell', { name: today }).getByRole('button', { name: 'Write launch post' });
+  const chip = dayCell(page, today).getByRole('button', { name: 'Write launch post' });
   await expect(chip).toBeVisible();
 
   // Dropping on the same day saves nothing, and a drag is never a click.
   let posts = 0;
   page.on('request', (r) => { if (r.method() === 'POST') posts += 1; });
-  await drag(page, chip, page.getByRole('gridcell', { name: today }));
+  await drag(page, chip, dayCell(page, today));
   await page.waitForTimeout(300);
   expect(posts).toBe(0);
   await expect(page).not.toHaveURL(/[?&]task=/);
   await expect(chip).toBeVisible();
 
   const saved = page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('/calendar'));
-  await drag(page, chip, page.getByRole('gridcell', { name: target }));
+  await drag(page, chip, dayCell(page, target));
   await saved;
   await expect(page).not.toHaveURL(/[?&]task=/);
   await page.reload();
-  await expect(page.getByRole('gridcell', { name: target }).getByRole('button', { name: 'Write launch post' })).toBeVisible();
-  await expect(page.getByRole('gridcell', { name: today }).getByRole('button', { name: 'Write launch post' })).toHaveCount(0);
+  await expect(dayCell(page, target).getByRole('button', { name: 'Write launch post' })).toBeVisible();
+  await expect(dayCell(page, today).getByRole('button', { name: 'Write launch post' })).toHaveCount(0);
 });
 
 test('My calendar shows only tasks assigned to me', async ({ page }) => {

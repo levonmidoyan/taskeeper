@@ -232,17 +232,17 @@ export async function sendDeleteAccountEmail(to: string, url: string): Promise<v
   });
 }
 
-/**
- * Codes are not links, so the console fallback in send() would print nothing
- * useful; this logs the code itself instead.
- */
 /** Reminder and digest emails from the reminders cron (src/server/reminders/run.ts). */
 export const sendNotificationEmail: MailSender = async (mail) => {
+  // A retry of a send that went through but was never marked sent is dropped
+  // by Resend instead of delivered twice (keys last 24 hours).
+  const idempotencyKey = `notification/${mail.notificationId}`;
   if (mail.kind === 'reminder') {
     const url = `${appUrl()}/${mail.slug}/tasks/${mail.taskId}`;
     await send('reminder', mail.to, url, {
       subject: reminderSubject(mail.data),
       email: <ReminderEmail data={mail.data} url={url} />,
+      idempotencyKey,
     });
     return;
   }
@@ -250,9 +250,14 @@ export const sendNotificationEmail: MailSender = async (mail) => {
   await send('digest', mail.to, url, {
     subject: digestSubject(mail.data, mail.workspaceName),
     email: <DigestEmail data={mail.data} workspaceName={mail.workspaceName} url={url} />,
+    idempotencyKey,
   });
 };
 
+/**
+ * Codes are not links, so the console fallback in send() would print nothing
+ * useful; this logs the code itself instead.
+ */
 async function sendCode(
   kind: string,
   to: string,
@@ -270,7 +275,7 @@ async function send(
   kind: string,
   to: string,
   url: string | null,
-  message: { subject: string; email: ReactElement },
+  message: { subject: string; email: ReactElement; idempotencyKey?: string },
 ): Promise<void> {
   if (!apiKey) {
     console.info(`[${kind}] ${to}${url ? ` -> ${url}` : ''}`);
@@ -286,7 +291,10 @@ async function send(
   // The SDK reports API failures (unverified domain, restricted key, rate
   // limit) in `error` rather than by throwing, so an unchecked call looks like
   // a successful send while nothing is delivered.
-  const { error } = await resend.emails.send({ from, to, subject: message.subject, html, text });
+  const { error } = await resend.emails.send(
+    { from, to, subject: message.subject, html, text },
+    { idempotencyKey: message.idempotencyKey },
+  );
 
   if (error) {
     throw new EmailSendError(`Resend rejected the ${kind} email to ${to}: ${error.name} — ${error.message}`, error.name);

@@ -96,6 +96,22 @@ describe('runReminders', () => {
     expect(rows.map((r) => r.attempts)).toEqual([3, 3]);
   });
 
+  it('gets all 3 attempts on the daily schedule, a day apart', async () => {
+    await setup();
+    const failing = recorder(() => true);
+
+    // Runs at hours 0, 24 and 49 (Vercel may start a daily job late in its hour).
+    for (const hours of [24, 25]) {
+      await runReminders({ now: NOW, send: failing.send });
+      await db.execute(sql`update notification set created_at = created_at - make_interval(hours => ${hours}),
+        email_claimed_at = now() - interval '11 minutes'`);
+    }
+    const ok = recorder();
+    await runReminders({ now: NOW, send: ok.send });
+
+    expect(ok.sent).toHaveLength(2);
+  });
+
   it('waits out Resend’s rate limit instead of failing the row', async () => {
     await setup();
     let calls = 0;

@@ -149,13 +149,40 @@ export async function selectDueDigests(now: Date): Promise<NotificationDraft[]> 
   return [...groups.values()];
 }
 
-/** Inserts drafts whose key is new; returns how many were. A repeat run inserts nothing. */
-export async function claimNotifications(drafts: NotificationDraft[]): Promise<number> {
-  if (drafts.length === 0) return 0;
+async function insertDrafts(drafts: NotificationDraft[]): Promise<number> {
   const rows = await db
     .insert(notification)
     .values(drafts.map((d) => ({ id: newId(), ...d })))
     .onConflictDoNothing({ target: notification.dedupeKey })
     .returning({ id: notification.id });
   return rows.length;
+}
+
+/** Postgres foreign_key_violation, as raised directly or wrapped by drizzle. */
+function isForeignKeyViolation(error: unknown): boolean {
+  const e = error as { code?: string; cause?: { code?: string } } | null;
+  return e?.code === '23503' || e?.cause?.code === '23503';
+}
+
+/**
+ * Inserts drafts whose key is new; returns how many were. A repeat run inserts
+ * nothing. A task, user or workspace deleted since the select fails the whole
+ * multi-row insert, so that case retries row by row and skips only the gone ones.
+ */
+export async function claimNotifications(drafts: NotificationDraft[]): Promise<number> {
+  if (drafts.length === 0) return 0;
+  try {
+    return await insertDrafts(drafts);
+  } catch (error) {
+    if (!isForeignKeyViolation(error)) throw error;
+  }
+  let inserted = 0;
+  for (const draft of drafts) {
+    try {
+      inserted += await insertDrafts([draft]);
+    } catch (error) {
+      if (!isForeignKeyViolation(error)) throw error;
+    }
+  }
+  return inserted;
 }

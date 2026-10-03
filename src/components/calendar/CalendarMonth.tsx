@@ -1,8 +1,8 @@
 'use client';
 
 import {
-  type CollisionDetection, closestCenter, DndContext, type DragEndEvent, KeyboardSensor, MouseSensor,
-  pointerWithin, TouchSensor, useDroppable, useSensor, useSensors,
+  type Active, type Announcements, type CollisionDetection, closestCenter, DndContext, type DragEndEvent,
+  KeyboardSensor, MouseSensor, type Over, pointerWithin, TouchSensor, useDroppable, useSensor, useSensors,
 } from '@dnd-kit/core';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import Link from 'next/link';
@@ -10,7 +10,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useOptimistic, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { CalendarChip } from '@/components/calendar/CalendarChip';
-import { dropTarget, monthLabel, monthWeeks, shiftMonth, weekdayLabels } from '@/components/calendar/month-grid';
+import {
+  dayLabel, dropTarget, isShownMonth, monthLabel, monthWeeks, shiftMonth, weekdayLabels,
+} from '@/components/calendar/month-grid';
 import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Popover from '@/components/ui/popover';
@@ -28,6 +30,24 @@ type Move = { taskId: string; dueDate: string };
 // drop); the keyboard has no pointer, so the nearest day wins.
 const collisionDetection: CollisionDetection = (args) =>
   args.pointerCoordinates ? pointerWithin(args) : closestCenter(args);
+
+const chipTitle = (active: Active) => (active.data.current?.title as string | undefined) ?? 'Task';
+const overDay = (over: Over | null) => (over ? dayLabel(String(over.id)) : 'no day');
+
+/*
+ * dnd-kit's defaults read out raw ids ('droppable area 2026-10-05'). A drop
+ * says nothing here: onDragEnd announces it once the save has settled.
+ */
+const announcements: Announcements = {
+  onDragStart: ({ active }) => `Picked up ${chipTitle(active)}.`,
+  onDragOver: ({ active, over }) => `${chipTitle(active)} is over ${overDay(over)}.`,
+  onDragEnd: () => undefined,
+  onDragCancel: ({ active }) => `${chipTitle(active)} was not moved.`,
+};
+
+const screenReaderInstructions = {
+  draggable: 'To move a task to another day, press Space, then the arrow keys to pick a day, then Space to drop or Escape to cancel. Press Enter to open it.',
+};
 
 export function CalendarMonth({
   workspaceSlug,
@@ -80,20 +100,30 @@ export function CalendarMonth({
   function onDragEnd(event: DragEndEvent) {
     const from = (event.active.data.current?.day as string | undefined) ?? null;
     const to = dropTarget(from, event.over ? String(event.over.id) : null);
-    if (!to) return;
+    const title = chipTitle(event.active);
+    if (!to) {
+      setAnnouncement(`${title} was not moved.`);
+      return;
+    }
 
     const taskId = String(event.active.id);
-    setAnnouncement(`Moved to ${formatDueDate(to, 'UTC', new Date(`${today}T12:00:00Z`))}.`);
     startTransition(async () => {
       applyMove({ taskId, dueDate: to });
       const result = await settle(updateTaskAction(workspaceSlug, { taskId, dueDate: to }));
-      if (!result.ok) toast.error(result.error);
+      // Announced once the save is settled, so a failed move is never read out as done.
+      if (result.ok) setAnnouncement(`${title} moved to ${dayLabel(to)}.`);
+      else {
+        setAnnouncement(`${title} was not moved. ${result.error}`);
+        toast.error(result.error);
+      }
       // Either way: confirm on success, discard the optimistic move on failure.
       router.refresh();
     });
   }
 
   const monthHref = (m: string) => `?m=${m}`;
+  const previous = shiftMonth(month, -1);
+  const next = shiftMonth(month, 1);
   const inMonth = (day: string) => day.startsWith(month);
 
   return (
@@ -101,25 +131,35 @@ export function CalendarMonth({
       <div className="flex items-center gap-2 py-3">
         <h2 className="text-label-lg text-text-strong-950">{monthLabel(month)}</h2>
         <div className="ml-auto flex items-center gap-1">
-          <CompactButton.Root asChild variant="ghost" size="large">
-            <Link href={monthHref(shiftMonth(month, -1))} aria-label="Previous month">
-              <CompactButton.Icon as={IconChevronLeft} />
-            </Link>
-          </CompactButton.Root>
+          {isShownMonth(previous) && (
+            <CompactButton.Root asChild variant="ghost" size="large">
+              <Link href={monthHref(previous)} aria-label="Previous month">
+                <CompactButton.Icon as={IconChevronLeft} />
+              </Link>
+            </CompactButton.Root>
+          )}
           <Button.Root asChild size="xsmall" variant="neutral" mode="stroke">
             <Link href={monthHref(today.slice(0, 7))}>Today</Link>
           </Button.Root>
-          <CompactButton.Root asChild variant="ghost" size="large">
-            <Link href={monthHref(shiftMonth(month, 1))} aria-label="Next month">
-              <CompactButton.Icon as={IconChevronRight} />
-            </Link>
-          </CompactButton.Root>
+          {isShownMonth(next) && (
+            <CompactButton.Root asChild variant="ghost" size="large">
+              <Link href={monthHref(next)} aria-label="Next month">
+                <CompactButton.Icon as={IconChevronRight} />
+              </Link>
+            </CompactButton.Root>
+          )}
         </div>
       </div>
 
-      <DndContext id="calendar" sensors={sensors} collisionDetection={collisionDetection} onDragEnd={onDragEnd}>
-        {/* Grid from sm up. */}
-        <div role="grid" aria-label={monthLabel(month)} className="hidden flex-1 flex-col overflow-hidden rounded-2xl ring-1 ring-inset ring-stroke-soft-200 sm:flex">
+      <DndContext
+        id="calendar"
+        sensors={sensors}
+        collisionDetection={collisionDetection}
+        onDragEnd={onDragEnd}
+        accessibility={{ announcements, screenReaderInstructions }}
+      >
+        {/* Grid from sm up. A table, not role="grid": there is no arrow-key navigation between days. */}
+        <div role="table" aria-label={monthLabel(month)} className="hidden flex-1 flex-col overflow-hidden rounded-2xl ring-1 ring-inset ring-stroke-soft-200 sm:flex">
           <div role="row" className="grid grid-cols-7 border-b border-stroke-soft-200 bg-bg-weak-50">
             {weekdayLabels(weekStart).map((d) => (
               <div key={d} role="columnheader" className="px-2 py-1.5 text-label-xs text-text-sub-600">{d}</div>
@@ -182,8 +222,8 @@ function DayCell({
   return (
     <div
       ref={setNodeRef}
-      role="gridcell"
-      aria-label={day}
+      role="cell"
+      aria-current={day === today ? 'date' : undefined}
       className={cn(
         'flex min-h-24 min-w-0 flex-col gap-1 border-r border-stroke-soft-200 p-1.5 last:border-r-0',
         muted && 'bg-bg-weak-50',
@@ -195,10 +235,11 @@ function DayCell({
           'tabular flex size-6 items-center justify-center rounded-full text-label-xs',
           day === today ? 'bg-primary-base text-static-white' : muted ? 'text-text-soft-400' : 'text-text-sub-600',
         )}
-        aria-current={day === today ? 'date' : undefined}
+        aria-hidden="true"
       >
         {label}
       </span>
+      <span className="sr-only">{dayLabel(day)}</span>
       {visible.map((t) => (
         <CalendarChip key={t.id} task={t} today={today} showProject={showProject} onOpen={onOpen} />
       ))}
