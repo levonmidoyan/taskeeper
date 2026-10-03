@@ -95,6 +95,34 @@ describe('runReminders', () => {
     expect(rows.map((r) => r.attempts)).toEqual([3, 3]);
   });
 
+  it('waits out Resend’s rate limit instead of failing the row', async () => {
+    await setup();
+    let calls = 0;
+    const sent: OutgoingMail[] = [];
+    const send = async (m: OutgoingMail) => {
+      calls += 1;
+      // What send() throws for Resend's 429.
+      if (calls === 1) throw new Error('Resend rejected the reminder email to x: rate_limit_exceeded — Too many requests');
+      sent.push(m);
+    };
+
+    const result = await runReminders({ now: NOW, send, gapMs: 10 });
+
+    expect(result).toEqual({ claimed: 2, emailed: 2, failed: 0 });
+    const rows = await db.select({ attempts: notification.emailAttempts }).from(notification);
+    expect(rows.map((r) => r.attempts)).toEqual([1, 1]);
+  });
+
+  it('spaces sends to stay under Resend’s rate limit', async () => {
+    await setup();
+    const times: number[] = [];
+
+    await runReminders({ now: NOW, send: async () => { times.push(Date.now()); }, gapMs: 150 });
+
+    expect(times).toHaveLength(2);
+    expect(times[1] - times[0]).toBeGreaterThanOrEqual(140);
+  });
+
   it('two overlapping claims never take the same row', async () => {
     await setup();
     await runReminders({ now: NOW, send: async () => { throw new Error('x'); } });

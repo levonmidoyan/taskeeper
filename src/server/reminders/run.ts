@@ -7,6 +7,17 @@ import { claimNotifications, selectDueDigests, selectDueReminders } from './sele
 const EMAIL_BATCH = 500;
 
 /**
+ * Pause between sends. Resend's default limit is 2 requests a second per team;
+ * 500 sends at this pace still fit the route's 300 s maxDuration.
+ */
+const SEND_GAP_MS = 550;
+const RATE_LIMIT_RETRIES = 2;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+// send() in email.tsx rethrows Resend's `{ error }`, whose name says why.
+const rateLimited = (error: unknown) => error instanceof Error && error.message.includes('rate_limit_exceeded');
+
+/**
  * Locks up to `limit` unsent notifications for this run. SKIP LOCKED plus the
  * 10-minute claim means two overlapping runs never email the same row. Times
  * here are the database clock, not the job's `now`: they measure real elapsed
@@ -55,15 +66,27 @@ export async function claimUnsentEmails(limit = EMAIL_BATCH): Promise<OutgoingMa
 export async function runReminders({
   now = new Date(),
   send = sendNotificationEmail,
-}: { now?: Date; send?: MailSender } = {}): Promise<{ claimed: number; emailed: number; failed: number }> {
+  gapMs = SEND_GAP_MS,
+}: { now?: Date; send?: MailSender; gapMs?: number } = {}): Promise<{ claimed: number; emailed: number; failed: number }> {
   const drafts = [...(await selectDueReminders(now)), ...(await selectDueDigests(now))];
   const claimed = await claimNotifications(drafts);
 
   let emailed = 0;
   let failed = 0;
-  for (const mail of await claimUnsentEmails()) {
+  const mails = await claimUnsentEmails();
+  for (const [i, mail] of mails.entries()) {
+    if (i > 0) await sleep(gapMs);
     try {
-      await send(mail);
+      // A 429 is waited out here: the next run is a day away on the daily schedule.
+      for (let retry = 0; ; retry++) {
+        try {
+          await send(mail);
+          break;
+        } catch (error) {
+          if (!rateLimited(error) || retry === RATE_LIMIT_RETRIES) throw error;
+          await sleep(gapMs * 2 ** (retry + 1));
+        }
+      }
       await db.update(notification).set({ emailSentAt: new Date() }).where(eq(notification.id, mail.notificationId));
       emailed += 1;
     } catch (error) {
