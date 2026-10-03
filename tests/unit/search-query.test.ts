@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { MARK_END, MARK_START } from '@/lib/highlights';
 import { plainSnippet, toPrefixQuery } from '@/server/tasks/search-query';
+
+// Writes the snippet markers as «» so the cases stay readable.
+const m = (s: string) => s.replace(/«/g, MARK_START).replace(/»/g, MARK_END);
 
 describe('toPrefixQuery', () => {
   it('turns words into ANDed prefix terms, lowercased', () => {
@@ -26,16 +30,16 @@ describe('toPrefixQuery', () => {
 
 describe('plainSnippet', () => {
   it('drops Markdown syntax but keeps highlight markers', () => {
-    expect(plainSnippet('**Deploy** the [«api»](https://x.dev/a) with `npm` and ~~old~~ *notes*'))
-      .toBe('Deploy the «api» with npm and old notes');
+    expect(plainSnippet(m('**Deploy** the [«api»](https://x.dev/a) with `npm` and ~~old~~ *notes*')))
+      .toBe(m('Deploy the «api» with npm and old notes'));
   });
 
   it('drops line markers and collapses line breaks', () => {
-    expect(plainSnippet('## Steps\n- run «migration»\n> quoted\n1. done\n- [x] checked'))
-      .toBe('Steps run «migration» quoted done checked');
+    expect(plainSnippet(m('## Steps\n- run «migration»\n> quoted\n1. done\n- [x] checked')))
+      .toBe(m('Steps run «migration» quoted done checked'));
   });
 
   it('keeps underscores inside words', () => {
-    expect(plainSnippet('set «max_retries» to __3__')).toBe('set «max_retries» to 3');
+    expect(plainSnippet(m('set «max_retries» to __3__'))).toBe(m('set «max_retries» to 3'));
   });
 });

@@ -10,6 +10,7 @@ import {
 import { getTask, getTaskDetail, listMyOpenTasks, listProjectTasks, searchTasks } from '@/server/tasks/queries';
 import { createLabel } from '@/server/labels/service';
 import { task } from '@/db';
+import { MARK_END, MARK_START } from '@/lib/highlights';
 import type { WorkspaceContext } from '@/lib/session';
 
 beforeEach(resetDb);
@@ -541,7 +542,7 @@ describe('searchTasks', () => {
     const [hit] = await searchTasks(ctx, 'migration');
 
     expect(hit.title).toBe('Release checklist');
-    expect(hit.snippet).toContain('«migration»');
+    expect(hit.snippet).toContain(`${MARK_START}migration${MARK_END}`);
   });
 
   it('returns snippets as plain text, not Markdown', async () => {
@@ -550,7 +551,17 @@ describe('searchTasks', () => {
 
     const [hit] = await searchTasks(ctx, 'gateway');
 
-    expect(hit.snippet).toBe('Rotate the «gateway» keys');
+    expect(hit.snippet).toBe(`Rotate the ${MARK_START}gateway${MARK_END} keys`);
+  });
+
+  it('keeps literal guillemets in a snippet as text', async () => {
+    const { ctx, projectId } = await setup('s14@example.com', 'search-n');
+    await createTask(ctx, { projectId, title: 'Copy', description: 'Rotate the \uE000gateway «prod» keys' });
+
+    const [hit] = await searchTasks(ctx, 'gateway');
+
+    expect(hit.snippet).toContain(`${MARK_START}gateway${MARK_END} «prod» keys`);
+    expect(hit.snippet!.split(MARK_START)).toHaveLength(2);
   });
 
   it('matches word prefixes while typing', async () => {

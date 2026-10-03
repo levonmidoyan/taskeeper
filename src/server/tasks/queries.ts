@@ -2,6 +2,7 @@ import { and, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { comment, db, label, project, task, taskActivity, taskLabel, taskStatus, user } from '@/db';
 import { isOverdue } from '@/lib/dates';
+import { MARK_END, MARK_START } from '@/lib/highlights';
 import { byId, byKey } from '@/lib/position';
 import type { WorkspaceContext } from '@/lib/session';
 import { plainSnippet, toPrefixQuery } from './search-query';
@@ -223,7 +224,7 @@ export type TaskSearchHit = {
   projectName: string;
   projectColor: string;
   completed: boolean;
-  /** Description excerpt with «matched» words, only when the title did not match. */
+  /** Description excerpt with matched words between MARK_START and MARK_END, only when the title did not match. */
   snippet: string | null;
 };
 
@@ -255,8 +256,8 @@ export async function searchTasks(
         ? sql<string | null>`case
             when not (to_tsvector('english', ${task.title}) @@ ${q})
              and to_tsvector('english', ${task.description}) @@ ${q}
-            then ts_headline('english', ${task.description}, ${q},
-              'StartSel=«,StopSel=»,MaxWords=18,MinWords=6,MaxFragments=1')
+            then ts_headline('english', translate(${task.description}, ${MARK_START + MARK_END}, ''), ${q},
+              ${`StartSel=${MARK_START},StopSel=${MARK_END},MaxWords=18,MinWords=6,MaxFragments=1`})
           end`
         : sql<null>`null`,
     })

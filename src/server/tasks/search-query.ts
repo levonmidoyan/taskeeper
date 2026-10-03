@@ -17,8 +17,8 @@ export function toPrefixQuery(term: string): string | null {
 
 /**
  * Descriptions are Markdown and ts_headline returns source text, so a snippet
- * would show "**Deploy** the [«api»](https://…)". Strips the syntax a person
- * would not see rendered, keeping the «» highlight markers and in-word
+ * would show "**Deploy** the [api](https://…)". Strips the syntax a person
+ * would not see rendered, keeping the highlight markers and in-word
  * underscores (snake_case).
  */
 export function plainSnippet(snippet: string): string {

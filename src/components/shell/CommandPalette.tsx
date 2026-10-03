@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { projectDot } from '@/components/brand/tint';
 import { matchActions, paletteActions, type PaletteAction } from '@/components/shell/palette-actions';
-import { ignoreShortcut } from '@/components/shell/shortcuts';
+import { ignoreShortcut, OVERLAY_SELECTOR } from '@/components/shell/shortcuts';
 import * as CommandMenu from '@/components/ui/command-menu';
 import { splitHighlights } from '@/lib/highlights';
 import { settle } from '@/lib/settle';
@@ -58,8 +58,8 @@ export function CommandPalette({
     function onKey(e: KeyboardEvent) {
       const modK = e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey;
       if (modK) {
-        // Another dialog or menu owns the screen; leave it alone.
-        if (!open && document.querySelector('[role="dialog"], [role="menu"]')) return;
+        // Another dialog, menu or dropdown owns the screen; leave it alone.
+        if (!open && document.querySelector(OVERLAY_SELECTOR)) return;
         e.preventDefault();
         onOpenChange(!open);
         return;
@@ -84,16 +84,26 @@ export function CommandPalette({
 
   useEffect(() => {
     if (!searchable) return;
+    // Dropped once the term moves on, so a late answer for an older term can
+    // never replace the newer one and leave the palette "Searching…".
+    let live = true;
     const timer = setTimeout(async () => {
       const result = await settle(searchTasksAction(workspaceSlug, trimmed));
-      setFound({ term: trimmed, tasks: result.ok ? result.data : [] });
+      if (live) setFound({ term: trimmed, tasks: result.ok ? result.data : [] });
     }, 200);
-    return () => clearTimeout(timer);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
   }, [searchable, trimmed, workspaceSlug]);
 
   function onOpenChange(next: boolean) {
     setOpen(next);
-    if (!next) setTerm('');
+    if (next) return;
+    // Start the next open fresh rather than showing this session's results.
+    setTerm('');
+    setRecent([]);
+    setFound({ term: '', tasks: [] });
   }
 
   function go(href: string) {
@@ -111,7 +121,9 @@ export function CommandPalette({
   }
 
   const projectName = projects.find((p) => pathname.includes(`/projects/${p.id}`))?.name;
-  const actions = matchActions(paletteActions(workspaceSlug, pathname, projectName), trimmed);
+  // Without a project there is nowhere to create a task, so "New task" is not offered.
+  const actions = matchActions(paletteActions(workspaceSlug, pathname, projectName), trimmed)
+    .filter((a) => a.command !== 'new-task' || projects.length > 0);
   const needle = trimmed.toLowerCase();
   const projectHits = trimmed ? projects.filter((p) => p.name.toLowerCase().includes(needle)).slice(0, 3) : [];
   const taskRows: TaskLike[] = trimmed ? tasks : recent;
@@ -122,6 +134,7 @@ export function CommandPalette({
       <button
         type="button"
         aria-label="Search"
+        aria-keyshortcuts={isMac ? 'Meta+K /' : 'Control+K /'}
         onClick={() => setOpen(true)}
         className="flex h-9 w-full max-w-md items-center gap-2 rounded-10 bg-bg-white-0 px-2.5 text-paragraph-sm text-text-soft-400 ring-1 ring-inset ring-stroke-soft-200 transition hover:bg-bg-weak-50 max-sm:w-9 max-sm:justify-center max-sm:px-0"
       >
@@ -161,12 +174,13 @@ export function CommandPalette({
             className="h-12 max-lg:text-paragraph-md"
           />
         </div>
-        <CommandMenu.List className="max-h-[min(26rem,70dvh)] max-sm:max-h-none">
+        {/* Outside the listbox, and always mounted, so screen readers announce each change. */}
+        <div role="status" className="text-paragraph-sm text-text-sub-600 empty:border-0">
           {trimmed && (!searchable || loading || nothing) && (
-            <p className="px-5 py-4 text-paragraph-sm text-text-sub-600">
-              {!searchable ? 'Keep typing…' : loading ? 'Searching…' : 'No matches.'}
-            </p>
+            <p className="px-5 py-4">{!searchable ? 'Keep typing…' : loading ? 'Searching…' : 'No matches.'}</p>
           )}
+        </div>
+        <CommandMenu.List className="max-h-[min(26rem,70dvh)] max-sm:max-h-none">
           {projectHits.length > 0 && (
             <CommandMenu.Group heading="Projects">
               {projectHits.map((p) => (
