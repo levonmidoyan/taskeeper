@@ -62,3 +62,35 @@ test('a project is renamed, archived, restored and deleted from its menu', async
   await page.goto(`${workspaceUrl}/settings/projects`);
   await expect(page.getByText('No archived projects.')).toBeVisible();
 });
+
+test('a project is managed from its rail row without leaving the current page', async ({ page }) => {
+  await signUpWithProject(page, 'rail');
+  const workspaceUrl = page.url().replace(/\/projects\/[^/?]+$/, '');
+  const rail = page.getByRole('navigation', { name: 'Workspace' });
+
+  await page.goto(`${workspaceUrl}/starred`);
+  await railLink(page, 'Website').hover();
+  await rail.getByRole('button', { name: 'Actions for Website' }).click();
+  await page.getByRole('menuitem', { name: 'Rename' }).click();
+  await page.getByRole('dialog').getByLabel('Project name').fill('Docs');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(railLink(page, 'Docs')).toBeVisible();
+  await expect(page).toHaveURL(`${workspaceUrl}/starred`);
+
+  await railLink(page, 'Docs').hover();
+  await rail.getByRole('button', { name: 'Actions for Docs' }).click();
+  await page.getByRole('menuitem', { name: 'Archive' }).click();
+  await expect(railLink(page, 'Docs')).toHaveCount(0);
+  await expect(page).toHaveURL(`${workspaceUrl}/starred`);
+
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(railLink(page, 'Docs')).toBeVisible();
+  await expect(page).toHaveURL(`${workspaceUrl}/starred`);
+
+  await railLink(page, 'Docs').hover();
+  await rail.getByRole('button', { name: 'Actions for Docs' }).click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
+  await expect(railLink(page, 'Docs')).toHaveCount(0);
+  await expect(page).toHaveURL(`${workspaceUrl}/starred`);
+});

@@ -1,7 +1,7 @@
 'use client';
 
-import { IconArchive, IconDots, IconPencil, IconTrash } from '@tabler/icons-react';
-import { useRouter } from 'next/navigation';
+import { IconArchive, IconDotsVertical, IconPencil, IconTrash } from '@tabler/icons-react';
+import { usePathname, useRouter } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { FormError, TextField } from '@/components/forms/TextField';
@@ -11,28 +11,39 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import * as Dropdown from '@/components/ui/dropdown';
 import * as Modal from '@/components/ui/modal';
 import { settle } from '@/lib/settle';
+import { cn } from '@/utils/cn';
 import {
   archiveProjectAction, deleteProjectAction, renameProjectAction, unarchiveProjectAction,
 } from '@/server/projects/actions';
 
 /**
- * Rename, archive and delete for one project, beside its title. Owners and admins
- * only; the page leaves it out for everyone else, and the services refuse anyway.
+ * Rename, archive and delete for one project, beside its title and on its rail
+ * row. Owners and admins only; callers leave it out for everyone else, and the
+ * services refuse anyway.
  *
- * Archive and delete take the caller off this page: the action skips its own
- * revalidation (the page would re-render as a 404 first), and the push plus
- * refresh below bring the rail up to date from the workspace home instead.
+ * Archive and delete from inside the project take the caller off its pages: the
+ * action skips its own revalidation (the page would re-render as a 404 first),
+ * and the push plus refresh below bring the rail up to date from the workspace
+ * home instead. From anywhere else the action revalidates as usual.
  */
 export function ProjectMenu({
   workspaceSlug,
   projectId,
   name,
+  placement = 'header',
+  className,
 }: {
   workspaceSlug: string;
   projectId: string;
   name: string;
+  /** `rail`: a smaller trigger named after the project, since the rail lists many. */
+  placement?: 'header' | 'rail';
+  className?: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const projectPath = `/${workspaceSlug}/projects/${projectId}`;
+  const onProjectPage = pathname === projectPath || pathname.startsWith(`${projectPath}/`);
   const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [renaming, setRenaming] = useState(false);
@@ -64,26 +75,28 @@ export function ProjectMenu({
 
   function onArchive() {
     startTransition(async () => {
-      const result = await settle(archiveProjectAction(workspaceSlug, { projectId }, { leaving: true }));
+      const leaving = onProjectPage;
+      const result = await settle(archiveProjectAction(workspaceSlug, { projectId }, { leaving }));
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
-      leave();
+      if (leaving) leave();
       toast.success(`“${name}” archived.`, {
         description: 'Restore it any time from Workspace settings → Projects.',
-        action: { label: 'Undo', onClick: () => void undoArchive() },
+        action: { label: 'Undo', onClick: () => void undoArchive(leaving) },
       });
     });
   }
 
-  async function undoArchive() {
+  /** `returnToProject`: archiving took the caller off the project, so Undo brings them back. */
+  async function undoArchive(returnToProject: boolean) {
     const result = await settle(unarchiveProjectAction(workspaceSlug, { projectId }));
     if (!result.ok) {
       toast.error(result.error);
       return;
     }
-    router.push(`/${workspaceSlug}/projects/${projectId}`);
+    if (returnToProject) router.push(projectPath);
   }
 
   async function onDelete() {
@@ -93,12 +106,13 @@ export function ProjectMenu({
     });
     if (!ok) return;
     startTransition(async () => {
-      const result = await settle(deleteProjectAction(workspaceSlug, { projectId }, { leaving: true }));
+      const leaving = onProjectPage;
+      const result = await settle(deleteProjectAction(workspaceSlug, { projectId }, { leaving }));
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
-      leave();
+      if (leaving) leave();
       toast.success(`“${name}” deleted.`);
     });
   }
@@ -107,12 +121,20 @@ export function ProjectMenu({
     <>
       <Dropdown.Root>
         <Dropdown.Trigger asChild>
-          <CompactButton.Root ref={trigger} variant="ghost" size="large" aria-label="Project actions" disabled={pending}>
-            <CompactButton.Icon as={IconDots} />
+          <CompactButton.Root
+            ref={trigger}
+            variant="ghost"
+            size={placement === 'rail' ? 'medium' : 'large'}
+            aria-label={placement === 'rail' ? `Actions for ${name}` : 'Project actions'}
+            disabled={pending}
+            className={cn(placement === 'rail' && 'size-6', className)}
+          >
+            <CompactButton.Icon as={IconDotsVertical} />
           </CompactButton.Root>
         </Dropdown.Trigger>
         <Dropdown.Content
           align="start"
+          side={placement === 'rail' ? 'right' : 'bottom'}
           className="w-48"
           onCloseAutoFocus={(event) => {
             if (!renameNext.current) return;
