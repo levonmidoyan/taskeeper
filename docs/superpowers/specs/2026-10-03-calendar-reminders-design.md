@@ -126,8 +126,9 @@ moment(day) = (day + make_time(hour, 0, 0)) AT TIME ZONE zone      -- timestampt
 - **Reminder candidates:** `reminder ⋈ task ⋈ project ⋈ member(task.workspace_id,
   reminder.user_id)`; `moment(task.due_date - offset_days)` in `(now - 36h, now]`.
 - **Digest candidates:** members with `digest_enabled`; `local_today = (now AT TIME ZONE
-  zone)::date`; `moment(local_today)` in `(now - 36h, now]`; at least one task assigned to
-  them with `due_date <= local_today`.
+  zone)::date`; digest date = `local_today` if `moment(local_today) <= now`, else
+  `local_today - 1` (so a late hour on the daily schedule still sends one digest a day);
+  at least one task assigned to them with `due_date <= local_today`.
 
 Filters on both: task has a due date, task not archived, task status not `is_done`,
 project not archived, recipient still a member of the workspace.
@@ -159,7 +160,7 @@ RETURNING …
 Two overlapping runs cannot claim the same row. Each claimed row is sent; success sets
 `email_sent_at`, failure leaves it null for the next run (after the 10-minute lock), up to
 3 attempts. One failing send does not stop the batch. The route returns
-`{ claimed, emailed, failed, skipped }`.
+`{ claimed, emailed, failed }`.
 
 Claim and email are separate on purpose: a Resend outage delays email but never loses or
 duplicates it, and the bell is unaffected.
@@ -211,6 +212,8 @@ non-drag path.
   date in range.
 - `/[workspaceSlug]/calendar` — rail entry "My calendar". Tasks assigned to `ctx.userId`
   across non-archived projects.
+
+Subtasks with a due date are included in both (they carry their own dates).
 
 One query: `listCalendarTasks(ctx, { from, to, projectId } | { from, to, mine: true })`
 in `src/server/tasks/`, range capped at 42 days, returns
