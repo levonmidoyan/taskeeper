@@ -34,7 +34,7 @@ describe('todo table', () => {
 });
 const ctxFor = (
   userId: string, workspaceId: string, slug: string, role: WorkspaceContext['role'] = 'owner',
-): WorkspaceContext => ({ userId, workspaceId, slug, role, timezone: 'Asia/Yerevan' });
+): WorkspaceContext => ({ userId, workspaceId, slug, role, timezone: 'Asia/Yerevan', workspaceTimezone: 'Asia/Yerevan' });
 
 async function owner(email = 'ada@example.com', slug = 'acme') {
   const u = await createUser(email);

@@ -17,7 +17,7 @@ afterAll(closeDb);
 async function setup() {
   const ada = await createUser('dl@example.com', 'Ada');
   const ws = await createWorkspace(ada.id, 'Acme', 'ws-dl');
-  const ctx: WorkspaceContext = { userId: ada.id, workspaceId: ws.id, slug: 'ws-dl', role: 'owner', timezone: 'UTC' };
+  const ctx: WorkspaceContext = { userId: ada.id, workspaceId: ws.id, slug: 'ws-dl', role: 'owner', timezone: 'UTC', workspaceTimezone: 'UTC' };
   const project = await createProject(ctx, { name: 'P' });
   if (!project.ok) throw new Error();
   const made = await createTask(ctx, { projectId: project.data.id, title: 'T' });

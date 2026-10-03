@@ -17,7 +17,7 @@ async function ctxFor(email: string, slug: string): Promise<WorkspaceContext> {
   const user = await createUser(email);
   const ws = await createWorkspace(user.id, 'Acme', slug);
   return {
-    userId: user.id, workspaceId: ws.id, slug, role: 'owner', timezone: 'Asia/Yerevan',
+    userId: user.id, workspaceId: ws.id, slug, role: 'owner', timezone: 'Asia/Yerevan', workspaceTimezone: 'Asia/Yerevan',
   };
 }
 

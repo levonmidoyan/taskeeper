@@ -15,7 +15,7 @@ async function setup(email: string, slug: string) {
   const user = await createUser(email, 'Ada');
   const ws = await createWorkspace(user.id, 'Acme', slug);
   const ctx: WorkspaceContext = {
-    userId: user.id, workspaceId: ws.id, slug, role: 'owner', timezone: 'Asia/Yerevan',
+    userId: user.id, workspaceId: ws.id, slug, role: 'owner', timezone: 'Asia/Yerevan', workspaceTimezone: 'Asia/Yerevan',
   };
   const created = await createProject(ctx, { name: 'Website' });
   if (!created.ok) throw new Error('setup failed');
@@ -29,7 +29,7 @@ async function addMember(workspaceId: string, slug: string, email: string, role:
   const user = await createUser(email, 'Grace');
   await joinWorkspace(user.id, workspaceId, role);
   const ctx: WorkspaceContext = {
-    userId: user.id, workspaceId, slug, role, timezone: 'Asia/Yerevan',
+    userId: user.id, workspaceId, slug, role, timezone: 'Asia/Yerevan', workspaceTimezone: 'Asia/Yerevan',
   };
   return ctx;
 }

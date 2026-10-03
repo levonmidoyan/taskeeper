@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
-import { db, member, organization, workspaceSettings } from '@/db';
+import { db, member, organization, userSettings, workspaceSettings } from '@/db';
 import { auth } from '@/lib/auth';
 import { DEFAULT_TIMEZONE } from '@/lib/dates';
 import { safeNextPath } from '@/lib/next-path';
@@ -10,12 +10,17 @@ import { ForbiddenError } from '@/lib/result';
 
 export type WorkspaceRole = 'owner' | 'admin' | 'member';
 
-export type WorkspaceContext = {
-  userId: string;
+/** Who is acting, for account-level services that have no workspace in the URL. */
+export type UserContext = { userId: string };
+
+export type WorkspaceContext = UserContext & {
   workspaceId: string;
   slug: string;
   role: WorkspaceRole;
+  /** The zone this user sees dates in: their own if set, else the workspace's. */
   timezone: string;
+  /** The workspace's zone, for anything that must be the same for every member. */
+  workspaceTimezone: string;
 };
 
 /**
@@ -32,7 +37,8 @@ export async function resolveWorkspace(
       workspaceId: organization.id,
       slug: organization.slug,
       role: member.role,
-      timezone: workspaceSettings.timezone,
+      workspaceTimezone: workspaceSettings.timezone,
+      userTimezone: userSettings.timezone,
     })
     .from(organization)
     .innerJoin(
@@ -40,17 +46,20 @@ export async function resolveWorkspace(
       and(eq(member.organizationId, organization.id), eq(member.userId, userId)),
     )
     .leftJoin(workspaceSettings, eq(workspaceSettings.workspaceId, organization.id))
+    .leftJoin(userSettings, eq(userSettings.userId, userId))
     .where(eq(organization.slug, slug))
     .limit(1);
 
   if (!row) return null;
 
+  const workspaceTimezone = row.workspaceTimezone ?? DEFAULT_TIMEZONE;
   return {
     userId,
     workspaceId: row.workspaceId,
     slug: row.slug,
     role: row.role as WorkspaceRole,
-    timezone: row.timezone ?? DEFAULT_TIMEZONE,
+    timezone: row.userTimezone ?? workspaceTimezone,
+    workspaceTimezone,
   };
 }
 
@@ -58,6 +67,13 @@ export async function resolveWorkspace(
 export async function signInRedirect(): Promise<never> {
   const path = safeNextPath((await headers()).get(REQUEST_PATH_HEADER), '');
   redirect(path && path !== '/' ? `/auth/sign-in?redirectTo=${encodeURIComponent(path)}` : '/auth/sign-in');
+}
+
+/** Account-level entry point: the signed-in user, or a redirect to sign in. */
+export async function requireUser(): Promise<UserContext> {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return signInRedirect();
+  return { userId: session.user.id };
 }
 
 /** Server-component and action entry point. Redirects or 404s rather than returning null. */
