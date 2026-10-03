@@ -16,14 +16,16 @@ describe('formatZoneTime', () => {
 });
 
 describe('previewZones', () => {
-  it('shows the workspace and the viewer zone', () => {
-    expect(previewZones('Europe/Berlin', 'Asia/Yerevan')).toEqual([
+  it('shows the chosen zone under its label, and the viewer zone', () => {
+    expect(previewZones({ label: 'Workspace time', zone: 'Europe/Berlin' }, 'Asia/Yerevan')).toEqual([
       { label: 'Workspace time', zone: 'Europe/Berlin' },
       { label: 'Your time', zone: 'Asia/Yerevan' },
     ]);
   });
 
   it('shows one line when they are the same', () => {
-    expect(previewZones('UTC', 'UTC')).toEqual([{ label: 'Workspace time', zone: 'UTC' }]);
+    expect(previewZones({ label: 'Chosen time', zone: 'UTC' }, 'UTC')).toEqual([
+      { label: 'Chosen time', zone: 'UTC' },
+    ]);
   });
 });

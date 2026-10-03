@@ -61,7 +61,7 @@ export function TimezoneForm({
         </Hint.Root>
       </div>
 
-      <ZonePreview workspaceZone={timezone} />
+      <ZonePreview label="Workspace time" zone={timezone} />
 
       {canEdit && (
         <div>
