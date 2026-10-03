@@ -106,3 +106,13 @@ export function recencyBucket(instant: Date, tz: string, now: Date = new Date())
   if (day >= addDays(today, -7)) return 'Past week';
   return 'Older';
 }
+
+/** Asks the runtime whether a zone exists rather than shipping a list that goes stale. */
+export function isValidTimezone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}

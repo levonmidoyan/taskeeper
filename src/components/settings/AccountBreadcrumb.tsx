@@ -8,7 +8,12 @@ import { PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
 const tabLabels: Record<string, string> = {
   [viewPaths.settings.account]: 'Profile',
   [viewPaths.settings.security]: 'Security',
+  preferences: 'Preferences',
 };
+
+export function accountTabLabel(tab: string): string {
+  return tabLabels[tab] ?? 'Settings';
+}
 
 /** Account settings share one layout, so the current tab comes from the URL. */
 export function AccountBreadcrumb({ workspaceSlug, className }: { workspaceSlug: string; className?: string }) {
@@ -20,7 +25,7 @@ export function AccountBreadcrumb({ workspaceSlug, className }: { workspaceSlug:
       items={[
         homeCrumb(workspaceSlug),
         { label: 'Account', href: '/settings' },
-        { label: tabLabels[tab] ?? 'Settings' },
+        { label: accountTabLabel(tab) },
       ]}
     />
   );

@@ -10,7 +10,7 @@ export async function resetDb(): Promise<void> {
     TRUNCATE TABLE
       attachment, todo, project_star, comment, task_activity,
       task_label, task, task_status, label, project,
-      workspace_settings, invitation, member, organization,
+      workspace_settings, user_settings, invitation, member, organization,
       session, account, verification, rate_limit, "user"
     RESTART IDENTITY CASCADE
   `);

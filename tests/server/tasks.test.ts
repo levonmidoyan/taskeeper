@@ -19,7 +19,7 @@ async function setup(email: string, slug: string) {
   const user = await createUser(email);
   const ws = await createWorkspace(user.id, 'Acme', slug);
   const ctx: WorkspaceContext = {
-    userId: user.id, workspaceId: ws.id, slug, role: 'owner', timezone: 'Asia/Yerevan',
+    userId: user.id, workspaceId: ws.id, slug, role: 'owner', timezone: 'Asia/Yerevan', workspaceTimezone: 'Asia/Yerevan',
   };
   const created = await createProject(ctx, { name: 'Website' });
   if (!created.ok) throw new Error('setup failed');

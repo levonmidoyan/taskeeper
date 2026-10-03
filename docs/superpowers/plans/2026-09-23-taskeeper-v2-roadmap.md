@@ -75,7 +75,8 @@ in Postgres, high daily value, and saved filters want its query shape).
 Every global constraint in `docs/superpowers/plans/2026-09-20-taskeeper-v1.md` still holds
 verbatim — Yarn 4, pinned versions, Node runtime only, no session-level Postgres state, no
 component imports from `src/db/`, `ctx: WorkspaceContext` first parameter on every
-`src/server/**` export, `Result<T>` across the action boundary, semantic Tailwind tokens,
+`src/server/**` export (or `ctx: UserContext` for account-level services with no workspace
+in the URL, since slice 2), `Result<T>` across the action boundary, semantic Tailwind tokens,
 Lucide icons only, dates through `src/lib/dates.ts`, `TZ=UTC`, TDD, Conventional Commits,
 no `Co-Authored-By` trailers.
 

@@ -1,6 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { closeDb, resetDb } from '../setup/db';
+import { eq } from 'drizzle-orm';
+import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
+import { userSettings, workspaceSettings } from '@/db';
 import { ForbiddenError } from '@/lib/result';
 import { requireRole, resolveWorkspace } from '@/lib/session';
 
@@ -26,6 +28,44 @@ describe('resolveWorkspace', () => {
 
     const ctx = await resolveWorkspace(ada.id, 'acme-tz');
     expect(ctx!.timezone).toBe('Asia/Yerevan');
+  });
+
+  it('without a user override, timezone and workspaceTimezone are both the workspace zone', async () => {
+    const ada = await createUser('tz-none@example.com');
+    const acme = await createWorkspace(ada.id, 'Acme', 'acme-tz-none');
+    await db.update(workspaceSettings).set({ timezone: 'Europe/Berlin' })
+      .where(eq(workspaceSettings.workspaceId, acme.id));
+
+    const ctx = await resolveWorkspace(ada.id, 'acme-tz-none');
+
+    expect(ctx!.timezone).toBe('Europe/Berlin');
+    expect(ctx!.workspaceTimezone).toBe('Europe/Berlin');
+  });
+
+  it("a user's own timezone overrides the workspace zone for that user only", async () => {
+    const ada = await createUser('tz-own@example.com');
+    const bob = await createUser('tz-other@example.com');
+    const acme = await createWorkspace(ada.id, 'Acme', 'acme-tz-own');
+    await joinWorkspace(bob.id, acme.id, 'member');
+    await db.insert(userSettings).values({ userId: ada.id, timezone: 'America/New_York' });
+
+    const adaCtx = await resolveWorkspace(ada.id, 'acme-tz-own');
+    const bobCtx = await resolveWorkspace(bob.id, 'acme-tz-own');
+
+    expect(adaCtx!.timezone).toBe('America/New_York');
+    expect(adaCtx!.workspaceTimezone).toBe('Asia/Yerevan');
+    expect(bobCtx!.timezone).toBe('Asia/Yerevan');
+  });
+
+  it('a user row with a null timezone follows the workspace', async () => {
+    const ada = await createUser('tz-null@example.com');
+    await createWorkspace(ada.id, 'Acme', 'acme-tz-null');
+    await db.insert(userSettings).values({ userId: ada.id, timezone: null });
+
+    const ctx = await resolveWorkspace(ada.id, 'acme-tz-null');
+
+    expect(ctx!.timezone).toBe('Asia/Yerevan');
+    expect(ctx!.workspaceTimezone).toBe('Asia/Yerevan');
   });
 
   it('returns null for a non-member, not a different error', async () => {
@@ -89,7 +129,7 @@ describe('resolveWorkspace', () => {
 
 describe('requireRole', () => {
   const ctx = {
-    userId: 'u1', workspaceId: 'w1', slug: 'w', role: 'member' as const, timezone: 'Asia/Yerevan',
+    userId: 'u1', workspaceId: 'w1', slug: 'w', role: 'member' as const, timezone: 'Asia/Yerevan', workspaceTimezone: 'Asia/Yerevan',
   };
 
   it('passes when the role matches', () => {

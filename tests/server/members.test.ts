@@ -27,7 +27,7 @@ async function setup(email: string, slug: string, role: 'owner' | 'admin' | 'mem
   const user = await createUser(email);
   const ws = await createWorkspace(user.id, 'Acme', slug);
   const ctx: WorkspaceContext = {
-    userId: user.id, workspaceId: ws.id, slug, role, timezone: 'Asia/Yerevan',
+    userId: user.id, workspaceId: ws.id, slug, role, timezone: 'Asia/Yerevan', workspaceTimezone: 'Asia/Yerevan',
   };
   return { ctx, ws, user };
 }

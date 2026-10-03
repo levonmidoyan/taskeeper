@@ -15,7 +15,7 @@ beforeEach(resetDb);
 afterAll(closeDb);
 
 function ctxFor(userId: string, workspaceId: string, slug: string): WorkspaceContext {
-  return { userId, workspaceId, slug, role: 'owner', timezone: 'Asia/Yerevan' };
+  return { userId, workspaceId, slug, role: 'owner', timezone: 'Asia/Yerevan', workspaceTimezone: 'Asia/Yerevan' };
 }
 
 /** What Better Auth does after beforeDelete succeeds. */
