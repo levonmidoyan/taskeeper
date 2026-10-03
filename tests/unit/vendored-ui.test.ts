@@ -10,7 +10,7 @@ describe('vendored Align components', () => {
     expect(files).toEqual(expect.arrayContaining([
       'button.tsx', 'input.tsx', 'label.tsx', 'select.tsx', 'modal.tsx', 'drawer.tsx',
       'dropdown.tsx', 'badge.tsx', 'avatar.tsx', 'radio.tsx', 'switch.tsx', 'tooltip.tsx',
-      'file-upload.tsx', 'file-format-icon.tsx', 'progress-bar.tsx',
+      'file-upload.tsx', 'file-format-icon.tsx', 'progress-bar.tsx', 'command-menu.tsx',
     ]));
   });
 

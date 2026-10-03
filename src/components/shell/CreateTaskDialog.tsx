@@ -44,20 +44,25 @@ function Field({ id, label, children }: { id: string; label: string; children: R
 export function CreateTaskDialog({
   workspaceSlug,
   projects,
+  open,
+  onOpenChange,
 }: {
   workspaceSlug: string;
   projects: ProjectSummary[];
+  /** Owned by AppHeader so the command palette can open it too. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const params = useParams<{ projectId?: string }>();
-  const [open, setOpen] = useState(false);
-  // Bumped per open, so the form always starts blank.
+  // Bumped per open, however it was opened (button, "c", or the palette), so
+  // the form always starts blank.
   const [session, setSession] = useState(0);
-  const disabled = projects.length === 0;
-
-  function onOpenChange(next: boolean) {
-    if (next) setSession((n) => n + 1);
-    setOpen(next);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setSession((n) => n + 1);
   }
+  const disabled = projects.length === 0;
 
   useEffect(() => {
     if (disabled) return;
@@ -101,7 +106,7 @@ export function CreateTaskDialog({
             workspaceSlug={workspaceSlug}
             projects={projects}
             initialProjectId={initialProjectId}
-            onDone={() => setOpen(false)}
+            onDone={() => onOpenChange(false)}
           />
         )}
       </Modal.Content>
