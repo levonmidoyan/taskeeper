@@ -53,6 +53,11 @@ export function ProjectMenu({
   // earlier, the closing menu keeps focus through its exit animation and then
   // drops it on <body>, so the name field never gets it.
   const renameNext = useRef(false);
+  // True from opening until the menu has finished its exit animation. The rail
+  // hides its trigger when the row isn't hovered or focused, and `data-state`
+  // turns `closed` as soon as closing starts; hidden that early, the trigger
+  // leaves the closing menu with no anchor and it jumps to the top-left corner.
+  const [shown, setShown] = useState(false);
 
   function leave() {
     router.push(`/${workspaceSlug}`);
@@ -119,7 +124,7 @@ export function ProjectMenu({
 
   return (
     <>
-      <Dropdown.Root>
+      <Dropdown.Root onOpenChange={(open) => open && setShown(true)}>
         <Dropdown.Trigger asChild>
           <CompactButton.Root
             ref={trigger}
@@ -127,6 +132,7 @@ export function ProjectMenu({
             size={placement === 'rail' ? 'medium' : 'large'}
             aria-label={placement === 'rail' ? `Actions for ${name}` : 'Project actions'}
             disabled={pending}
+            data-shown={shown || undefined}
             className={cn(placement === 'rail' && 'size-6', className)}
           >
             <CompactButton.Icon as={IconDotsVertical} />
@@ -137,6 +143,7 @@ export function ProjectMenu({
           side={placement === 'rail' ? 'right' : 'bottom'}
           className="w-48"
           onCloseAutoFocus={(event) => {
+            setShown(false);
             if (!renameNext.current) return;
             renameNext.current = false;
             event.preventDefault();
