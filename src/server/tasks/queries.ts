@@ -4,7 +4,7 @@ import { comment, db, label, project, task, taskActivity, taskLabel, taskStatus,
 import { isOverdue } from '@/lib/dates';
 import { byId, byKey } from '@/lib/position';
 import type { WorkspaceContext } from '@/lib/session';
-import { toPrefixQuery } from './search-query';
+import { plainSnippet, toPrefixQuery } from './search-query';
 
 export type Priority = 'none' | 'low' | 'medium' | 'high' | 'urgent';
 export type LabelRow = { id: string; name: string; color: string };
@@ -280,7 +280,11 @@ export async function searchTasks(
     )
     .limit(limit);
 
-  return rows.map(({ completedAt, ...r }) => ({ ...r, completed: completedAt !== null }));
+  return rows.map(({ completedAt, snippet, ...r }) => ({
+    ...r,
+    completed: completedAt !== null,
+    snippet: snippet && plainSnippet(snippet),
+  }));
 }
 
 export type RecentTask = {

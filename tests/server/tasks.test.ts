@@ -544,6 +544,15 @@ describe('searchTasks', () => {
     expect(hit.snippet).toContain('«migration»');
   });
 
+  it('returns snippets as plain text, not Markdown', async () => {
+    const { ctx, projectId } = await setup('s13@example.com', 'search-m');
+    await createTask(ctx, { projectId, title: 'Ops', description: '**Rotate** the [gateway](https://x.dev) keys' });
+
+    const [hit] = await searchTasks(ctx, 'gateway');
+
+    expect(hit.snippet).toBe('Rotate the «gateway» keys');
+  });
+
   it('matches word prefixes while typing', async () => {
     const { ctx, projectId } = await setup('s6@example.com', 'search-f');
     // In the description, so the title substring match cannot be what finds it.
