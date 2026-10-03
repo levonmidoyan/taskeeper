@@ -80,7 +80,7 @@ function ProjectLink({
           name={project.name}
           placement="rail"
           // Shown on hover and focus; always on touch screens, which have no hover.
-          className="relative z-10 -mr-1 hidden shrink-0 group-focus-within:flex group-hover:flex data-[state=open]:flex pointer-coarse:flex"
+          className="relative z-10 -mr-1 hidden shrink-0 group-focus-within:flex group-hover:flex data-shown:flex pointer-coarse:flex"
         />
       )}
     </div>
