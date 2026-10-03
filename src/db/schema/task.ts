@@ -1,6 +1,7 @@
 import {
   type AnyPgColumn,
   boolean,
+  customType,
   date,
   index,
   pgEnum,
@@ -10,6 +11,7 @@ import {
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { organization, user } from './auth';
 import { project } from './project';
 
@@ -29,6 +31,10 @@ export const taskStatus = pgTable(
   },
   (t) => [index('task_status_project_position_idx').on(t.projectId, t.position)],
 );
+
+const tsvector = customType<{ data: string }>({
+  dataType: () => 'tsvector',
+});
 
 export const task = pgTable(
   'task',
@@ -54,11 +60,17 @@ export const task = pgTable(
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    // Full-text search over title (weight A) and description (weight B).
+    // Postgres fills it; app code never writes it.
+    search: tsvector('search').generatedAlwaysAs(
+      sql`setweight(to_tsvector('english', title), 'A') || setweight(to_tsvector('english', description), 'B')`,
+    ),
   },
   (t) => [
     index('task_board_idx').on(t.projectId, t.statusId, t.position),
     index('task_assignee_idx').on(t.workspaceId, t.assigneeId, t.archivedAt),
     index('task_parent_idx').on(t.parentTaskId),
+    index('task_search_idx').using('gin', t.search),
   ],
 );
 

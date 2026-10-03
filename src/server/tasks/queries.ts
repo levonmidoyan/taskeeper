@@ -1,9 +1,10 @@
-import { and, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { comment, db, label, project, task, taskActivity, taskLabel, taskStatus, user } from '@/db';
 import { isOverdue } from '@/lib/dates';
 import { byId, byKey } from '@/lib/position';
 import type { WorkspaceContext } from '@/lib/session';
+import { toPrefixQuery } from './search-query';
 
 export type Priority = 'none' | 'low' | 'medium' | 'high' | 'urgent';
 export type LabelRow = { id: string; name: string; color: string };
@@ -222,19 +223,25 @@ export type TaskSearchHit = {
   projectName: string;
   projectColor: string;
   completed: boolean;
+  /** Description excerpt with «matched» words, only when the title did not match. */
+  snippet: string | null;
 };
 
 /**
- * Title substring match across the workspace, for the header search. Open work
- * ranks first, then recently updated. LIKE wildcards in the term are escaped so
- * "50%" searches for the literal text.
+ * Full-text search across the workspace for the command palette: word prefixes
+ * in the title or description, plus a plain title substring so odd tokens
+ * ("50%", "v2.1") still match. Title substring hits first, then best rank,
+ * then open work, then recently updated. The workspace filter sits in the same WHERE, so ranking never reads
+ * another workspace's rows.
  */
 export async function searchTasks(
   ctx: WorkspaceContext,
   term: string,
-  limit = 8,
+  limit = 10,
 ): Promise<TaskSearchHit[]> {
   const pattern = `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const prefix = toPrefixQuery(term);
+  const q = prefix ? sql`to_tsquery('english', ${prefix})` : null;
 
   const rows = await db
     .select({
@@ -244,6 +251,14 @@ export async function searchTasks(
       projectName: project.name,
       projectColor: project.color,
       completedAt: task.completedAt,
+      snippet: q
+        ? sql<string | null>`case
+            when not (to_tsvector('english', ${task.title}) @@ ${q})
+             and to_tsvector('english', ${task.description}) @@ ${q}
+            then ts_headline('english', ${task.description}, ${q},
+              'StartSel=«,StopSel=»,MaxWords=18,MinWords=6,MaxFragments=1')
+          end`
+        : sql<null>`null`,
     })
     .from(task)
     .innerJoin(project, eq(project.id, task.projectId))
@@ -252,10 +267,17 @@ export async function searchTasks(
         eq(task.workspaceId, ctx.workspaceId),
         isNull(task.archivedAt),
         isNull(project.archivedAt),
-        ilike(task.title, pattern),
+        q ? or(sql`${task.search} @@ ${q}`, ilike(task.title, pattern)) : ilike(task.title, pattern),
       ),
     )
-    .orderBy(sql`${task.completedAt} is not null`, desc(task.updatedAt))
+    .orderBy(
+      // A literal title substring first: "50%" puts "Grow 50% faster" above
+      // the "500" its prefix term also finds.
+      desc(ilike(task.title, pattern)),
+      ...(q ? [desc(sql`ts_rank(${task.search}, ${q})`)] : []),
+      sql`${task.completedAt} is not null`,
+      desc(task.updatedAt),
+    )
     .limit(limit);
 
   return rows.map(({ completedAt, ...r }) => ({ ...r, completed: completedAt !== null }));
