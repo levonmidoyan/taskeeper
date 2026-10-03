@@ -15,6 +15,7 @@
     "db:init": "yarn db:setup && yarn db:seed",
     "db:setup": "drizzle-kit push && tsx scripts/db-sql.ts",
     "db:setup:test": "DRIZZLE_DB=test drizzle-kit push && DRIZZLE_DB=test tsx scripts/db-sql.ts",
+    "db:setup:dev": "DRIZZLE_ENV_FILE=.env.develop.local drizzle-kit push && DRIZZLE_ENV_FILE=.env.develop.local tsx scripts/db-sql.ts",
     "db:setup:prod": "DRIZZLE_ENV_FILE=.env.production.local drizzle-kit push && DRIZZLE_ENV_FILE=.env.production.local tsx scripts/db-sql.ts",
     "db:seed": "tsx scripts/seed.ts",
     "test": "vitest run",
