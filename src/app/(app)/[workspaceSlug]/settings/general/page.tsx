@@ -18,7 +18,7 @@ export default async function GeneralSettingsPage({
 
       <TimezoneForm
         workspaceSlug={workspaceSlug}
-        current={ctx.timezone}
+        current={ctx.workspaceTimezone}
         canEdit={ctx.role === 'owner' || ctx.role === 'admin'}
       />
     </div>

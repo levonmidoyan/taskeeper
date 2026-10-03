@@ -9,14 +9,8 @@ import * as Hint from '@/components/ui/hint';
 import * as Label from '@/components/ui/label';
 import * as Select from '@/components/ui/select';
 import { settle } from '@/lib/settle';
+import { zoneOptions } from '@/lib/timezones';
 import { updateWorkspaceSettingsAction } from '@/server/settings/actions';
-
-// A short curated list. Intl.supportedValuesOf('timeZone') has ~400 entries,
-// which is a worse control than a handful of relevant ones.
-const ZONES = [
-  'Asia/Yerevan', 'UTC', 'Europe/London', 'Europe/Berlin', 'Europe/Moscow',
-  'America/New_York', 'America/Los_Angeles', 'Asia/Dubai', 'Asia/Tokyo',
-];
 
 export function TimezoneForm({
   workspaceSlug,
@@ -53,11 +47,11 @@ export function TimezoneForm({
             <Select.Value />
           </Select.Trigger>
           <Select.Content>
-            {ZONES.map((zone) => <Select.Item key={zone} value={zone}>{zone}</Select.Item>)}
+            {zoneOptions(current).map((zone) => <Select.Item key={zone} value={zone}>{zone}</Select.Item>)}
           </Select.Content>
         </Select.Root>
         <Hint.Root id="timezone-hint">
-          Due dates and “today” are calculated in this timezone for everyone in the workspace.
+          Default for members who haven&rsquo;t set their own timezone.
         </Hint.Root>
       </div>
 
