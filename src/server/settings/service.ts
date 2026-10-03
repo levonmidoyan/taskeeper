@@ -1,18 +1,9 @@
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, workspaceSettings } from '@/db';
+import { isValidTimezone } from '@/lib/dates';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import { requireRole, type WorkspaceContext } from '@/lib/session';
-
-/** Asks the runtime whether a zone exists rather than shipping a list that goes stale. */
-function isValidTimezone(tz: string): boolean {
-  try {
-    new Intl.DateTimeFormat('en', { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export async function updateWorkspaceSettings(
   ctx: WorkspaceContext,
