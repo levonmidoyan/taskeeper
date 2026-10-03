@@ -24,7 +24,7 @@ test('a personal timezone is saved and leaves the workspace timezone alone', asy
 
   await zone.click();
   await page.getByRole('option', { name: 'Europe/Berlin' }).click();
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Save' }).first().click();
   await expect(page.getByText('Timezone updated.')).toBeVisible();
 
   await page.reload();
@@ -37,7 +37,7 @@ test('a personal timezone is saved and leaves the workspace timezone alone', asy
   await page.goto('/settings/preferences');
   await page.getByLabel('Your timezone').click();
   await page.getByRole('option', { name: 'Follow each workspace’s timezone' }).click();
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Save' }).first().click();
   await expect(page.getByText('Timezone updated.')).toBeVisible();
   await page.reload();
   await expect(page.getByLabel('Your timezone')).toHaveText('Follow each workspace’s timezone');
