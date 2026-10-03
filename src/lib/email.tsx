@@ -11,6 +11,8 @@ import {
 import type { ReactElement } from 'react';
 import { render } from 'react-email';
 import { Resend } from 'resend';
+import { DigestEmail, ReminderEmail } from '@/lib/reminder-email';
+import { digestSubject, reminderSubject, type MailSender } from '@/lib/reminders';
 import { appUrl } from '@/lib/url';
 
 const apiKey = process.env.RESEND_API_KEY;
@@ -226,6 +228,23 @@ export async function sendDeleteAccountEmail(to: string, url: string): Promise<v
  * Codes are not links, so the console fallback in send() would print nothing
  * useful; this logs the code itself instead.
  */
+/** Reminder and digest emails from the reminders cron (src/server/reminders/run.ts). */
+export const sendNotificationEmail: MailSender = async (mail) => {
+  if (mail.kind === 'reminder') {
+    const url = `${appUrl()}/${mail.slug}/tasks/${mail.taskId}`;
+    await send('reminder', mail.to, url, {
+      subject: reminderSubject(mail.data),
+      email: <ReminderEmail data={mail.data} url={url} />,
+    });
+    return;
+  }
+  const url = `${appUrl()}/${mail.slug}/calendar`;
+  await send('digest', mail.to, url, {
+    subject: digestSubject(mail.data, mail.workspaceName),
+    email: <DigestEmail data={mail.data} workspaceName={mail.workspaceName} url={url} />,
+  });
+};
+
 async function sendCode(
   kind: string,
   to: string,

@@ -69,3 +69,11 @@ export function digestSubject(d: DigestData, workspaceName: string): string {
 export function hourLabel(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`;
 }
+
+/** One claimed notification, ready to email. */
+export type OutgoingMail = { notificationId: string; to: string; slug: string; workspaceName: string } & (
+  | { kind: 'reminder'; taskId: string; data: ReminderData }
+  | { kind: 'digest'; taskId: null; data: DigestData }
+);
+
+export type MailSender = (mail: OutgoingMail) => Promise<void>;
