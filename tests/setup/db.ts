@@ -8,7 +8,7 @@ import { db, pool } from '@/db';
 export async function resetDb(): Promise<void> {
   await db.execute(sql`
     TRUNCATE TABLE
-      notification, reminder, saved_view,
+      workspace_change, notification, reminder, saved_view,
       attachment, todo, project_star, comment, task_activity,
       task_label, task, task_status, label, project,
       workspace_settings, user_settings, invitation, member, organization,
