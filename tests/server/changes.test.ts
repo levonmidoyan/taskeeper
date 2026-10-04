@@ -1,5 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { closeDb, db, resetDb } from '../setup/db';
+import { uploadTo } from '../setup/storage';
+import { cancelUpload, confirmUpload, deleteAttachment, requestUpload } from '@/server/attachments/service';
+import { createComment, deleteComment, updateComment } from '@/server/comments/service';
+import { createLabel, deleteLabel, setTaskLabels } from '@/server/labels/service';
 import { createUser, createWorkspace } from '../setup/factories';
 import type { WorkspaceContext } from '@/lib/session';
 import { getWorkspaceVersion, pollWorkspaceVersion } from '@/server/changes/queries';
@@ -190,5 +194,60 @@ describe('project writes bump the counter', () => {
   it('starring is private and does not', async () => {
     const { ctx, projectId } = await seeded();
     expect(await delta(ctx, () => setProjectStar(ctx, { projectId, starred: true }))).toBe(0);
+  });
+});
+
+describe('comment writes bump the counter', () => {
+  it('create, edit, delete', async () => {
+    const { ctx, taskId } = await seeded();
+    let commentId = '';
+    expect(await delta(ctx, async () => {
+      const r = await createComment(ctx, { taskId, body: 'Hi' });
+      if (r.ok) commentId = r.data.id;
+      return r;
+    })).toBe(1);
+    expect(await delta(ctx, () => updateComment(ctx, { commentId, body: 'Hello' }))).toBe(1);
+    expect(await delta(ctx, () => deleteComment(ctx, { commentId }))).toBe(1);
+  });
+});
+
+describe('attachment writes', () => {
+  async function requested(ctx: WorkspaceContext, taskId: string) {
+    const body = new TextEncoder().encode('hello');
+    const req = await requestUpload(ctx, { taskId, fileName: 'a.txt', contentType: 'text/plain', size: body.length });
+    if (!req.ok) throw new Error(req.error);
+    await uploadTo(req.data.url, body, req.data.contentType);
+    return req.data.id;
+  }
+
+  it('an unconfirmed upload is invisible to others and does not bump', async () => {
+    const { ctx, taskId } = await seeded();
+    const before = await getWorkspaceVersion(ctx);
+    const attachmentId = await requested(ctx, taskId);
+    expect(await delta(ctx, () => cancelUpload(ctx, { attachmentId }))).toBe(0);
+    expect(await getWorkspaceVersion(ctx)).toBe(before);
+  });
+
+  it('confirm and delete do', async () => {
+    const { ctx, taskId } = await seeded();
+    const attachmentId = await requested(ctx, taskId);
+    expect(await delta(ctx, () => confirmUpload(ctx, { attachmentId }))).toBe(1);
+    expect(await delta(ctx, () => deleteAttachment(ctx, { attachmentId }))).toBe(1);
+  });
+});
+
+describe('label writes', () => {
+  it('create bumps; asking for an existing name does not', async () => {
+    const { ctx } = await seeded();
+    expect(await delta(ctx, () => createLabel(ctx, { name: 'Bug' }))).toBe(1);
+    expect(await delta(ctx, () => createLabel(ctx, { name: 'Bug' }))).toBe(0);
+  });
+
+  it('setTaskLabels and deleteLabel bump', async () => {
+    const { ctx, taskId } = await seeded();
+    const made = await createLabel(ctx, { name: 'Bug' });
+    if (!made.ok) throw new Error(made.error);
+    expect(await delta(ctx, () => setTaskLabels(ctx, { taskId, labelIds: [made.data.id] }))).toBe(1);
+    expect(await delta(ctx, () => deleteLabel(ctx, { labelId: made.data.id }))).toBe(1);
   });
 });

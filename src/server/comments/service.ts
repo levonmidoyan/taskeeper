@@ -4,6 +4,7 @@ import { comment, db, project, task } from '@/db';
 import { newId } from '@/lib/ids';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
+import { emitChange } from '@/server/changes/service';
 
 const bodySchema = z
   .string()
@@ -40,13 +41,16 @@ export async function createComment(
     if (!owned) return err('Task not found.');
 
     const id = newId();
-    await db.insert(comment).values({
-      id,
-      workspaceId: ctx.workspaceId,
-      taskId: parsed.data.taskId,
-      // From the context, never the input.
-      authorId: ctx.userId,
-      body: parsed.data.body,
+    await db.transaction(async (tx) => {
+      await tx.insert(comment).values({
+        id,
+        workspaceId: ctx.workspaceId,
+        taskId: parsed.data.taskId,
+        // From the context, never the input.
+        authorId: ctx.userId,
+        body: parsed.data.body,
+      });
+      await emitChange(ctx, {}, tx);
     });
 
     return ok({ id });
@@ -69,10 +73,13 @@ export async function updateComment(
     // its author's name, so someone else's words must not change under it.
     if (owned.authorId !== ctx.userId) return err('You can only edit your own comments.');
 
-    await db
-      .update(comment)
-      .set({ body: parsed.data.body, editedAt: new Date() })
-      .where(eq(comment.id, parsed.data.commentId));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(comment)
+        .set({ body: parsed.data.body, editedAt: new Date() })
+        .where(eq(comment.id, parsed.data.commentId));
+      await emitChange(ctx, {}, tx);
+    });
 
     return ok(null);
   });
@@ -92,7 +99,10 @@ export async function deleteComment(
       return err('You can only delete your own comments.');
     }
 
-    await db.delete(comment).where(eq(comment.id, input.commentId));
+    await db.transaction(async (tx) => {
+      await tx.delete(comment).where(eq(comment.id, input.commentId));
+      await emitChange(ctx, {}, tx);
+    });
 
     return ok(null);
   });
