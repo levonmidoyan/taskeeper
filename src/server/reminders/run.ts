@@ -2,6 +2,7 @@ import { eq, inArray, sql } from 'drizzle-orm';
 import { db, notification, organization, user } from '@/db';
 import { EmailSendError, sendNotificationEmail } from '@/lib/email';
 import { REMINDER_CRON_HOURLY, type MailSender, type OutgoingMail } from '@/lib/reminders';
+import { emitChangeFor } from '@/server/changes/service';
 import { claimNotifications, selectDueDigests, selectDueReminders } from './select';
 
 const EMAIL_BATCH = 500;
@@ -111,6 +112,14 @@ export async function runReminders({
   const started = Date.now();
   const drafts = [...(await selectDueReminders(now)), ...(await selectDueDigests(now))];
   const claimed = await claimNotifications(drafts);
+
+  // Recipients' bells live in the workspace layout, so tell those pages. A
+  // workspace whose drafts were all repeats gets a harmless extra refresh.
+  if (claimed > 0) {
+    for (const workspaceId of new Set(drafts.map((d) => d.workspaceId))) {
+      await emitChangeFor(workspaceId, db);
+    }
+  }
 
   let emailed = 0;
   let failed = 0;

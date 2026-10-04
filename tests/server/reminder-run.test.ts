@@ -6,6 +6,7 @@ import { notification } from '@/db';
 import { EmailSendError } from '@/lib/email';
 import type { OutgoingMail } from '@/lib/reminders';
 import type { WorkspaceContext } from '@/lib/session';
+import { getWorkspaceVersion } from '@/server/changes/queries';
 import { createProject } from '@/server/projects/service';
 import { claimUnsentEmails, runReminders } from '@/server/reminders/run';
 import { setTaskReminders } from '@/server/reminders/service';
@@ -179,5 +180,18 @@ describe('runReminders', () => {
     const ids = [...a, ...b].map((m) => m.notificationId);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toHaveLength(2);
+  });
+
+  it('bumps the workspace counter when it claims something, not on an empty rerun', async () => {
+    const { ctx } = await setup();
+    const { send } = recorder();
+
+    const before = await getWorkspaceVersion(ctx);
+    await runReminders({ now: NOW, send, gapMs: 0 });
+    const afterFirst = await getWorkspaceVersion(ctx);
+    expect(afterFirst).toBe(before + 1);
+
+    await runReminders({ now: NOW, send, gapMs: 0 });
+    expect(await getWorkspaceVersion(ctx)).toBe(afterFirst);
   });
 });

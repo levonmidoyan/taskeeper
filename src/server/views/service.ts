@@ -7,6 +7,7 @@ import type { WorkspaceContext } from '@/lib/session';
 import { parseTaskFilter, type TaskFilter } from '@/lib/task-filter';
 import { formatSortParam, parseSortParam } from '@/lib/task-table-sort';
 import { VIEW_LAYOUTS, type ViewLayout } from '@/lib/views';
+import { emitChange } from '@/server/changes/service';
 import { canEditView, getView } from './queries';
 
 const nameSchema = z.string().trim().min(1, 'Give the view a name.').max(60, 'Name is too long.');
@@ -48,26 +49,34 @@ export async function createView(
   }
 
   const id = newId();
-  await db.insert(savedView).values({
-    id,
-    workspaceId: ctx.workspaceId,
-    projectId,
-    ownerId: ctx.userId,
-    name,
-    shared: parsed.data.shared ?? false,
-    layout,
-    filter,
-    sort: cleanSort(layout, input.sort),
+  const shared = parsed.data.shared ?? false;
+  await db.transaction(async (tx) => {
+    await tx.insert(savedView).values({
+      id,
+      workspaceId: ctx.workspaceId,
+      projectId,
+      ownerId: ctx.userId,
+      name,
+      shared,
+      layout,
+      filter,
+      sort: cleanSort(layout, input.sort),
+    });
+    // A private view is nobody else's business.
+    if (shared) await emitChange(ctx, { projectId }, tx);
   });
   return ok({ id });
 }
 
 /** The row if the caller may change it; otherwise the error to return. */
-async function editable(ctx: WorkspaceContext, id: string): Promise<Result<{ layout: ViewLayout }>> {
+async function editable(
+  ctx: WorkspaceContext,
+  id: string,
+): Promise<Result<{ layout: ViewLayout; shared: boolean; projectId: string | null }>> {
   const view = await getView(ctx, id);
   if (!view) return err('View not found.');
   if (!canEditView(ctx, view)) return err('Only the owner or a workspace admin can change this view.');
-  return ok({ layout: view.layout });
+  return ok({ layout: view.layout, shared: view.shared, projectId: view.projectId });
 }
 
 export async function updateView(
@@ -94,8 +103,14 @@ export async function updateView(
   }
   if (input.sort !== undefined) patch.sort = cleanSort(target.data.layout, input.sort);
 
-  await db.update(savedView).set(patch)
-    .where(and(eq(savedView.id, parsed.data.id), eq(savedView.workspaceId, ctx.workspaceId)));
+  await db.transaction(async (tx) => {
+    await tx.update(savedView).set(patch)
+      .where(and(eq(savedView.id, parsed.data.id), eq(savedView.workspaceId, ctx.workspaceId)));
+    // Shared before or after: others either saw it or now will.
+    if (target.data.shared || patch.shared === true) {
+      await emitChange(ctx, { projectId: target.data.projectId }, tx);
+    }
+  });
   return ok(null);
 }
 
@@ -118,7 +133,10 @@ export async function duplicateView(
 export async function deleteView(ctx: WorkspaceContext, input: { id: string }): Promise<Result<null>> {
   const target = await editable(ctx, input.id);
   if (!target.ok) return target;
-  await db.delete(savedView)
-    .where(and(eq(savedView.id, input.id), eq(savedView.workspaceId, ctx.workspaceId)));
+  await db.transaction(async (tx) => {
+    await tx.delete(savedView)
+      .where(and(eq(savedView.id, input.id), eq(savedView.workspaceId, ctx.workspaceId)));
+    if (target.data.shared) await emitChange(ctx, { projectId: target.data.projectId }, tx);
+  });
   return ok(null);
 }

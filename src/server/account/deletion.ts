@@ -2,6 +2,7 @@ import { APIError } from 'better-auth/api';
 import { count, eq, inArray } from 'drizzle-orm';
 import { db, member, organization, task } from '@/db';
 import { purgeWorkspaceObjects } from '@/server/attachments/cleanup';
+import { emitChangeFor } from '@/server/changes/service';
 
 type Tx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -64,6 +65,9 @@ export async function prepareAccountDeletion(userId: string): Promise<void> {
     const rows = await memberships(tx, userId);
     const stuck = rows.filter((r) => r.lastOwner && !r.solo).map((r) => r.name);
     if (stuck.length > 0) throw blocked(stuck);
+
+    // Workspaces that keep going lose a member and show "Deleted user" from now on.
+    for (const r of rows) if (!r.solo) await emitChangeFor(r.id, tx);
 
     const solo = rows.filter((r) => r.solo).map((r) => r.id);
     if (solo.length === 0) return [];

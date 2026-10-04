@@ -4,10 +4,15 @@ import { uploadTo } from '../setup/storage';
 import { cancelUpload, confirmUpload, deleteAttachment, requestUpload } from '@/server/attachments/service';
 import { createComment, deleteComment, updateComment } from '@/server/comments/service';
 import { createLabel, deleteLabel, setTaskLabels } from '@/server/labels/service';
-import { createUser, createWorkspace } from '../setup/factories';
+import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
 import type { WorkspaceContext } from '@/lib/session';
 import { getWorkspaceVersion, pollWorkspaceVersion } from '@/server/changes/queries';
 import { emitChange, emitChangeFor } from '@/server/changes/service';
+import {
+  acceptInvitation, changeMemberRole, declineInvitation, inviteMember, removeMember,
+} from '@/server/members/service';
+import { updateWorkspaceSettings } from '@/server/settings/service';
+import { createView, deleteView, duplicateView, updateView } from '@/server/views/service';
 import { PROJECT_COLOR_KEYS } from '@/components/brand/tint';
 import type { Result } from '@/lib/result';
 import { getProject } from '@/server/projects/queries';
@@ -249,5 +254,81 @@ describe('label writes', () => {
     if (!made.ok) throw new Error(made.error);
     expect(await delta(ctx, () => setTaskLabels(ctx, { taskId, labelIds: [made.data.id] }))).toBe(1);
     expect(await delta(ctx, () => deleteLabel(ctx, { labelId: made.data.id }))).toBe(1);
+  });
+});
+
+describe('member writes bump the counter', () => {
+  it('invite, then accept by the invitee', async () => {
+    const { ctx } = await setup();
+    const bob = await createUser('bob@example.com', 'Bob');
+    let invitationId = '';
+    expect(await delta(ctx, async () => {
+      const r = await inviteMember(ctx, { email: bob.email, role: 'member' });
+      if (r.ok) invitationId = r.data.invitationId;
+      return r;
+    })).toBe(1);
+    expect(await delta(ctx, () => acceptInvitation(bob.id, bob.email, invitationId))).toBe(1);
+  });
+
+  it('decline by the invitee', async () => {
+    const { ctx } = await setup();
+    const invited = await inviteMember(ctx, { email: 'bob@example.com', role: 'member' });
+    if (!invited.ok) throw new Error(invited.error);
+    expect(await delta(ctx, () => declineInvitation('bob@example.com', invited.data.invitationId))).toBe(1);
+  });
+
+  it('role change and removal', async () => {
+    const { ctx, ws } = await setup();
+    const bob = await createUser('bob@example.com', 'Bob');
+    await joinWorkspace(bob.id, ws.id, 'member');
+    expect(await delta(ctx, () => changeMemberRole(ctx, { userId: bob.id, role: 'admin' }))).toBe(1);
+    expect(await delta(ctx, () => removeMember(ctx, { userId: bob.id }))).toBe(1);
+  });
+});
+
+describe('workspace settings', () => {
+  it('a change bumps; an empty one does not', async () => {
+    const { ctx } = await setup();
+    expect(await delta(ctx, () => updateWorkspaceSettings(ctx, { weekStart: 1 }))).toBe(1);
+    expect(await delta(ctx, () => updateWorkspaceSettings(ctx, {}))).toBe(0);
+  });
+});
+
+describe('saved views: only shared ones bump', () => {
+  const view = { projectId: null, layout: 'list' as const, filter: {} };
+
+  it('a private view is invisible to others', async () => {
+    const { ctx } = await setup();
+    let id = '';
+    expect(await delta(ctx, async () => {
+      const r = await createView(ctx, { ...view, name: 'Mine' });
+      if (r.ok) id = r.data.id;
+      return r;
+    })).toBe(0);
+    expect(await delta(ctx, () => updateView(ctx, { id, name: 'Still mine' }))).toBe(0);
+    expect(await delta(ctx, () => deleteView(ctx, { id }))).toBe(0);
+  });
+
+  it('sharing, editing a shared view and deleting it bump', async () => {
+    const { ctx } = await setup();
+    const made = await createView(ctx, { ...view, name: 'Team' });
+    if (!made.ok) throw new Error(made.error);
+    const id = made.data.id;
+    expect(await delta(ctx, () => updateView(ctx, { id, shared: true }))).toBe(1);
+    expect(await delta(ctx, () => updateView(ctx, { id, name: 'Team board' }))).toBe(1);
+    expect(await delta(ctx, () => updateView(ctx, { id, shared: false }))).toBe(1);
+    expect(await delta(ctx, () => updateView(ctx, { id, shared: true }))).toBe(1);
+    expect(await delta(ctx, () => deleteView(ctx, { id }))).toBe(1);
+  });
+
+  it('creating a shared view bumps; duplicating one makes a private copy that does not', async () => {
+    const { ctx } = await setup();
+    let id = '';
+    expect(await delta(ctx, async () => {
+      const r = await createView(ctx, { ...view, name: 'Team', shared: true });
+      if (r.ok) id = r.data.id;
+      return r;
+    })).toBe(1);
+    expect(await delta(ctx, () => duplicateView(ctx, { id }))).toBe(0);
   });
 });
