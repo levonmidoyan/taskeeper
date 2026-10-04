@@ -66,8 +66,8 @@ export default async function ProjectBoardPage({
           canEdit={canManage}
         />
       </ProjectHeader>
-      <FilterScope>
-        <FilterBar filter={resolved.filter} defaultState={defaultState('board')} options={options}>
+      <FilterScope filter={resolved.filter}>
+        <FilterBar defaultState={defaultState('board')} options={options}>
           <ViewControls
             workspaceSlug={workspaceSlug}
             projectId={projectId}

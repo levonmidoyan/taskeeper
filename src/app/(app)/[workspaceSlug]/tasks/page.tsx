@@ -91,8 +91,8 @@ export default async function AllTasksPage({
           })}
         </div>
       </header>
-      <FilterScope>
-        <FilterBar filter={resolved.filter} defaultState={defaultState(layout)} options={options}>
+      <FilterScope filter={resolved.filter}>
+        <FilterBar defaultState={defaultState(layout)} options={options}>
           <ViewControls
             workspaceSlug={workspaceSlug}
             projectId={null}

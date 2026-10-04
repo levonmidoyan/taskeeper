@@ -78,12 +78,13 @@ export function ViewControls({
         </span>
       )}
       <span className="max-w-40 truncate text-label-sm text-text-strong-950">{view.name}</span>
+      {modified && <Badge.Root variant="lighter" color="orange" size="small">Modified</Badge.Root>}
+      {/* A reset filter is saved as-is to repair the stored row, modified or not. */}
+      {(modified || view.filterReset) && view.canEdit && (
+        <Button.Root size="xxsmall" disabled={pending} onClick={saveChanges}>Save</Button.Root>
+      )}
       {modified && (
         <>
-          <Badge.Root variant="lighter" color="orange" size="small">Modified</Badge.Root>
-          {view.canEdit && (
-            <Button.Root size="xxsmall" disabled={pending} onClick={saveChanges}>Save</Button.Root>
-          )}
           <Button.Root variant="neutral" mode="stroke" size="xxsmall" onClick={() => setSaving(true)}>Save as new</Button.Root>
           <Button.Root variant="neutral" mode="ghost" size="xxsmall" asChild>
             <Link href={viewHref(workspaceSlug, view)}>Reset</Link>

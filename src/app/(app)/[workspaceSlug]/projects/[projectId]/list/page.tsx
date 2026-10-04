@@ -57,8 +57,8 @@ export default async function ProjectListPage({
         workspaceSlug={workspaceSlug}
         views={views}
       />
-      <FilterScope>
-        <FilterBar filter={resolved.filter} defaultState={defaultState('list')} options={options}>
+      <FilterScope filter={resolved.filter}>
+        <FilterBar defaultState={defaultState('list')} options={options}>
           <ViewControls
             workspaceSlug={workspaceSlug}
             projectId={projectId}

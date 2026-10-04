@@ -15,29 +15,29 @@ import { useFilterNav } from './FilterScope';
 import { FilterValuePicker } from './FilterValuePicker';
 
 export function FilterBar({
-  filter,
   defaultState,
   options,
   children,
 }: {
-  filter: TaskFilter;
   defaultState: TaskState;
   options: FilterOptions;
   /** The view controls (save / modified / view menu), right-aligned. */
   children?: React.ReactNode;
 }) {
-  const { pending, apply } = useFilterNav();
+  const { filter, pending, apply } = useFilterNav();
   const fields = FILTER_FIELDS.filter((f) => f !== 'status' || options.statuses);
   const active = fields.filter((f) => filter[f] !== undefined);
   const [adding, setAdding] = useState(false);
   const [addField, setAddField] = useState<FilterField | null>(null);
   const [text, setText] = useState(filter.q ?? '');
 
-  // Follow the URL when it changes underneath (back button, Reset, view switch).
+  // Follow the URL when it changes underneath (back button, Reset, view switch),
+  // but not when it only caught up with this box: that would eat a trailing
+  // space or the keys typed while the server rendered.
   const [syncedQ, setSyncedQ] = useState(filter.q ?? '');
   if (syncedQ !== (filter.q ?? '')) {
     setSyncedQ(filter.q ?? '');
-    setText(filter.q ?? '');
+    if (text.trim() !== (filter.q ?? '')) setText(filter.q ?? '');
   }
 
   // Debounced text: one navigation per pause, not per keystroke.

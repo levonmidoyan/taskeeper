@@ -61,8 +61,8 @@ export default async function ProjectCalendarPage({
         workspaceSlug={workspaceSlug}
         views={views}
       />
-      <FilterScope>
-        <FilterBar filter={resolved.filter} defaultState={defaultState('calendar')} options={options}>
+      <FilterScope filter={resolved.filter}>
+        <FilterBar defaultState={defaultState('calendar')} options={options}>
           <ViewControls
             workspaceSlug={workspaceSlug}
             projectId={projectId}

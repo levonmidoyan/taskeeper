@@ -143,3 +143,59 @@ test('board status filter keeps empty columns; an unknown view says so', async (
   await expect(page.getByText('View not found')).toBeVisible();
   await expect(page).not.toHaveURL(/[?&]view=/);
 });
+
+test('a view whose stored filter was reset can be saved from the bar', async ({ page }) => {
+  const { projectUrl } = await ownerWithProject(page);
+  await page.goto(`${projectUrl}/list`);
+  await filterByText(page, 'alpha');
+  await page.getByRole('button', { name: 'Save view' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Save view' });
+  await dialog.getByLabel('View name').fill('Broken');
+  await dialog.getByRole('button', { name: 'Save view' }).click();
+  await expect(page).toHaveURL(/[?&]view=/);
+  const viewId = new URL(page.url()).searchParams.get('view')!;
+
+  const client = new Client({ connectionString: process.env.DATABASE_URL_TEST });
+  await client.connect();
+  try {
+    await client.query(
+      `UPDATE saved_view SET filter = '{"priority":{"op":"is","values":["nope"]}}'::jsonb WHERE id = $1`, [viewId],
+    );
+  } finally {
+    await client.end();
+  }
+
+  await page.goto(`${projectUrl}/list?view=${viewId}`);
+  await expect(page.getByText('couldn’t be read and was reset')).toBeVisible();
+  await page.getByRole('toolbar', { name: 'Filters' }).getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText('Updated “Broken”.')).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('couldn’t be read and was reset')).toHaveCount(0);
+});
+
+test('the text filter keeps typing that continues after a pause', async ({ page }) => {
+  const { projectUrl } = await ownerWithProject(page);
+  await page.goto(`${projectUrl}/list`);
+  const box = page.getByLabel('Filter by text');
+  await box.pressSequentially('alpha ');
+  await expect(page).toHaveURL(/[?&]q=alpha(&|$)/);
+  await box.pressSequentially('re');
+  await expect(box).toHaveValue('alpha re');
+  await expect(page).toHaveURL(/[?&]q=alpha(\+|%20)re(&|$)/);
+});
+
+test('picking several values quickly keeps every pick', async ({ page }) => {
+  const { projectUrl } = await ownerWithProject(page);
+  await page.goto(`${projectUrl}/list`);
+  // A slow server render, so later picks land before the first one's navigation settles.
+  await page.route('**/*', async (route) => {
+    if (route.request().headers()['rsc']) await new Promise((r) => setTimeout(r, 800));
+    await route.continue();
+  });
+  await page.getByRole('button', { name: 'Filter', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Priority' }).click();
+  await page.getByRole('option', { name: 'Urgent' }).click();
+  await page.getByRole('option', { name: 'High' }).click();
+  await page.getByRole('option', { name: 'Low' }).click();
+  await expect(page).toHaveURL(/[?&]priority=urgent%2Chigh%2Clow(&|$)/);
+});
