@@ -1,11 +1,14 @@
-import { and, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { comment, db, label, project, task, taskActivity, taskLabel, taskStatus, user } from '@/db';
 import { isOverdue } from '@/lib/dates';
 import { MARK_END, MARK_START } from '@/lib/highlights';
 import { byId, byKey } from '@/lib/position';
 import type { WorkspaceContext } from '@/lib/session';
-import { plainSnippet, toPrefixQuery } from './search-query';
+import type { TaskFilter } from '@/lib/task-filter';
+import type { TableSort } from '@/lib/task-table-sort';
+import { taskFilterSql } from './filter';
+import { likePattern, plainSnippet, toPrefixQuery } from './search-query';
 
 export type Priority = 'none' | 'low' | 'medium' | 'high' | 'urgent';
 export type LabelRow = { id: string; name: string; color: string };
@@ -84,7 +87,9 @@ async function attachLabels(rows: BaseRow[]): Promise<TaskRow[]> {
 export async function listProjectTasks(
   ctx: WorkspaceContext,
   projectId: string,
+  filter: TaskFilter = {},
 ): Promise<TaskRow[]> {
+  const filters = await taskFilterSql(ctx, filter, 'project');
   const rows = await db
     .select(baseColumns)
     .from(task)
@@ -95,11 +100,98 @@ export async function listProjectTasks(
         eq(task.workspaceId, ctx.workspaceId),
         isNull(task.archivedAt),
         isNull(task.parentTaskId),
+        ...filters,
       ),
     )
     .orderBy(byKey(task.position), byId(task.id));
 
   return attachLabels(rows);
+}
+
+export const WORKSPACE_TASK_LIMIT = 500;
+
+export type WorkspaceTaskRow = {
+  id: string;
+  title: string;
+  projectId: string;
+  projectName: string;
+  projectColor: string;
+  statusName: string;
+  statusColor: string;
+  statusIcon: string | null;
+  isDone: boolean;
+  priority: Priority;
+  assigneeName: string | null;
+  assigneeImage: string | null;
+  dueDate: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+const PRIORITY_ORDER = sql`case ${task.priority} when 'urgent' then 0 when 'high' then 1 when 'medium' then 2 when 'low' then 3 else 4 end`;
+
+function workspaceOrder(sort: TableSort | null | undefined): SQL[] {
+  if (!sort) return [sql`${task.dueDate} asc nulls last`, asc(task.createdAt), asc(task.id)];
+  const dir = sql.raw(sort.desc ? 'desc' : 'asc');
+  const key = {
+    title: sql`lower(${task.title})`,
+    status: sql`lower(${taskStatus.name})`,
+    priority: PRIORITY_ORDER,
+    assignee: sql`lower(${user.name})`,
+    due: sql`${task.dueDate}`,
+    created: sql`${task.createdAt}`,
+    updated: sql`${task.updatedAt}`,
+  }[sort.id];
+  // Missing assignees and due dates sink to the bottom either way, as in the List.
+  return [sql`${key} ${dir} nulls last`, asc(task.id)];
+}
+
+/**
+ * Top-level tasks across every active project, for the All tasks page. Sorted
+ * in SQL: with a row cap, sorting on the client would sort the wrong rows.
+ */
+export async function listWorkspaceTasks(
+  ctx: WorkspaceContext,
+  filter: TaskFilter,
+  opts: { sort?: TableSort | null; limit?: number } = {},
+): Promise<{ tasks: WorkspaceTaskRow[]; truncated: boolean }> {
+  const limit = opts.limit ?? WORKSPACE_TASK_LIMIT;
+  const filters = await taskFilterSql(ctx, filter, 'workspace');
+  const rows = await db
+    .select({
+      id: task.id,
+      title: task.title,
+      projectId: project.id,
+      projectName: project.name,
+      projectColor: project.color,
+      statusName: taskStatus.name,
+      statusColor: taskStatus.color,
+      statusIcon: taskStatus.icon,
+      isDone: taskStatus.isDone,
+      priority: task.priority,
+      assigneeName: user.name,
+      assigneeImage: user.image,
+      dueDate: task.dueDate,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+    })
+    .from(task)
+    .innerJoin(project, eq(project.id, task.projectId))
+    .innerJoin(taskStatus, eq(taskStatus.id, task.statusId))
+    .leftJoin(user, eq(user.id, task.assigneeId))
+    .where(
+      and(
+        eq(task.workspaceId, ctx.workspaceId),
+        isNull(task.archivedAt),
+        isNull(task.parentTaskId),
+        isNull(project.archivedAt),
+        ...filters,
+      ),
+    )
+    .orderBy(...workspaceOrder(opts.sort))
+    .limit(limit + 1);
+
+  return { tasks: rows.slice(0, limit), truncated: rows.length > limit };
 }
 
 export async function getTask(ctx: WorkspaceContext, taskId: string): Promise<TaskRow | null> {
@@ -240,7 +332,7 @@ export async function searchTasks(
   term: string,
   limit = 10,
 ): Promise<TaskSearchHit[]> {
-  const pattern = `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const pattern = likePattern(term);
   const prefix = toPrefixQuery(term);
   const q = prefix ? sql`to_tsquery('english', ${prefix})` : null;
 
