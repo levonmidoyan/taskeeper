@@ -3,6 +3,8 @@ import { db, project, task, taskStatus, user } from '@/db';
 import { addDays, isCalendarDay } from '@/lib/dates';
 import { byKey } from '@/lib/position';
 import type { WorkspaceContext } from '@/lib/session';
+import type { TaskFilter } from '@/lib/task-filter';
+import { taskFilterSql } from './filter';
 
 export type CalendarTask = {
   id: string;
@@ -18,22 +20,29 @@ export type CalendarTask = {
   projectColor: string;
 };
 
-export type CalendarRange = { from: string; to: string } & ({ projectId: string } | { mine: true });
+export type CalendarRange = { from: string; to: string } & ({ projectId: string } | { mine: true } | { workspace: true });
 
 const MAX_DAYS = 42;
 
 /**
- * Dated tasks in a visible calendar range, for one project or for "my calendar"
- * (assigned to me across active projects). Subtasks are included: they carry
- * their own due dates.
+ * Dated tasks in a visible calendar range, for one project, for "my calendar"
+ * (assigned to me across active projects), or for the whole workspace (All
+ * tasks). Subtasks are included: they carry their own due dates.
  */
-export async function listCalendarTasks(ctx: WorkspaceContext, range: CalendarRange): Promise<CalendarTask[]> {
+export async function listCalendarTasks(
+  ctx: WorkspaceContext,
+  range: CalendarRange,
+  filter: TaskFilter = {},
+): Promise<CalendarTask[]> {
   const { from, to } = range;
   if (!isCalendarDay(from) || !isCalendarDay(to) || to < from || addDays(from, MAX_DAYS - 1) < to) {
     throw new RangeError(`Calendar range ${from}..${to} is invalid or longer than ${MAX_DAYS} days.`);
   }
 
-  const scope = 'projectId' in range ? eq(task.projectId, range.projectId) : eq(task.assigneeId, ctx.userId);
+  const scope = 'projectId' in range
+    ? eq(task.projectId, range.projectId)
+    : 'mine' in range ? eq(task.assigneeId, ctx.userId) : undefined;
+  const filters = await taskFilterSql(ctx, filter, 'projectId' in range ? 'project' : 'workspace');
 
   const rows = await db
     .select({
@@ -62,6 +71,7 @@ export async function listCalendarTasks(ctx: WorkspaceContext, range: CalendarRa
         lte(task.dueDate, to),
         isNull(task.archivedAt),
         isNull(project.archivedAt),
+        ...filters,
       ),
     )
     .orderBy(asc(task.dueDate), byKey(task.position), asc(task.id));

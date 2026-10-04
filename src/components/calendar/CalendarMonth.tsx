@@ -121,7 +121,13 @@ export function CalendarMonth({
     });
   }
 
-  const monthHref = (m: string) => `?m=${m}`;
+  // Keep the filter and view params; an open task doesn't follow to another month.
+  const monthHref = (m: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('task');
+    next.set('m', m);
+    return `?${next.toString()}`;
+  };
   const previous = shiftMonth(month, -1);
   const next = shiftMonth(month, 1);
   const inMonth = (day: string) => day.startsWith(month);

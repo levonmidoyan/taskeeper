@@ -30,3 +30,8 @@ export function plainSnippet(snippet: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+/** An ILIKE pattern matching `term` anywhere, with LIKE's own wildcards escaped. */
+export function likePattern(term: string): string {
+  return `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}

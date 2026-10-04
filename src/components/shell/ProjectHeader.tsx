@@ -1,4 +1,5 @@
 import { ViewTabs } from '@/components/shell/ViewTabs';
+import type { SavedView } from '@/server/views/queries';
 
 // Below sm the title takes a row of its own and the tabs and actions wrap beneath
 // it; beside them it would shrink to a letter.
@@ -7,6 +8,8 @@ export function ProjectHeader({
   basePath,
   star,
   menu,
+  workspaceSlug,
+  views = [],
   children,
 }: {
   name: string;
@@ -15,6 +18,9 @@ export function ProjectHeader({
   star?: React.ReactNode;
   /** Project actions, after the star; absent for members who cannot manage the project. */
   menu?: React.ReactNode;
+  /** With `views`: the project's saved views, shown as extra tabs. */
+  workspaceSlug?: string;
+  views?: SavedView[];
   children?: React.ReactNode;
 }) {
   return (
@@ -24,7 +30,7 @@ export function ProjectHeader({
         {star}
         {menu}
       </div>
-      <ViewTabs basePath={basePath} />
+      <ViewTabs basePath={basePath} workspaceSlug={workspaceSlug} views={views} />
       {children}
     </header>
   );

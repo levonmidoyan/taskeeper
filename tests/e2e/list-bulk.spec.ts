@@ -44,12 +44,18 @@ test('bulk-sets the status of the selected rows', async ({ page }) => {
   await page.getByRole('menuitem', { name: 'Done' }).click();
 
   await expect(page.getByText('Updated 3 tasks')).toBeVisible();
+  // The List shows open tasks by default, so finished ones leave it.
   for (const title of ['Alpha', 'Beta', 'Gamma']) {
-    await expect(row(page, title)).toContainText('Done');
+    await expect(row(page, title)).toHaveCount(0);
   }
 
   await page.keyboard.press('Escape');
   await expect(bar).toBeHidden();
+
+  await page.getByRole('toolbar', { name: 'Filters' }).getByRole('tab', { name: 'All' }).click();
+  for (const title of ['Alpha', 'Beta', 'Gamma']) {
+    await expect(row(page, title)).toContainText('Done');
+  }
 });
 
 test('bulk-deletes the selected rows', async ({ page }) => {
