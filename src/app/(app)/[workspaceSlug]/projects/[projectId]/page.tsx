@@ -9,12 +9,14 @@ import { ProjectHeader } from '@/components/shell/ProjectHeader';
 import { ProjectMenu } from '@/components/shell/ProjectMenu';
 import { StarButton } from '@/components/shell/StarButton';
 import { ProjectTaskDialog } from '@/components/task/ProjectTaskDialog';
+import { ViewControls } from '@/components/views/ViewControls';
 import { requireWorkspace } from '@/lib/session';
 import { hiddenStatusIds, isFiltered } from '@/lib/task-filter';
 import { defaultState } from '@/lib/views';
 import { listLabels, listWorkspaceMembers } from '@/server/labels/queries';
 import { getProject } from '@/server/projects/queries';
 import { listProjectTasks } from '@/server/tasks/queries';
+import { listViews } from '@/server/views/queries';
 import { resolveView } from '@/server/views/resolve';
 
 export default async function ProjectBoardPage({
@@ -33,10 +35,11 @@ export default async function ProjectBoardPage({
   const sp = await searchParams;
   const resolved = await resolveView(ctx, sp, { layout: 'board', projectId });
   if ('redirect' in resolved) redirect(resolved.redirect);
-  const [tasks, members, labels] = await Promise.all([
+  const [tasks, members, labels, views] = await Promise.all([
     listProjectTasks(ctx, projectId, resolved.filter),
     listWorkspaceMembers(ctx),
     listLabels(ctx),
+    listViews(ctx, { projectId }),
   ]);
   const basePath = `/${workspaceSlug}/projects/${projectId}`;
 
@@ -53,6 +56,8 @@ export default async function ProjectBoardPage({
         basePath={basePath}
         star={<StarButton workspaceSlug={workspaceSlug} projectId={projectId} starred={project.starred} />}
         menu={canManage && <ProjectMenu workspaceSlug={workspaceSlug} projectId={projectId} name={project.name} />}
+        workspaceSlug={workspaceSlug}
+        views={views}
       >
         <ManageColumnsDialog
           workspaceSlug={workspaceSlug}
@@ -62,7 +67,17 @@ export default async function ProjectBoardPage({
         />
       </ProjectHeader>
       <FilterScope>
-        <FilterBar filter={resolved.filter} defaultState={defaultState('board')} options={options} />
+        <FilterBar filter={resolved.filter} defaultState={defaultState('board')} options={options}>
+          <ViewControls
+            workspaceSlug={workspaceSlug}
+            projectId={projectId}
+            layout="board"
+            view={resolved.view}
+            modified={resolved.modified}
+            filter={resolved.filter}
+            sort={resolved.sort}
+          />
+        </FilterBar>
         {resolved.viewMissing && <ViewNotFound />}
         {filtered && tasks.length === 0 && <FilterEmpty defaultState={defaultState('board')} />}
         <FilterResults className="flex min-h-0 flex-1 flex-col">

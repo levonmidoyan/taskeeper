@@ -8,12 +8,14 @@ import { ProjectMenu } from '@/components/shell/ProjectMenu';
 import { StarButton } from '@/components/shell/StarButton';
 import { ProjectTaskDialog } from '@/components/task/ProjectTaskDialog';
 import { TaskTable } from '@/components/task/TaskTable';
+import { ViewControls } from '@/components/views/ViewControls';
 import { requireWorkspace } from '@/lib/session';
 import { isFiltered } from '@/lib/task-filter';
 import { defaultState } from '@/lib/views';
 import { listLabels, listWorkspaceMembers } from '@/server/labels/queries';
 import { getProject } from '@/server/projects/queries';
 import { listProjectTasks } from '@/server/tasks/queries';
+import { listViews } from '@/server/views/queries';
 import { resolveView } from '@/server/views/resolve';
 
 export default async function ProjectListPage({
@@ -33,10 +35,11 @@ export default async function ProjectListPage({
   const sp = await searchParams;
   const resolved = await resolveView(ctx, sp, { layout: 'list', projectId });
   if ('redirect' in resolved) redirect(resolved.redirect);
-  const [tasks, members, labels] = await Promise.all([
+  const [tasks, members, labels, views] = await Promise.all([
     listProjectTasks(ctx, projectId, resolved.filter),
     listWorkspaceMembers(ctx),
     listLabels(ctx),
+    listViews(ctx, { projectId }),
   ]);
   const basePath = `/${workspaceSlug}/projects/${projectId}`;
 
@@ -51,9 +54,21 @@ export default async function ProjectListPage({
         basePath={basePath}
         star={<StarButton workspaceSlug={workspaceSlug} projectId={projectId} starred={project.starred} />}
         menu={canManage && <ProjectMenu workspaceSlug={workspaceSlug} projectId={projectId} name={project.name} />}
+        workspaceSlug={workspaceSlug}
+        views={views}
       />
       <FilterScope>
-        <FilterBar filter={resolved.filter} defaultState={defaultState('list')} options={options} />
+        <FilterBar filter={resolved.filter} defaultState={defaultState('list')} options={options}>
+          <ViewControls
+            workspaceSlug={workspaceSlug}
+            projectId={projectId}
+            layout="list"
+            view={resolved.view}
+            modified={resolved.modified}
+            filter={resolved.filter}
+            sort={resolved.sort}
+          />
+        </FilterBar>
         {resolved.viewMissing && <ViewNotFound />}
         <FilterResults>
           {filtered && tasks.length === 0 ? (

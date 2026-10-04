@@ -9,12 +9,14 @@ import { ProjectMenu } from '@/components/shell/ProjectMenu';
 import { StarButton } from '@/components/shell/StarButton';
 import { ProjectTaskDialog } from '@/components/task/ProjectTaskDialog';
 import { todayInZone } from '@/lib/dates';
+import { ViewControls } from '@/components/views/ViewControls';
 import { requireWorkspace } from '@/lib/session';
 import { defaultState } from '@/lib/views';
 import { listLabels, listWorkspaceMembers } from '@/server/labels/queries';
 import { getProject } from '@/server/projects/queries';
 import { getWeekStart } from '@/server/settings/queries';
 import { listCalendarTasks } from '@/server/tasks/calendar';
+import { listViews } from '@/server/views/queries';
 import { resolveView } from '@/server/views/resolve';
 
 export default async function ProjectCalendarPage({
@@ -39,10 +41,11 @@ export default async function ProjectCalendarPage({
   const month = parseMonth(typeof sp.m === 'string' ? sp.m : undefined, today);
   const weekStart = await getWeekStart(ctx);
   const days = monthWeeks(month, weekStart).flat();
-  const [tasks, members, labels] = await Promise.all([
+  const [tasks, members, labels, views] = await Promise.all([
     listCalendarTasks(ctx, { from: days[0], to: days[days.length - 1], projectId }, resolved.filter),
     listWorkspaceMembers(ctx),
     listLabels(ctx),
+    listViews(ctx, { projectId }),
   ]);
   const options = { statuses: project.statuses, members, labels };
   const basePath = `/${workspaceSlug}/projects/${projectId}`;
@@ -55,9 +58,21 @@ export default async function ProjectCalendarPage({
         basePath={basePath}
         star={<StarButton workspaceSlug={workspaceSlug} projectId={projectId} starred={project.starred} />}
         menu={canManage && <ProjectMenu workspaceSlug={workspaceSlug} projectId={projectId} name={project.name} />}
+        workspaceSlug={workspaceSlug}
+        views={views}
       />
       <FilterScope>
-        <FilterBar filter={resolved.filter} defaultState={defaultState('calendar')} options={options} />
+        <FilterBar filter={resolved.filter} defaultState={defaultState('calendar')} options={options}>
+          <ViewControls
+            workspaceSlug={workspaceSlug}
+            projectId={projectId}
+            layout="calendar"
+            view={resolved.view}
+            modified={resolved.modified}
+            filter={resolved.filter}
+            sort={resolved.sort}
+          />
+        </FilterBar>
         {resolved.viewMissing && <ViewNotFound />}
         <FilterResults className="flex min-h-0 flex-1 flex-col">
           <CalendarMonth
