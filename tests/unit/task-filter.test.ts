@@ -1,4 +1,3 @@
-// tests/unit/task-filter.test.ts
 import { describe, expect, it } from 'vitest';
 import {
   filterFromParams, filterToParams, hiddenStatusIds, isFiltered, parseTaskFilter, sameFilter,
