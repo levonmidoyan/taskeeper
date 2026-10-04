@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getPendingRequests, installRequestTracking, shouldTrackRequest } from '@/lib/request-tracker';
+import { LIVE_POLL_HEADER, getPendingRequests, installRequestTracking, shouldTrackRequest } from '@/lib/request-tracker';
 
 const origin = 'http://localhost:3000';
 
@@ -8,6 +8,10 @@ describe('shouldTrackRequest', () => {
     expect(shouldTrackRequest('/api/auth/get-session', undefined, origin)).toBe(true);
     expect(shouldTrackRequest(new URL('/w/acme', origin), { method: 'POST' }, origin)).toBe(true);
     expect(shouldTrackRequest(new Request(`${origin}/w/acme`), undefined, origin)).toBe(true);
+  });
+
+  it('skips the live-refresh poll, so the bar does not flash every 30 seconds', () => {
+    expect(shouldTrackRequest('/api/workspaces/acme/changes', { headers: { [LIVE_POLL_HEADER]: '1' } }, origin)).toBe(false);
   });
 
   it('skips other origins', () => {

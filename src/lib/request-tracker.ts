@@ -5,9 +5,13 @@
  * site opting in.
  */
 
+/** Sent by the live-refresh poll (src/lib/live/transport.ts). */
+export const LIVE_POLL_HEADER = 'x-live-poll';
+
 // Next.js router prefetches run in the background on hover/viewport and never
-// block the user, so they must not flash the bar.
-const PREFETCH_HEADERS = ['next-router-prefetch', 'next-router-segment-prefetch'];
+// block the user, so they must not flash the bar. Neither must the live-refresh
+// poll, which also must not count as the user's own request in flight.
+const UNTRACKED_HEADERS = ['next-router-prefetch', 'next-router-segment-prefetch', LIVE_POLL_HEADER];
 
 let pending = 0;
 const listeners = new Set<() => void>();
@@ -33,7 +37,7 @@ export function shouldTrackRequest(input: RequestInfo | URL, init: RequestInit |
   if (url.origin !== origin) return false;
 
   const headers = new Headers(init?.headers ?? request?.headers);
-  return !PREFETCH_HEADERS.some((name) => headers.has(name));
+  return !UNTRACKED_HEADERS.some((name) => headers.has(name));
 }
 
 /** Wraps window.fetch; returns a function that restores it. Safe to call twice. */
