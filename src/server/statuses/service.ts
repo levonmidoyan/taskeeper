@@ -6,6 +6,7 @@ import { STATUS_ICON_KEYS } from '@/lib/status-icons';
 import { byId, byKey, positionBetween, positionsAfter, positionsForCount } from '@/lib/position';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import { requireRole, type WorkspaceContext } from '@/lib/session';
+import { emitChange } from '@/server/changes/service';
 import { lastTaskPosition, lockColumns } from '@/server/tasks/columns';
 
 /**
@@ -115,6 +116,7 @@ export async function createStatus(
         position: positionBetween(last?.position ?? null, null),
         isDone: parsed.data.isDone ?? false,
       });
+      await emitChange(ctx, { projectId: parsed.data.projectId }, tx);
 
       return ok({ id });
     });
@@ -195,6 +197,7 @@ export async function updateStatus(
           })
           .where(and(eq(task.statusId, owned.id), eq(task.workspaceId, ctx.workspaceId)));
       }
+      await emitChange(ctx, { projectId: owned.projectId }, tx);
     });
 
     return ok(null);
@@ -274,6 +277,7 @@ export async function moveStatus(
           .limit(1);
         const position = positionBetween(before, next?.position ?? null);
         await tx.update(taskStatus).set({ position }).where(eq(taskStatus.id, owned.id));
+        await emitChange(ctx, { projectId: owned.projectId }, tx);
         return ok({ position });
       }
 
@@ -294,6 +298,7 @@ export async function moveStatus(
         renumbered.get(parsed.data.afterId!)!,
       );
       await tx.update(taskStatus).set({ position }).where(eq(taskStatus.id, owned.id));
+      await emitChange(ctx, { projectId: owned.projectId }, tx);
       return ok({ position });
     });
   });
@@ -384,6 +389,7 @@ export async function deleteStatus(
       }
 
       await tx.delete(taskStatus).where(eq(taskStatus.id, owned.id));
+      await emitChange(ctx, { projectId: owned.projectId }, tx);
 
       return ok(null);
     });

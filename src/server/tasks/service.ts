@@ -8,6 +8,7 @@ import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
 import { recordActivity, type ActivityKind } from '@/server/activity/service';
 import { attachmentKeysForTasks, purgeObjects } from '@/server/attachments/cleanup';
+import { emitChange } from '@/server/changes/service';
 import { lastTaskPosition, lockColumns, nextTaskPosition } from '@/server/tasks/columns';
 
 const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const;
@@ -183,6 +184,7 @@ export async function createTask(
         await tx.insert(taskLabel).values(labelIds.map((labelId) => ({ taskId: id, labelId })));
       }
       await recordActivity(ctx, { taskId: id, kind: 'created', to: parsed.data.title }, tx);
+      await emitChange(ctx, { projectId: parsed.data.projectId }, tx);
       return ok({ id });
     });
   });
@@ -286,7 +288,11 @@ export async function updateTask(
   return withAction(async () => {
     const plan = await planUpdate(ctx, input);
     if (!plan.ok) return plan;
-    return db.transaction((tx) => applyUpdate(ctx, tx, plan.data));
+    return db.transaction(async (tx) => {
+      const result = await applyUpdate(ctx, tx, plan.data);
+      if (result.ok) await emitChange(ctx, { projectId: plan.data.owned.projectId }, tx);
+      return result;
+    });
   });
 }
 
@@ -404,6 +410,7 @@ export async function moveTask(
           tx,
         );
       }
+      await emitChange(ctx, { projectId: owned.projectId }, tx);
       return ok({ position });
     });
   });
@@ -421,6 +428,7 @@ export async function deleteTask(
     const keys = await db.transaction(async (tx) => {
       const found = await attachmentKeysForTasks(tx, ctx.workspaceId, [input.taskId]);
       await tx.delete(task).where(eq(task.id, input.taskId));
+      await emitChange(ctx, { projectId: owned.projectId }, tx);
       return found;
     });
     // After commit: a rolled-back delete must not have lost the files.
@@ -483,6 +491,7 @@ export async function bulkUpdateTasks(
           const result = await applyUpdate(ctx, tx, plan);
           if (!result.ok) throw new RolledBack(result);
         }
+        await emitChange(ctx, {}, tx);
       });
     } catch (error) {
       if (error instanceof RolledBack) return error.result;
@@ -508,6 +517,7 @@ export async function bulkDeleteTasks(
         .delete(task)
         .where(and(inArray(task.id, parsed.data), eq(task.workspaceId, ctx.workspaceId)))
         .returning({ id: task.id });
+      if (rows.length > 0) await emitChange(ctx, {}, tx);
       return { deleted: rows.length, keys: found };
     });
     await purgeObjects(keys);
