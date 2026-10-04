@@ -30,6 +30,7 @@ export function Board({
   tasks,
   timezone,
   canEditColumns,
+  hiddenStatusIds = [],
 }: {
   workspaceSlug: string;
   statuses: StatusRow[];
@@ -37,6 +38,8 @@ export function Board({
   timezone: string;
   /** Owners and admins may rename a column from its header. */
   canEditColumns: boolean;
+  /** Columns the active filter hides; a card moved into one disappears after saving. */
+  hiddenStatusIds?: string[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -179,6 +182,9 @@ export function Board({
             },
           },
         });
+      }
+      if (result.ok && hiddenStatusIds.includes(after.statusId)) {
+        toast(`Moved to ${statusName} — hidden by the current filter.`);
       }
       // Refresh either way: on success to confirm, on failure to discard the
       // optimistic move and show the truth.
