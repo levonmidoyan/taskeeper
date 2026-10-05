@@ -47,8 +47,13 @@ table and slice notes stay as the design reference for each slice.
 
 **P4: last or optional**
 
-14. Slice 10: REST API / mobile. Still last: it freezes `server/*` signatures. Scope (REST
-    only, or REST + mobile app) to be discussed before planning.
+14. Slice 10, split in two:
+    - **14a REST API v1** — personal API tokens, `/api/v1` core task loop, OpenAPI +
+      `/docs/api`. Spec `docs/superpowers/specs/2026-10-05-rest-api-design.md`, plan
+      `docs/superpowers/plans/2026-10-05-rest-api.md`.
+    - **14b Mobile** — enable Better Auth's `bearer` plugin, add a session strategy to
+      `src/server/api/auth.ts`, sign in through the existing device-authorization flow.
+      Designed when a mobile app is real.
 15. Polish (`feat/polish`, 2026-10-05): relative dates on attachment cards; a test for the
     401 response on the attachment route. Coloured status dots on board columns: already
     covered by the coloured `StatusIcon` in every column header since the UI reset.
