@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { cronAuthorized } from '@/lib/cron';
 import { runReminders } from '@/server/reminders/run';
 
-// Up to 500 emails a run, one Resend call each.
+// Up to 500 emails a run, one SMTP send each.
 export const maxDuration = 300;
 
 /**

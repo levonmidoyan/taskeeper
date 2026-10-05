@@ -49,7 +49,7 @@ describe('inviteMember', () => {
   // pile up a duplicate on every retry.
   it('leaves no invitation behind when the email cannot be sent', async () => {
     const { ctx } = await setup('owner@example.com', 'acme');
-    sendInviteEmail.mockRejectedValueOnce(new Error('Resend invite failed: domain not verified'));
+    sendInviteEmail.mockRejectedValueOnce(new Error('SMTP invite failed: authentication rejected'));
 
     const result = await inviteMember(ctx, { email: 'new@example.com', role: 'member' });
 

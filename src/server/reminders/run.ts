@@ -16,7 +16,7 @@ const EMAIL_ATTEMPTS = 3;
  */
 const EMAIL_RETRY_WINDOW = REMINDER_CRON_HOURLY ? sql`interval '36 hours'` : sql`interval '60 hours'`;
 
-/** Pause between sends. Resend's default limit is 2 requests a second per team. */
+/** Pause between sends, so a burst does not trip the mail server's throttling. */
 const SEND_GAP_MS = 550;
 const RATE_LIMIT_RETRIES = 2;
 
@@ -28,13 +28,13 @@ const RATE_LIMIT_RETRIES = 2;
 const SEND_BUDGET_MS = 240_000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-// Resend's own error code, never the message: the message carries the address.
+// The error's code, never the message: the message carries the address.
 const rateLimited = (error: unknown) => error instanceof EmailSendError && error.code === 'rate_limit_exceeded';
 
 /**
  * Records a delivered email. Retried on its own: failing here after the send
- * went through would otherwise mail the row again on a later run (Resend's
- * idempotency key covers that only within 24 hours).
+ * went through would otherwise mail the row again on a later run (SMTP has
+ * no idempotency key; only clients that dedupe on Message-ID would hide it).
  */
 async function markSent(id: string): Promise<void> {
   for (let retry = 0; ; retry++) {
@@ -100,7 +100,7 @@ export async function claimUnsentEmails(limit = EMAIL_BATCH): Promise<OutgoingMa
 
 /**
  * The reminders cron: select what is due, claim it (the bell sees it at once),
- * then email whatever is unsent. Claiming and emailing are separate so a Resend
+ * then email whatever is unsent. Claiming and emailing are separate so a mail server
  * outage delays email without losing or duplicating it.
  */
 export async function runReminders({

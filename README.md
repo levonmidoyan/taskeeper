@@ -46,7 +46,10 @@ Set these under **Settings -> Environment Variables** for Production and Preview
 | `DATABASE_POOL_MAX` | `1` — every serverless instance opens its own pool |
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32` |
 | `BETTER_AUTH_URL` | Public origin of the deployment |
-| `RESEND_API_KEY` | Resend key, or empty to log invitation and verification emails |
+| `SMTP_HOST` | SMTP server (e.g. `smtp.gmail.com`), or empty to log emails to the console |
+| `SMTP_PORT` | `465` (TLS) or `587` (STARTTLS, default) |
+| `SMTP_USER` / `SMTP_PASS` | SMTP login — for Gmail, the address and an app password |
+| `EMAIL_FROM` | Optional sender, defaults to `Taskeeper <SMTP_USER>` |
 | `TZ` | `UTC` |
 | `S3_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` |
 | `S3_REGION` | `auto` |
