@@ -36,6 +36,8 @@ test('attach a file, see it after reload, open it, delete it', async ({ page }) 
   await page.reload();
   const card = page.getByRole('link', { name: 'notes.txt', exact: true });
   await expect(card).toBeVisible();
+  // The upload day reads relative; the exact time sits in the tooltip.
+  await expect(page.getByRole('listitem').filter({ has: card }).locator('time')).toHaveText('Today');
   // Activity opens on Comments; the attach/remove sentences are history.
   await page.getByRole('tab', { name: 'History' }).click();
   await expect(page.getByText('attached “notes.txt”')).toBeVisible();
