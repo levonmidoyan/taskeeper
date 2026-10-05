@@ -7,7 +7,9 @@ import { apiRateLimit } from '@/db';
 import { err, ok } from '@/lib/result';
 import { createApiToken, revokeApiToken } from '@/server/api-tokens/service';
 import { defineEndpoint } from '@/server/api/contract/types';
+import { MAX_BODY_BYTES } from '@/server/api/errors';
 import { apiRoute } from '@/server/api/route';
+import * as unknownPath from '@/app/api/v1/[...path]/route';
 
 beforeEach(resetDb);
 afterAll(closeDb);
@@ -58,6 +60,14 @@ describe('apiRoute: authentication', () => {
       expect(res.status).toBe(401);
       expect(res.json).toEqual({ error: { code: 'unauthorized', message: 'Missing or invalid API token.' } });
       expect(res.headers.get('cache-control')).toBe('private, no-store');
+    }
+  });
+
+  it('matches the Bearer scheme case-insensitively', async () => {
+    const ada = await apiUser('r2b@example.com');
+    for (const authorization of [`bearer ${ada.token}`, `BEARER  ${ada.token}`]) {
+      const res = await call(whoami, { path: '/whoami', authorization });
+      expect(res.status, authorization).toBe(200);
     }
   });
 
@@ -123,6 +133,43 @@ describe('apiRoute: workspace and validation', () => {
     expect(res.json.error).toEqual({ code: 'invalid_request', message: 'The body must be valid JSON.' });
   });
 
+  it('400s a repeated query parameter instead of letting one value win', async () => {
+    const { ada, ws } = await apiFixture('r6b');
+    const res = await call(inWorkspace, {
+      method: 'POST', path: `/workspaces/${ws.slug}/things?limit=2&limit=3`, token: ada.token, params: { slug: ws.slug }, body: { title: 'Hi' },
+    });
+    expect(res.status).toBe(400);
+    expect(res.json.error.issues).toEqual([{ path: 'query.limit', message: 'Send this parameter once.' }]);
+  });
+
+  it('413s a body over the cap, by header or by bytes read', async () => {
+    const { ada, ws } = await apiFixture('r6c');
+    const res = await call(inWorkspace, {
+      method: 'POST', path: `/workspaces/${ws.slug}/things`, token: ada.token, params: { slug: ws.slug },
+      body: { title: 'x'.repeat(MAX_BODY_BYTES) },
+    });
+    expect(res.status).toBe(413);
+    expect(res.json.error.code).toBe('payload_too_large');
+
+    // No Content-Length: a stream is cut off once it passes the cap.
+    const chunk = new TextEncoder().encode('x'.repeat(64 * 1024));
+    let sent = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sent++ < 4) controller.enqueue(chunk);
+        else controller.close();
+      },
+    });
+    const streamed = await inWorkspace(
+      new Request(`http://localhost/api/v1/workspaces/${ws.slug}/things`, {
+        method: 'POST', headers: { authorization: `Bearer ${ada.token}` }, body: stream, duplex: 'half',
+      } as RequestInit),
+      { params: Promise.resolve({ slug: ws.slug }) },
+    );
+    expect(streamed.status).toBe(413);
+    expect(sent).toBeLessThanOrEqual(4);
+  });
+
   it('hands the handler the real workspace context and parsed input, and answers 201', async () => {
     const { ada, ws } = await apiFixture('r7');
     const res = await call(inWorkspace, { method: 'POST', path: `/workspaces/${ws.slug}/things`, token: ada.token, params: { slug: ws.slug }, body: { title: 'Hi' } });
@@ -159,5 +206,15 @@ describe('apiRoute: result mapping', () => {
     const res = await call(gone, { method: 'DELETE', path: '/gone', token: ada.token });
     expect(res.status).toBe(204);
     expect(res.json).toBeNull();
+  });
+});
+
+describe('unknown /api/v1 paths', () => {
+  it('answer the JSON 404, for every method', async () => {
+    for (const method of ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const) {
+      const res = await call(unknownPath[method], { method, path: '/nope' });
+      expect(res.status, method).toBe(404);
+      expect(res.json.error.code).toBe('not_found');
+    }
   });
 });

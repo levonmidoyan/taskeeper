@@ -20,7 +20,7 @@ const SORTS = ['due', 'created', 'updated', 'priority', 'title'] as const;
 export const taskListQuery = z
   // Strict: a misspelled parameter is a 400, not a silently unfiltered list.
   .strictObject({
-    projectId: z.string().min(1).optional().describe('Only this project’s tasks.'),
+    projectId: z.string().min(1).optional().describe('Only this project’s tasks; 404 if there is no such active project.'),
     state: z.enum(TASK_STATES).optional().describe('open (default), done or all.'),
     status: ids.optional().describe('Status ids; ! prefix excludes. Needs projectId.'),
     priority: z.string().regex(csvOf(PRIORITIES), `Comma-separated, from: ${PRIORITIES.join(', ')}.`).optional()
@@ -70,7 +70,9 @@ const updateBody = updateSchema
   .omit({ taskId: true })
   .extend({ labelIds: z.array(z.string()).max(20).optional().describe('Replaces the task’s labels.') })
   .strict()
-  .refine((b) => Object.values(b).some((v) => v !== undefined), 'Send at least one field to change.');
+  .refine((b) => Object.values(b).some((v) => v !== undefined), 'Send at least one field to change.')
+  // The refine is invisible to openapi.json; this says the same there.
+  .meta({ minProperties: 1 });
 
 export const listTasksEndpoint = defineEndpoint({
   operationId: 'listTasks',

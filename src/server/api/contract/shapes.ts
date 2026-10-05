@@ -46,7 +46,7 @@ export const taskSummaryShape = z.object({
   status: statusShape,
   priority: z.enum(PRIORITIES),
   assignee: personRef.nullable(),
-  dueDate: z.string().nullable().describe('YYYY-MM-DD.'),
+  dueDate: z.string().meta({ format: 'date' }).nullable().describe('YYYY-MM-DD.'),
   labels: z.array(personRef.describe('A label: id and name.')),
   createdAt: iso(),
   updatedAt: iso(),

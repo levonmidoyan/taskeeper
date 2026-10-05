@@ -30,6 +30,6 @@ export const createCommentEndpoint = defineEndpoint({
   body: z.strictObject({ body: commentBodySchema.describe('Markdown.') }),
   status: 201,
   response: commentShape,
-  errors: [],
+  errors: ['unprocessable'],
   example: { body: { body: 'Deployed in build 412.' } },
 });

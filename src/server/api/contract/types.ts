@@ -40,9 +40,10 @@ export function defineEndpoint<const E extends Endpoint>(endpoint: E): E {
 export function errorCodes(endpoint: Endpoint): ApiErrorCode[] {
   const codes = new Set<ApiErrorCode>(['unauthorized', 'rate_limited']);
   if (endpoint.params || endpoint.query || endpoint.body) codes.add('invalid_request');
+  if (endpoint.body) codes.add('payload_too_large');
   if (endpoint.workspace) codes.add('not_found');
   for (const code of endpoint.errors) codes.add(code);
   codes.add('internal');
-  const order: ApiErrorCode[] = ['invalid_request', 'unauthorized', 'forbidden', 'not_found', 'unprocessable', 'rate_limited', 'internal'];
+  const order: ApiErrorCode[] = ['invalid_request', 'unauthorized', 'forbidden', 'not_found', 'payload_too_large', 'unprocessable', 'rate_limited', 'internal'];
   return order.filter((c) => codes.has(c));
 }

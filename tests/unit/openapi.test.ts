@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { endpoints } from '@/server/api/contract';
+import type { JsonSchema } from '@/server/api/docs';
 import { buildOpenApi } from '@/server/api/openapi';
 
 const V1 = resolve(__dirname, '../../src/app/api/v1');
@@ -22,7 +23,7 @@ function templateOf(file: string): string {
 describe('the contract registry', () => {
   it('declares exactly the methods the v1 route files export', () => {
     const served = routeFiles(V1)
-      .filter((file) => !file.includes('openapi.json'))
+      .filter((file) => !file.includes('openapi.json') && !file.includes('[...path]'))
       .flatMap((file) => [...readFileSync(file, 'utf8').matchAll(/export const (GET|POST|PATCH|DELETE)\b/g)]
         .map((m) => `${m[1]} ${templateOf(file)}`));
     const declared = endpoints.map((e) => `${e.method} ${e.path}`);
@@ -61,5 +62,30 @@ describe('buildOpenApi', () => {
       expect(Object.keys(op.responses).some((code) => code.startsWith('2'))).toBe(true);
       expect(op.security).toEqual([{ bearerAuth: [] }]);
     }
+  });
+});
+
+describe('buildOpenApi: rules a refine hides from JSON Schema', () => {
+  const doc = buildOpenApi(endpoints, 'https://app.example') as unknown as {
+    paths: Record<string, Record<string, { requestBody?: { content: { 'application/json': { schema: JsonSchema } } }; responses: Record<string, { content?: { 'application/json': { schema: JsonSchema } } }> }>>;
+  };
+  const body = (path: string, method: string) => doc.paths[path][method].requestBody!.content['application/json'].schema;
+  const due = (s: JsonSchema) => (s.properties!.dueDate.anyOf as JsonSchema[]).find((o) => o.type === 'string');
+
+  it('marks dueDate as a date, in bodies and responses', () => {
+    expect(due(body('/workspaces/{slug}/tasks', 'post'))).toMatchObject({ format: 'date' });
+    expect(due(body('/workspaces/{slug}/tasks/{taskId}', 'patch'))).toMatchObject({ format: 'date' });
+    const task = doc.paths['/workspaces/{slug}/tasks/{taskId}'].get.responses['200'].content!['application/json'].schema;
+    expect(due(task)).toMatchObject({ format: 'date' });
+  });
+
+  it('asks PATCH for at least one field', () => {
+    expect(body('/workspaces/{slug}/tasks/{taskId}', 'patch').minProperties).toBe(1);
+  });
+
+  it('lists the 422 for comments and the 413 for bodies', () => {
+    const create = doc.paths['/workspaces/{slug}/tasks/{taskId}/comments'].post.responses;
+    expect(Object.keys(create)).toEqual(expect.arrayContaining(['413', '422']));
+    expect(Object.keys(doc.paths['/workspaces/{slug}/tasks'].get.responses)).not.toContain('413');
   });
 });

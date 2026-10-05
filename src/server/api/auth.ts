@@ -6,7 +6,8 @@ type Strategy = (request: Request) => Promise<ApiPrincipal | null>;
 
 /** Authorization: Bearer tk_… */
 const personalToken: Strategy = async (request) => {
-  const match = /^Bearer (\S+)$/.exec(request.headers.get('authorization') ?? '');
+  // The auth scheme is case-insensitive (RFC 9110 §11.1).
+  const match = /^Bearer +(\S+) *$/i.exec(request.headers.get('authorization') ?? '');
   return match ? authenticateApiToken(match[1]) : null;
 };
 

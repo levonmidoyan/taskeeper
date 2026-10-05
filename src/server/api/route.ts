@@ -3,7 +3,7 @@ import type { Result } from '@/lib/result';
 import { resolveWorkspace, type UserContext, type WorkspaceContext } from '@/lib/session';
 import { authenticateRequest } from './auth';
 import type { Endpoint } from './contract/types';
-import { apiError, NO_STORE, UNAUTHORIZED_MESSAGE, type ApiIssue } from './errors';
+import { apiError, MAX_BODY_BYTES, NO_STORE, UNAUTHORIZED_MESSAGE, type ApiIssue } from './errors';
 import { hitRateLimit } from './rate-limit';
 
 export type RouteHandler = (
@@ -32,6 +32,39 @@ function parse(schema: z.ZodType | undefined, raw: unknown, where: string, issue
     issues.push({ path: [where, ...issue.path.map(String)].join('.'), message: issue.message });
   }
   return undefined;
+}
+
+/** Query parameters as an object. A repeated one is an issue: neither value may silently win. */
+function queryOf(url: string, issues: ApiIssue[]): Record<string, string> {
+  const query: Record<string, string> = {};
+  for (const [key, value] of new URL(url).searchParams) {
+    if (Object.hasOwn(query, key)) {
+      if (!issues.some((i) => i.path === `query.${key}`)) issues.push({ path: `query.${key}`, message: 'Send this parameter once.' });
+    } else {
+      query[key] = value;
+    }
+  }
+  return query;
+}
+
+/** The body as text, or null once it passes MAX_BODY_BYTES: read no further than that. */
+async function readBody(request: Request): Promise<string | null> {
+  if (Number(request.headers.get('content-length') ?? 0) > MAX_BODY_BYTES) return null;
+  if (!request.body) return '';
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_BODY_BYTES) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 function failure(result: Extract<Result<unknown>, { ok: false }>): Response {
@@ -74,12 +107,14 @@ export function apiRoute<const E extends Endpoint>(
 
       const issues: ApiIssue[] = [];
       const params = parse(endpoint.params, rawParams, 'params', issues);
-      const query = parse(endpoint.query, Object.fromEntries(new URL(request.url).searchParams), 'query', issues);
+      const query = parse(endpoint.query, endpoint.query && queryOf(request.url, issues), 'query', issues);
       let body: unknown;
       if (endpoint.body) {
+        const text = await readBody(request);
+        if (text === null) return apiError('payload_too_large', `The body must be at most ${MAX_BODY_BYTES / 1024} KB.`);
         let raw: unknown;
         try {
-          raw = JSON.parse(await request.text());
+          raw = JSON.parse(text);
         } catch {
           return apiError('invalid_request', 'The body must be valid JSON.');
         }

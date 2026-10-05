@@ -97,7 +97,7 @@ New tab next to Preferences: `src/app/(app)/settings/api-tokens/page.tsx`, added
 All endpoints live under `src/app/api/v1/` as route handlers. Each handler is produced by
 `apiRoute(contract, handler)` in `src/server/api/route.ts`, which runs, in order:
 
-1. **Authenticate.** `Authorization: Bearer tk_…`. Missing header, wrong scheme, unknown,
+1. **Authenticate.** `Authorization: Bearer tk_…` (scheme case-insensitive). Missing header, wrong scheme, unknown,
    revoked or expired token → **401** `unauthorized`, one message for all cases.
    The authenticator is a list of strategies; v1 has only the token strategy. Mobile (14b)
    adds a Better Auth bearer-session strategy here and nothing below it changes.
@@ -111,7 +111,8 @@ All endpoints live under `src/app/api/v1/` as route handlers. Each handler is pr
    actor for activity rows, change stamps and permission checks.
 4. **Validate** path params, query and JSON body against the route's contract schemas.
    Failure → **400** `invalid_request` with `issues: [{ path, message }]`. A body that is
-   not JSON → 400 too.
+   not JSON, or a repeated query parameter → 400 too. A body over 128 KB → **413**
+   `payload_too_large`, read no further than the cap.
 5. **Call** the existing `server/*` function and map its result:
    - `ok` → **200** (or **201** for creates, **204** for delete) with the serialized body.
    - failure with `code: 'forbidden'` → **403** `forbidden`.
@@ -119,6 +120,7 @@ All endpoints live under `src/app/api/v1/` as route handlers. Each handler is pr
    - any other failure → **422** `unprocessable` with the service's message.
    - an exception → **500** `internal`, generic message, logged server-side.
 
+Any other `/api/v1` path → **404** `not_found` in this shape (catch-all route).
 Every response carries `Cache-Control: private, no-store`. Error body shape, always:
 
 ```json

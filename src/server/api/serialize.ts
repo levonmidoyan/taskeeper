@@ -39,7 +39,8 @@ export function serializeTaskSummary(slug: string, t: ApiTaskSource): ApiTaskSum
     title: t.title,
     status: { id: t.statusId, name: t.statusName, isDone: t.isDone },
     priority: t.priority,
-    assignee: t.assigneeId ? { id: t.assigneeId, name: t.assigneeName ?? 'Deleted user' } : null,
+    // assignee_id is set null when the user is deleted, so the joined name is there whenever the id is.
+    assignee: t.assigneeId && t.assigneeName !== null ? { id: t.assigneeId, name: t.assigneeName } : null,
     dueDate: t.dueDate,
     labels: t.labels,
     createdAt: t.createdAt.toISOString(),

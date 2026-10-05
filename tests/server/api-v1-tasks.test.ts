@@ -123,6 +123,19 @@ describe('GET /tasks', () => {
     expect(mine.json.data.map((t: { title: string }) => t.title)).toEqual(['C elsewhere', 'B doing']);
   });
 
+  it('404s an unknown or archived projectId instead of an empty list', async () => {
+    const f = await apiFixture('k6b');
+    const old = await createProject(f.ctx, { name: 'Old' });
+    if (!old.ok) throw new Error();
+    await archiveProject(f.ctx, { projectId: old.data.id });
+
+    for (const projectId of ['nope', old.data.id]) {
+      const res = await list(f, `?projectId=${projectId}`);
+      expect(res.status, projectId).toBe(404);
+      expect(res.json.error).toEqual({ code: 'not_found', message: 'Project not found.' });
+    }
+  });
+
   it('rejects filter values the list would otherwise drop', async () => {
     const f = await apiFixture('k7');
     for (const qs of ['?priority=hihg', '?due=tomorow', '?state=closed', '?sort=rank', `?status=${f.statuses[0].id}`, '?limit=0', '?limit=101']) {
@@ -229,6 +242,18 @@ describe('PATCH /tasks/{taskId}', () => {
     const res = await one(f, id, { method: 'PATCH', body: { labelIds: [bug.data.id] } });
 
     expect(res.json.labels).toEqual([{ id: bug.data.id, name: 'Bug' }]);
+  });
+
+  it('bumps updatedAt on a labels-only change', async () => {
+    const f = await apiFixture('k13b');
+    const bug = await createLabel(f.ctx, { name: 'Bug' });
+    if (!bug.ok) throw new Error();
+    const id = await add(f.ctx, { projectId: f.project.id, title: 'T' });
+    await db.update(task).set({ updatedAt: new Date('2020-01-01T00:00:00Z') }).where(eq(task.id, id));
+
+    const res = await one(f, id, { method: 'PATCH', body: { labelIds: [bug.data.id] } });
+
+    expect(new Date(res.json.updatedAt).getTime()).toBeGreaterThan(Date.parse('2020-01-02'));
   });
 
   it('changes nothing when a label id is unknown', async () => {
