@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chipValues, removeField, setValues, toggleOp, valueOptions } from '@/components/filters/filter-chips';
+import { chipValues, removeField, setDueRange, setValues, toggleOp, valueOptions } from '@/components/filters/filter-chips';
 
 const options = {
   statuses: [{ id: 's1', name: 'Todo', color: 'muted', isDone: false, icon: null }],
@@ -38,5 +38,28 @@ describe('filter chips', () => {
   it('assignee options start with Me and Unassigned', () => {
     expect(valueOptions('assignee', options).map((o) => o.label)).toEqual(['Me', 'Unassigned', 'Bob']);
     expect(valueOptions('createdBy', options).map((o) => o.label)).toEqual(['Me', 'Bob']);
+  });
+
+  describe('setDueRange', () => {
+    it('sets either end, and clearing both removes the field', () => {
+      expect(setDueRange({}, { from: '2026-10-01' })).toEqual({ due: { from: '2026-10-01' } });
+      expect(setDueRange({ due: { from: '2026-10-01' } }, { to: '2026-10-09' }))
+        .toEqual({ due: { from: '2026-10-01', to: '2026-10-09' } });
+      expect(setDueRange({ due: { from: '2026-10-01' } }, { from: '' })).toEqual({ due: undefined });
+    });
+
+    it('replaces a preset with the range', () => {
+      expect(setDueRange({ due: { preset: 'today' } }, { to: '2026-10-09' })).toEqual({ due: { to: '2026-10-09' } });
+    });
+
+    it('a From after To moves To up to it instead of clearing the filter', () => {
+      expect(setDueRange({ due: { from: '2026-10-01', to: '2026-10-05' } }, { from: '2026-10-20' }))
+        .toEqual({ due: { from: '2026-10-20', to: '2026-10-20' } });
+    });
+
+    it('a To before From moves From back to it', () => {
+      expect(setDueRange({ due: { from: '2026-10-10', to: '2026-10-15' } }, { to: '2026-10-03' }))
+        .toEqual({ due: { from: '2026-10-03', to: '2026-10-03' } });
+    });
   });
 });
