@@ -82,3 +82,34 @@ test('a refresh waits while I type, then lands with my draft intact', async ({ p
   await expect(page.getByText('From Bob')).toHaveCount(1);
   await expect(page.getByLabel('Comment')).toContainText('Half a thought');
 });
+
+test("a teammate's edit to the task I have open replaces what I see, and my blur keeps it", async ({ page, browser }) => {
+  const { bob } = await twoMembers(page, browser);
+  await createTask(page, 'Fix login');
+  await page.getByRole('button', { name: 'Fix login', exact: true }).click();
+  const mine = page.getByRole('dialog', { name: 'Task details' });
+  await expect(mine.getByLabel('Title')).toHaveValue('Fix login');
+
+  await bob.reload();
+  await bob.getByRole('button', { name: 'Fix login', exact: true }).click();
+  const theirs = bob.getByRole('dialog', { name: 'Task details' });
+  await theirs.getByLabel('Title').fill('Fix login on Safari');
+  await theirs.getByLabel('Title').blur();
+  await theirs.getByRole('textbox', { name: 'Description' }).click();
+  await bob.keyboard.type('Repro on iOS 18');
+  await theirs.getByLabel('Title').focus();
+  await bob.keyboard.press('Escape');
+  await expect(theirs).toBeHidden();
+  await expect(bob.getByRole('button', { name: 'Fix login on Safari', exact: true })).toBeVisible();
+
+  await refocus(page);
+  await expect(mine.getByLabel('Title')).toHaveValue('Fix login on Safari');
+  await expect(mine.getByRole('textbox', { name: 'Description' })).toContainText('Repro on iOS 18');
+
+  // Into the title and out again without typing: nothing is saved over Bob's rename.
+  await mine.getByLabel('Title').focus();
+  await mine.getByLabel('Title').blur();
+  await expect(mine.getByLabel('Title')).toHaveValue('Fix login on Safari');
+  await bob.reload();
+  await expect(bob.getByRole('button', { name: 'Fix login on Safari', exact: true })).toBeVisible();
+});

@@ -47,6 +47,21 @@ function Field({ id, label, children }: { id: string; label: string; children: R
   );
 }
 
+/**
+ * Local state for a field the server also holds. When a refresh brings a new
+ * server value (a teammate's edit, via live refresh), it replaces the local one,
+ * unless the local one has an edit of its own not yet saved.
+ */
+function useServerValue<T>(server: T) {
+  const [value, setValue] = useState(server);
+  const [synced, setSynced] = useState(server);
+  if (server !== synced) {
+    setSynced(server);
+    if (value === synced) setValue(server);
+  }
+  return [value, setValue] as const;
+}
+
 export type TaskDetailViewProps = {
   task: TaskDetail;
   projectId: string;
@@ -89,13 +104,13 @@ export function TaskDetailView({
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
   const confirm = useConfirm();
-  const [title, setTitle] = useState(task.title);
+  const [title, setTitle] = useServerValue(task.title);
   // Field values are held here so a save the server rejects can put the old
   // value back; router.refresh() alone would not, as the server's is unchanged.
-  const [assigneeId, setAssigneeId] = useState(task.assigneeId);
-  const [statusId, setStatusId] = useState(task.statusId);
-  const [priority, setPriority] = useState<Priority>(task.priority);
-  const [dueDate, setDueDate] = useState(task.dueDate);
+  const [assigneeId, setAssigneeId] = useServerValue(task.assigneeId);
+  const [statusId, setStatusId] = useServerValue(task.statusId);
+  const [priority, setPriority] = useServerValue<Priority>(task.priority);
+  const [dueDate, setDueDate] = useServerValue(task.dueDate);
 
   const tasksBase = `/${workspaceSlug}/tasks`;
   const projectHref = `/${workspaceSlug}/projects/${projectId}`;
@@ -338,7 +353,10 @@ export function TaskDetailView({
             <span id="task-description-label" className="text-label-sm text-text-strong-950">
               Description
             </span>
+            {/* Reloads when the stored description changes (a teammate's edit). Never while
+                I am in it: a focused editor holds live refresh back, and mine saves on blur. */}
             <RichTextField
+              key={task.description}
               value={task.description}
               labelledBy="task-description-label"
               placeholder="Add details… Type / for headings, lists and more."
