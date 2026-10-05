@@ -116,14 +116,18 @@ export type WorkspaceTaskRow = {
   projectId: string;
   projectName: string;
   projectColor: string;
+  statusId: string;
   statusName: string;
   statusColor: string;
   statusIcon: string | null;
   isDone: boolean;
   priority: Priority;
+  assigneeId: string | null;
   assigneeName: string | null;
   assigneeImage: string | null;
+  parentTaskId: string | null;
   dueDate: string | null;
+  labelIds: string[];
   createdAt: Date;
   updatedAt: Date;
 };
@@ -147,16 +151,18 @@ function workspaceOrder(sort: TableSort | null | undefined): SQL[] {
 }
 
 /**
- * Top-level tasks across every active project, for the All tasks page. Sorted
- * in SQL: with a row cap, sorting on the client would sort the wrong rows.
+ * Tasks across every active project, for the All tasks page and the REST API.
+ * Sorted in SQL: with a row cap, sorting on the client would sort the wrong rows.
+ * The page shows top-level tasks only; the API also pages with offset, may
+ * narrow to one project (where a status filter means something) and includes subtasks.
  */
 export async function listWorkspaceTasks(
   ctx: WorkspaceContext,
   filter: TaskFilter,
-  opts: { sort?: TableSort | null; limit?: number } = {},
+  opts: { sort?: TableSort | null; limit?: number; offset?: number; projectId?: string; includeSubtasks?: boolean } = {},
 ): Promise<{ tasks: WorkspaceTaskRow[]; truncated: boolean }> {
   const limit = opts.limit ?? WORKSPACE_TASK_LIMIT;
-  const filters = await taskFilterSql(ctx, filter, 'workspace');
+  const filters = await taskFilterSql(ctx, filter, opts.projectId ? 'project' : 'workspace');
   const rows = await db
     .select({
       id: task.id,
@@ -164,14 +170,18 @@ export async function listWorkspaceTasks(
       projectId: project.id,
       projectName: project.name,
       projectColor: project.color,
+      statusId: task.statusId,
       statusName: taskStatus.name,
       statusColor: taskStatus.color,
       statusIcon: taskStatus.icon,
       isDone: taskStatus.isDone,
       priority: task.priority,
+      assigneeId: task.assigneeId,
       assigneeName: user.name,
       assigneeImage: user.image,
+      parentTaskId: task.parentTaskId,
       dueDate: task.dueDate,
+      labelIds: sql<string[]>`coalesce((select array_agg(${taskLabel.labelId} order by ${taskLabel.labelId}) from ${taskLabel} where ${taskLabel.taskId} = ${task.id}), '{}')`,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
     })
@@ -183,13 +193,15 @@ export async function listWorkspaceTasks(
       and(
         eq(task.workspaceId, ctx.workspaceId),
         isNull(task.archivedAt),
-        isNull(task.parentTaskId),
+        opts.includeSubtasks ? undefined : isNull(task.parentTaskId),
+        opts.projectId ? eq(task.projectId, opts.projectId) : undefined,
         isNull(project.archivedAt),
         ...filters,
       ),
     )
     .orderBy(...workspaceOrder(opts.sort))
-    .limit(limit + 1);
+    .limit(limit + 1)
+    .offset(opts.offset ?? 0);
 
   return { tasks: rows.slice(0, limit), truncated: rows.length > limit };
 }
