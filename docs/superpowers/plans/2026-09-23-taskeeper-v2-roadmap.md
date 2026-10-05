@@ -38,16 +38,20 @@ table and slice notes stay as the design reference for each slice.
     30 s while visible. Pusher later = a second `ChangeTransport` plus a publish in
     `emitChange`; spec `docs/superpowers/specs/2026-10-04-live-refresh-design.md`.
 
-**P3: bigger or more niche**
+**P3: bigger or more niche** (decided 2026-10-05)
 
-12. Slice 9: public share links. New read-only auth path; needs a security review.
-13. Slice 7: custom per-project properties. Only if custom fields are actually needed.
+12. ~~Slice 9: public share links.~~ Dropped: no need for guest access, and it would be the
+    first auth path past `requireWorkspace`.
+13. Slice 7: custom per-project properties. Parked as a possible future feature; not
+    scheduled. Revisit only when users ask for fields beyond the fixed set.
 
 **P4: last or optional**
 
-14. Slice 10: REST API / mobile. Last on purpose: it freezes `server/*` signatures.
-15. Polish: coloured status dots on board columns; relative dates on attachment cards; a test
-    for the 401 response on the attachment route.
+14. Slice 10: REST API / mobile. Still last: it freezes `server/*` signatures. Scope (REST
+    only, or REST + mobile app) to be discussed before planning.
+15. Polish (`feat/polish`, 2026-10-05): relative dates on attachment cards; a test for the
+    401 response on the attachment route. Coloured status dots on board columns: already
+    covered by the coloured `StatusIcon` in every column header since the UI reset.
 16. Slice 4: rich text — closed. Shipped as Markdown through Tiptap (`@tiptap/markdown`);
     `task.description` stays `text`, not the `jsonb` the slice note below planned.
 
