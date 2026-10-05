@@ -2,7 +2,8 @@ import type { WorkspaceSummary } from '@/server/workspaces/queries';
 import type { MemberRow } from '@/server/labels/queries';
 import type { LabelRow } from '@/server/tasks/queries';
 import { appUrl } from '@/lib/url';
-import type { ApiLabel, ApiMember, ApiProject, ApiStatus, ApiTask, ApiTaskSummary, ApiWorkspace } from './contract/shapes';
+import type { FeedEntry } from '@/server/activity/queries';
+import type { ApiComment, ApiLabel, ApiMember, ApiProject, ApiStatus, ApiTask, ApiTaskSummary, ApiWorkspace } from './contract/shapes';
 import type { ApiTaskSource } from './queries';
 
 /**
@@ -49,4 +50,15 @@ export function serializeTaskSummary(slug: string, t: ApiTaskSource): ApiTaskSum
 
 export function serializeTask(slug: string, t: ApiTaskSource & { description: string }): ApiTask {
   return { ...serializeTaskSummary(slug, t), description: t.description };
+}
+
+export function serializeComment(c: Extract<FeedEntry, { type: 'comment' }>): ApiComment {
+  return {
+    id: c.id,
+    // The feed names a deleted author "Deleted user"; the API says null instead.
+    author: c.authorId ? { id: c.authorId, name: c.authorName } : null,
+    body: c.body,
+    createdAt: c.createdAt.toISOString(),
+    editedAt: c.editedAt ? c.editedAt.toISOString() : null,
+  };
 }

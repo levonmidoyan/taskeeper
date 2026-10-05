@@ -4,12 +4,13 @@ import { err, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
 import { filterFromParams, withDefaultState } from '@/lib/task-filter';
 import type { SortableColumn } from '@/lib/task-table-sort';
+import { listTaskFeed } from '@/server/activity/queries';
 import { listLabels } from '@/server/labels/queries';
 import { listWorkspaceTasks, type Priority } from '@/server/tasks/queries';
-import type { ApiMe, ApiTaskPage } from './contract/shapes';
+import type { ApiComment, ApiMe, ApiTaskPage } from './contract/shapes';
 import type { TaskListQuery } from './contract/tasks';
 import { encodeCursor } from './cursor';
-import { serializeTaskSummary } from './serialize';
+import { serializeComment, serializeTaskSummary } from './serialize';
 
 export async function getApiUser(userId: string): Promise<ApiMe | null> {
   const [row] = await db
@@ -106,4 +107,10 @@ export async function listApiTasks(ctx: WorkspaceContext, query: TaskListQuery):
     })),
     nextCursor: truncated ? encodeCursor(query.cursor + query.limit) : null,
   };
+}
+
+/** Comment entries of the task feed, oldest first. The caller checks the task first. */
+export async function listApiComments(ctx: WorkspaceContext, taskId: string): Promise<ApiComment[]> {
+  const feed = await listTaskFeed(ctx, taskId);
+  return feed.flatMap((entry) => (entry.type === 'comment' ? [serializeComment(entry)] : []));
 }

@@ -1,4 +1,5 @@
 import { meEndpoint } from './account';
+import { createCommentEndpoint, listCommentsEndpoint } from './comments';
 import { getProjectEndpoint, listProjectsEndpoint } from './projects';
 import {
   createTaskEndpoint, deleteTaskEndpoint, getTaskEndpoint, listTasksEndpoint, updateTaskEndpoint,
@@ -19,4 +20,6 @@ export const endpoints: readonly Endpoint[] = [
   getTaskEndpoint,
   updateTaskEndpoint,
   deleteTaskEndpoint,
+  listCommentsEndpoint,
+  createCommentEndpoint,
 ];
