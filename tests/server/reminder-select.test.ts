@@ -217,13 +217,13 @@ describe('claimNotifications', () => {
       ...(await selectDueDigests(at('2026-10-10T06:00:00Z'))),
     ];
 
-    expect(await claimNotifications(drafts)).toBe(2);
-    expect(await claimNotifications(drafts)).toBe(0);
+    expect(await claimNotifications(drafts)).toHaveLength(2);
+    expect(await claimNotifications(drafts)).toEqual([]);
     expect(await db.select().from(notification)).toHaveLength(2);
   });
 
   it('does nothing for an empty list', async () => {
-    expect(await claimNotifications([])).toBe(0);
+    expect(await claimNotifications([])).toEqual([]);
   });
 
   it('skips a draft whose task was deleted since the select, and keeps the rest', async () => {
@@ -235,7 +235,7 @@ describe('claimNotifications', () => {
     ];
     const gone = drafts.find((d) => d.kind === 'reminder')!;
 
-    expect(await claimNotifications([...drafts, { ...gone, taskId: 'deleted-task', dedupeKey: 'gone' }])).toBe(2);
+    expect(await claimNotifications([...drafts, { ...gone, taskId: 'deleted-task', dedupeKey: 'gone' }])).toHaveLength(2);
     expect(await db.select().from(notification)).toHaveLength(2);
   });
 });

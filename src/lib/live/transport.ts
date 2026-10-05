@@ -56,13 +56,15 @@ export function createPollingTransport(slug: string, options: PollingOptions = {
         inFlight = true;
         try {
           const res = await doFetch(url, { headers: { [LIVE_POLL_HEADER]: '1' }, cache: 'no-store' });
+          // Unsubscribed while waiting (the user left the page): drop the answer.
+          if (stopped) return;
           if (res.status === 401 || res.status === 404) {
             stop();
             return;
           }
           if (res.ok) {
             const body = (await res.json()) as { version?: unknown };
-            if (typeof body.version === 'number') onVersion(body.version);
+            if (!stopped && typeof body.version === 'number') onVersion(body.version);
           }
         } catch {
           // Offline or mid-deploy: the next tick tries again.

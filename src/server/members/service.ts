@@ -15,11 +15,14 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 /**
  * Locks the workspace row for the rest of the transaction, so owner changes in
  * one workspace run one at a time: two owners demoting or removing each other
- * at once must not both pass the last-owner check.
+ * at once must not both pass the last-owner check. NO KEY UPDATE, not UPDATE:
+ * it still excludes other lockers but not the KEY SHARE lock a foreign-key
+ * insert takes, so a concurrent first insert into workspace_change cannot
+ * deadlock against this transaction's own emitChange.
  */
 async function lockWorkspace(tx: Tx, workspaceId: string): Promise<void> {
   await tx.select({ id: organization.id }).from(organization)
-    .where(eq(organization.id, workspaceId)).for('update');
+    .where(eq(organization.id, workspaceId)).for('no key update');
 }
 
 async function ownerCount(tx: Tx, workspaceId: string): Promise<number> {

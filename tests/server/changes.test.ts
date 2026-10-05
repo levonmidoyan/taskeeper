@@ -4,6 +4,11 @@ import { uploadTo } from '../setup/storage';
 import { cancelUpload, confirmUpload, deleteAttachment, requestUpload } from '@/server/attachments/service';
 import { createComment, deleteComment, updateComment } from '@/server/comments/service';
 import { createLabel, deleteLabel, setTaskLabels } from '@/server/labels/service';
+import { notification } from '@/db';
+import { newId } from '@/lib/ids';
+import { markAllRead, markRead } from '@/server/notifications/service';
+import { setTaskReminders } from '@/server/reminders/service';
+import { createTodo, deleteTodo, moveTodo, updateTodo } from '@/server/todos/service';
 import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
 import type { WorkspaceContext } from '@/lib/session';
 import { getWorkspaceVersion, pollWorkspaceVersion } from '@/server/changes/queries';
@@ -330,5 +335,40 @@ describe('saved views: only shared ones bump', () => {
       return r;
     })).toBe(1);
     expect(await delta(ctx, () => duplicateView(ctx, { id }))).toBe(0);
+  });
+});
+
+describe('private writes do not bump', () => {
+  it('to-dos: create, edit, check, move, delete', async () => {
+    const { ctx } = await setup();
+    const ids: string[] = [];
+    for (const title of ['One', 'Two']) {
+      expect(await delta(ctx, async () => {
+        const r = await createTodo(ctx, { title });
+        if (r.ok) ids.push(r.data.id);
+        return r;
+      })).toBe(0);
+    }
+    expect(await delta(ctx, () => updateTodo(ctx, { todoId: ids[0], title: 'One!' }))).toBe(0);
+    expect(await delta(ctx, () => moveTodo(ctx, { todoId: ids[1], beforeId: null, afterId: ids[0] }))).toBe(0);
+    expect(await delta(ctx, () => updateTodo(ctx, { todoId: ids[0], done: true }))).toBe(0);
+    expect(await delta(ctx, () => deleteTodo(ctx, { todoId: ids[0] }))).toBe(0);
+  });
+
+  it('my reminders on a task', async () => {
+    const { ctx, taskId } = await seeded();
+    expect(await delta(ctx, () => setTaskReminders(ctx, { taskId, offsets: [0, 1] }))).toBe(0);
+    expect(await delta(ctx, () => setTaskReminders(ctx, { taskId, offsets: [] }))).toBe(0);
+  });
+
+  it('marking notifications read, one or all', async () => {
+    const { ctx } = await setup();
+    const ids = [newId(), newId()];
+    await db.insert(notification).values(ids.map((id) => ({
+      id, userId: ctx.userId, workspaceId: ctx.workspaceId, kind: 'digest' as const, dedupeKey: id,
+      data: { localDate: '2026-10-10', dueToday: 1, overdue: 0, tasks: [] },
+    })));
+    expect(await delta(ctx, () => markRead(ctx, ids[0]))).toBe(0);
+    expect(await delta(ctx, () => markAllRead(ctx))).toBe(0);
   });
 });

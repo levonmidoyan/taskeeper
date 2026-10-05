@@ -100,6 +100,19 @@ describe('createPollingTransport', () => {
     stop();
   });
 
+  it('drops the answer of a poll that was in flight when unsubscribed', async () => {
+    let answer!: (r: Response) => void;
+    fetchMock.mockImplementationOnce(() => new Promise((resolve) => { answer = resolve; }));
+    const { onVersion, stop } = start();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    stop();
+    answer(json(9));
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(onVersion).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('stops polling and listening when unsubscribed', async () => {
     const { stop } = start();
     stop();

@@ -11,7 +11,7 @@ vi.mock('@/lib/request-tracker', () => ({
   },
 }));
 
-const { isBusy, isTextEntry, markBusy, releaseBusy, subscribeBusy } = await import('@/lib/live/busy');
+const { REQUEST_SETTLE_MS, isBusy, isTextEntry, markBusy, releaseBusy, subscribeBusy } = await import('@/lib/live/busy');
 
 function mount(html: string) {
   document.body.innerHTML = html;
@@ -32,6 +32,11 @@ describe('isTextEntry', () => {
     expect(isTextEntry(mount('<div contenteditable="true"><p>x</p></div>'))).toBe(true);
     const inner = mount('<div contenteditable="true"><p>x</p></div>').querySelector('p');
     expect(isTextEntry(inner)).toBe(true);
+    expect(isTextEntry(mount('<div contenteditable="plaintext-only"></div>'))).toBe(true);
+  });
+
+  it('counts a focused select: arrow keys and type-ahead change it', () => {
+    expect(isTextEntry(mount('<select><option>A</option></select>'))).toBe(true);
   });
 
   it('a checkbox, a button or nothing is not typing', () => {
@@ -85,6 +90,30 @@ describe('subscribeBusy', () => {
     stop();
     releaseBusy('drag');
     expect(listener).toHaveBeenCalledTimes(4);
+    vi.useRealTimers();
+  });
+});
+
+describe('after my request settles', () => {
+  it('stays busy a moment for the page update to land, then tells listeners', async () => {
+    vi.useFakeTimers();
+    const listener = vi.fn();
+    const stop = subscribeBusy(listener);
+
+    pending.n = 1;
+    for (const l of requestListeners) l();
+    pending.n = 0;
+    for (const l of requestListeners) l();
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(isBusy()).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(REQUEST_SETTLE_MS - 1);
+    expect(isBusy()).toBe(true);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(isBusy()).toBe(false);
+    expect(listener).toHaveBeenCalledTimes(3);
+
+    stop();
     vi.useRealTimers();
   });
 });

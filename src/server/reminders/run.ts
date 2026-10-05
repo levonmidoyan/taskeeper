@@ -111,14 +111,13 @@ export async function runReminders({
 }: { now?: Date; send?: MailSender; gapMs?: number; budgetMs?: number } = {}): Promise<{ claimed: number; emailed: number; failed: number }> {
   const started = Date.now();
   const drafts = [...(await selectDueReminders(now)), ...(await selectDueDigests(now))];
-  const claimed = await claimNotifications(drafts);
+  const claimedIn = await claimNotifications(drafts);
+  const claimed = claimedIn.length;
 
-  // Recipients' bells live in the workspace layout, so tell those pages. A
-  // workspace whose drafts were all repeats gets a harmless extra refresh.
-  if (claimed > 0) {
-    for (const workspaceId of new Set(drafts.map((d) => d.workspaceId))) {
-      await emitChangeFor(workspaceId, db);
-    }
+  // Recipients' bells live in the workspace layout, so tell those pages. Only
+  // workspaces that got something new: repeats change nothing on screen.
+  for (const workspaceId of new Set(claimedIn)) {
+    await emitChangeFor(workspaceId, db);
   }
 
   let emailed = 0;

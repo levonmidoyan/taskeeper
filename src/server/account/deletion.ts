@@ -66,16 +66,19 @@ export async function prepareAccountDeletion(userId: string): Promise<void> {
     const stuck = rows.filter((r) => r.lastOwner && !r.solo).map((r) => r.name);
     if (stuck.length > 0) throw blocked(stuck);
 
-    // Workspaces that keep going lose a member and show "Deleted user" from now on.
-    for (const r of rows) if (!r.solo) await emitChangeFor(r.id, tx);
-
     const solo = rows.filter((r) => r.solo).map((r) => r.id);
-    if (solo.length === 0) return [];
+    if (solo.length > 0) {
+      // Tasks first: task.status_id is RESTRICT, so cascading from the workspace
+      // would leave the task / task_status delete order undefined (spec §3.2).
+      await tx.delete(task).where(inArray(task.workspaceId, solo));
+      await tx.delete(organization).where(inArray(organization.id, solo));
+    }
 
-    // Tasks first: task.status_id is RESTRICT, so cascading from the workspace
-    // would leave the task / task_status delete order undefined (spec §3.2).
-    await tx.delete(task).where(inArray(task.workspaceId, solo));
-    await tx.delete(organization).where(inArray(organization.id, solo));
+    // Workspaces that keep going lose a member and show "Deleted user" from now on.
+    // Last, so their counter rows stay locked only briefly, and in id order, so
+    // two deletions sharing workspaces lock them the same way round.
+    const shared = rows.filter((r) => !r.solo).map((r) => r.id).sort();
+    for (const id of shared) await emitChangeFor(id, tx);
     return solo;
   });
   // After commit, so a rolled-back deletion keeps its files.
