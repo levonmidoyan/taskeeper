@@ -97,7 +97,8 @@ Dedupe keys:
 `data` snapshots what the bell and email show, so a later rename does not rewrite history
 and the bell needs no join:
 
-- Reminder: `{ title, projectName, dueDate, offsetDays }`.
+- Reminder: `{ title, projectName, dueDate, offsetDays, daysLeft }` (`daysLeft` = due date
+  minus the recipient's local today when selected; the copy uses it, not `offsetDays`).
 - Digest: `{ localDate, dueToday: number, overdue: number, tasks: [{ id, title, dueDate }] }`
   (`tasks` capped at 20).
 
@@ -124,7 +125,16 @@ moment(day) = (day + make_time(hour, 0, 0)) AT TIME ZONE zone      -- timestampt
 ```
 
 - **Reminder candidates:** `reminder ⋈ task ⋈ project ⋈ member(task.workspace_id,
-  reminder.user_id)`; `moment(task.due_date - offset_days)` in `(now - 36h, now]`.
+  reminder.user_id)`, then by schedule (`REMINDER_CRON_HOURLY`):
+  - **Hourly (Pro):** `moment(task.due_date - offset_days)` in `(now - 36h, now]`, so each
+    reminder goes out at the recipient's local hour.
+  - **Daily (Hobby, current):** one run a day cannot hit each recipient's local hour, and
+    the moment rule would send a day late to every zone whose hour falls after the run. So
+    a daily run picks by the recipient's local date: `local_today = (now AT TIME ZONE
+    zone)::date`, reminder day `task.due_date - offset_days` in `[local_today - 1,
+    local_today]` (the day before covers one missed run), and never once the task is
+    overdue (`task.due_date >= local_today`). `reminder_hour` only affects the digest
+    and hourly runs.
 - **Digest candidates:** members with `digest_enabled`; `local_today = (now AT TIME ZONE
   zone)::date`; digest date = `local_today` if `moment(local_today) <= now`, else
   `local_today - 1` (so a late hour on the daily schedule still sends one digest a day);
@@ -133,8 +143,8 @@ moment(day) = (day + make_time(hour, 0, 0)) AT TIME ZONE zone      -- timestampt
 Filters on both: task has a due date, task not archived, task status not `is_done`,
 project not archived, recipient still a member of the workspace.
 
-The 36 h lookback covers the 24 h gap between daily runs plus slack, and stops a burst of
-stale reminders after a reminder is set on a long-past date.
+The 36 h lookback (hourly) and the one-day grace (daily) both stop a burst of stale
+reminders after a reminder is set on a long-past date.
 
 ### 2. Claim
 
@@ -149,7 +159,7 @@ SET email_claimed_at = now(), email_attempts = email_attempts + 1
 WHERE id IN (
   SELECT id FROM notification
   WHERE email_sent_at IS NULL AND email_attempts < 3
-    AND created_at > now() - interval '36 hours'
+    AND created_at > now() - interval '60 hours'   -- 36 hours on the hourly schedule
     AND (email_claimed_at IS NULL OR email_claimed_at < now() - interval '10 minutes')
   ORDER BY created_at LIMIT 500
   FOR UPDATE SKIP LOCKED
@@ -159,7 +169,9 @@ RETURNING …
 
 Two overlapping runs cannot claim the same row. Each claimed row is sent; success sets
 `email_sent_at`, failure leaves it null for the next run (after the 10-minute lock), up to
-3 attempts. One failing send does not stop the batch. The route returns
+3 attempts. The window is 60 h on the daily schedule because daily runs are 24 h apart
+(plus Vercel's jitter), so the third attempt lands near hour 48. One failing send does not
+stop the batch. The route returns
 `{ claimed, emailed, failed }`.
 
 Claim and email are separate on purpose: a Resend outage delays email but never loses or
@@ -169,7 +181,7 @@ duplicates it, and the bell is unaffected.
 
 React Email templates in `src/lib/email.tsx`, same Resend client, sender and Align colors:
 
-- **Reminder:** subject `“{title}” is due {today|tomorrow|in N days}`; project, date, Open
+- **Reminder:** subject `“{title}” is due {today|tomorrow|in N days}` from `daysLeft`; project, date, Open
   task button (`/{slug}/tasks/{id}`).
 - **Digest:** subject `{n} due today · {m} overdue in {workspace}`; list (20 max, then
   "and N more"), View my calendar button.
