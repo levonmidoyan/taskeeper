@@ -199,3 +199,26 @@ test('picking several values quickly keeps every pick', async ({ page }) => {
   await page.getByRole('option', { name: 'Low' }).click();
   await expect(page).toHaveURL(/[?&]priority=urgent%2Chigh%2Clow(&|$)/);
 });
+
+test('a text edit and a state click under 300 ms apart both land', async ({ page }) => {
+  const { projectUrl } = await ownerWithProject(page);
+  await page.goto(`${projectUrl}/list`);
+  // A slow server render, so neither change's navigation settles before the other is made.
+  await page.route('**/*', async (route) => {
+    if (route.request().headers()['rsc']) await new Promise((r) => setTimeout(r, 800));
+    await route.continue();
+  });
+  const state = (name: string) => page.getByRole('toolbar', { name: 'Filters' }).getByRole('tab', { name, exact: true });
+
+  // Text first, click inside the debounce: the pending text must not drop the click.
+  await page.getByLabel('Filter by text').pressSequentially('alpha');
+  await state('Done').click();
+  await expect(page).toHaveURL(/[?&]state=done(&|$)/);
+  await expect(page).toHaveURL(/[?&]q=alpha(&|$)/);
+
+  // Click first, then type: the debounced text must build on the click.
+  await state('All').click();
+  await page.getByLabel('Filter by text').fill('beta');
+  await expect(page).toHaveURL(/[?&]q=beta(&|$)/);
+  await expect(page).toHaveURL(/[?&]state=all(&|$)/);
+});
