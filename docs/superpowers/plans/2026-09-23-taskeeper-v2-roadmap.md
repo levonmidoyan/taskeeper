@@ -33,8 +33,10 @@ table and slice notes stay as the design reference for each slice.
 
 9. Slice 5: calendar + reminders. Cron and email already exist.
 10. Slice 6: saved filters and views, on slice 3's filter predicates.
-11. Slice 8: realtime sync, decision only. Leaning to polling on an `updated_at` cursor; build
-    after P2 only if teammates see stale boards.
+11. Slice 8: realtime sync — built as polling (2026-10-04, `feat/live-refresh`): a
+    per-workspace change counter bumped in every shared write's transaction, polled every
+    30 s while visible. Pusher later = a second `ChangeTransport` plus a publish in
+    `emitChange`; spec `docs/superpowers/specs/2026-10-04-live-refresh-design.md`.
 
 **P3: bigger or more niche**
 

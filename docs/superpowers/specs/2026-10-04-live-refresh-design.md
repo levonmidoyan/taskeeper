@@ -85,7 +85,8 @@ Shared data, inside the existing transaction (a function that has none gets one)
   `declineInvitation` take no `WorkspaceContext`, so they use `emitChangeFor` with the
   invitation's workspace (the pending-invite list in Members settings changes).
 - **settings:** `updateWorkspaceSettings`.
-- **views:** `createView`, `updateView`, `duplicateView`, `deleteView`, only when the view
+- **views:** `createView`, `updateView`, `deleteView` (`duplicateView` makes a private copy and
+  never emits), only when the view
   is shared before or after the write (going private→shared or shared→private emits).
 - **reminders cron** (`src/server/reminders/run.ts`): once per workspace that got new
   notifications in the run, so recipients' bells update.
@@ -102,14 +103,15 @@ Functions that write nothing (validation failure, no-op update) do not emit.
   No session → `401`.
 - Not a member, or no such workspace → `404` (same answer for both; no existence leak).
 - `Cache-Control: private, no-store`.
-- One indexed read (membership + `workspace_change`); no other work.
+- One query: `organization` ⋈ `member` ⟕ `workspace_change` by slug; no other work.
 
 ## Client
 
 ### `<LiveRefresh>` (`src/components/shell/LiveRefresh.tsx`)
 
-- `WorkspaceLayout` reads `getWorkspaceVersion(ctx)` and passes it to `WorkspaceShell`,
-  which mounts `<LiveRefresh slug={…} version={…} />` once per workspace.
+- `WorkspaceLayout` reads `getWorkspaceVersion(ctx)` and mounts
+  `<LiveRefresh slug={…} version={…} />` itself, next to `{children}` (not in
+  `WorkspaceShell`, which account settings shares).
 - The `version` prop is the **seen** version. My own mutation already revalidates or
   calls `router.refresh()`; the layout re-renders with the bumped version, so the next
   poll matches and nothing happens.
@@ -137,8 +139,7 @@ export type ChangeTransport = {
 - `401` or `404` stops the transport (signed out or removed from the workspace).
 - Its fetch sends a `x-live-poll: 1` header so the request tracker skips it (the top
   loading bar must not flash every 30 s, and the poll must not count as "busy").
-- Interval and idle thresholds are options, so tests (and e2e via
-  `NEXT_PUBLIC_LIVE_POLL_MS`) can shorten them.
+- Interval and idle thresholds are options, for unit tests.
 
 A `createPusherTransport` later implements the same type; `<LiveRefresh>` picks one by env.
 
@@ -188,7 +189,7 @@ page becomes idle.
 - **vitest, busy + LiveRefresh logic:** pending refresh deferred while dragging / typing /
   request in flight, flushed once on idle, collapsed when several versions arrive; no
   refresh when polled version equals the seen prop.
-- **e2e** (two browser contexts, two members, `NEXT_PUBLIC_LIVE_POLL_MS=1000`):
+- **e2e** (two browser contexts, two members, a dispatched window `focus` event instead of waiting 30 s):
   member B moves a card and member A's board shows it without reload; A types in the comment
   composer, B changes the task, A's refresh waits until A blurs, and A's draft survives.
 
