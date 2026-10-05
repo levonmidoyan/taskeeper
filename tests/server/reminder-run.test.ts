@@ -33,7 +33,7 @@ async function setup() {
 function recorder(failFor: (m: OutgoingMail) => boolean = () => false) {
   const sent: OutgoingMail[] = [];
   const send = async (m: OutgoingMail) => {
-    if (failFor(m)) throw new Error('resend down');
+    if (failFor(m)) throw new Error('smtp down');
     sent.push(m);
   };
   return { sent, send };
@@ -112,14 +112,14 @@ describe('runReminders', () => {
     expect(ok.sent).toHaveLength(2);
   });
 
-  it('waits out Resend’s rate limit instead of failing the row', async () => {
+  it('waits out the mail server’s rate limit instead of failing the row', async () => {
     await setup();
     let calls = 0;
     const sent: OutgoingMail[] = [];
     const send = async (m: OutgoingMail) => {
       calls += 1;
-      // What send() throws for Resend's 429.
-      if (calls === 1) throw new EmailSendError('Resend rejected the reminder email', 'rate_limit_exceeded');
+      // What send() throws for an SMTP 421/450/451/452.
+      if (calls === 1) throw new EmailSendError('The mail server rejected the reminder email', 'rate_limit_exceeded');
       sent.push(m);
     };
 
@@ -136,7 +136,7 @@ describe('runReminders', () => {
     // The address is user-controlled and ends up in the message.
     const send = async () => {
       calls += 1;
-      throw new EmailSendError('Resend rejected the email to rate_limit_exceeded@example.com', 'validation_error');
+      throw new EmailSendError('The mail server rejected the email to rate_limit_exceeded@example.com', 'smtp_550');
     };
 
     const result = await runReminders({ now: NOW, send, gapMs: 10 });
@@ -159,7 +159,7 @@ describe('runReminders', () => {
     expect(await runReminders({ now: NOW, send: slow, gapMs: 0 })).toEqual({ claimed: 0, emailed: 1, failed: 0 });
   });
 
-  it('spaces sends to stay under Resend’s rate limit', async () => {
+  it('spaces sends to stay under the mail server’s rate limit', async () => {
     await setup();
     const times: number[] = [];
 

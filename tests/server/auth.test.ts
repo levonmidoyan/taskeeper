@@ -8,7 +8,7 @@ beforeEach(resetDb);
 afterEach(() => vi.restoreAllMocks());
 afterAll(closeDb);
 
-/** Without a Resend key the verification email is logged; this reads its link back. */
+/** Without an SMTP host the verification email is logged; this reads its link back. */
 function captureVerificationLinks() {
   const links: string[] = [];
   vi.spyOn(console, 'info').mockImplementation((line: string) => {
