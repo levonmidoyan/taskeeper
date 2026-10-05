@@ -6,7 +6,7 @@ import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
 import { emitChange } from '@/server/changes/service';
 
-const bodySchema = z
+export const commentBodySchema = z
   .string()
   .trim()
   .min(1, 'Write something first.')
@@ -28,7 +28,7 @@ export async function createComment(
 ): Promise<Result<{ id: string }>> {
   return withAction(async () => {
     const parsed = z
-      .object({ taskId: z.string().min(1), body: bodySchema })
+      .object({ taskId: z.string().min(1), body: commentBodySchema })
       .safeParse(input);
     if (!parsed.success) return err(parsed.error.issues[0].message);
 
@@ -63,7 +63,7 @@ export async function updateComment(
 ): Promise<Result<null>> {
   return withAction(async () => {
     const parsed = z
-      .object({ commentId: z.string().min(1), body: bodySchema })
+      .object({ commentId: z.string().min(1), body: commentBodySchema })
       .safeParse(input);
     if (!parsed.success) return err(parsed.error.issues[0].message);
 

@@ -8,6 +8,7 @@ import { db, pool } from '@/db';
 export async function resetDb(): Promise<void> {
   await db.execute(sql`
     TRUNCATE TABLE
+      api_rate_limit, api_token,
       workspace_change, notification, reminder, saved_view,
       attachment, todo, project_star, comment, task_activity,
       task_label, task, task_status, label, project,

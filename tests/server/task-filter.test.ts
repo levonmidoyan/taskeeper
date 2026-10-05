@@ -5,7 +5,7 @@ import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
 import { task, workspaceSettings } from '@/db';
 import type { WorkspaceContext } from '@/lib/session';
 import type { TaskFilter } from '@/lib/task-filter';
-import { createLabel } from '@/server/labels/service';
+import { createLabel, setTaskLabels } from '@/server/labels/service';
 import { archiveProject, createProject } from '@/server/projects/service';
 import { getProject } from '@/server/projects/queries';
 import { listCalendarTasks } from '@/server/tasks/calendar';
@@ -248,6 +248,55 @@ describe('listWorkspaceTasks', () => {
     expect(await order({ sort: { id: 'priority', desc: false } })).toEqual(['a', 'c', 'b']);
     expect(await order({ sort: { id: 'title', desc: true } })).toEqual(['c', 'b', 'a']);
     expect(await order({ sort: { id: 'due', desc: true } })).toEqual(['b', 'c', 'a']);
+  });
+
+  it('returns ids the API needs: status, assignee, parent, labels', async () => {
+    const { ctx, projectId, statuses, bob } = await setup();
+    const parent = await add(ctx, { projectId, title: 'Parent', assigneeId: bob.id });
+    const made = await createLabel(ctx, { name: 'Bug' });
+    if (!made.ok) throw new Error(made.error);
+    await setTaskLabels(ctx, { taskId: parent, labelIds: [made.data.id] });
+
+    const [row] = (await listWorkspaceTasks(ctx, {})).tasks;
+
+    expect(row).toMatchObject({ id: parent, statusId: statuses[0].id, assigneeId: bob.id, parentTaskId: null, labelIds: [made.data.id] });
+  });
+
+  it('includes subtasks only when asked', async () => {
+    const { ctx, projectId } = await setup();
+    const parent = await add(ctx, { projectId, title: 'Parent' });
+    await add(ctx, { projectId, title: 'Child', parentTaskId: parent });
+
+    expect((await listWorkspaceTasks(ctx, {})).tasks.map((t) => t.title)).toEqual(['Parent']);
+    const all = await listWorkspaceTasks(ctx, {}, { includeSubtasks: true });
+    expect(all.tasks.find((t) => t.title === 'Child')?.parentTaskId).toBe(parent);
+  });
+
+  it('pages with offset in a stable order', async () => {
+    const { ctx, projectId } = await setup();
+    for (const t of ['A', 'B', 'C', 'D', 'E']) await add(ctx, { projectId, title: t });
+    const sort = { id: 'title', desc: false } as const;
+
+    const first = await listWorkspaceTasks(ctx, {}, { sort, limit: 2 });
+    const third = await listWorkspaceTasks(ctx, {}, { sort, limit: 2, offset: 4 });
+
+    expect(first.tasks.map((t) => t.title)).toEqual(['A', 'B']);
+    expect(first.truncated).toBe(true);
+    expect(third.tasks.map((t) => t.title)).toEqual(['E']);
+    expect(third.truncated).toBe(false);
+  });
+
+  it('narrows to one project and then honours the status filter', async () => {
+    const { ctx, projectId, statuses } = await setup();
+    const other = await createProject(ctx, { name: 'App' });
+    if (!other.ok) throw new Error();
+    await add(ctx, { projectId, title: 'Todo one' });
+    await add(ctx, { projectId, title: 'Doing one', statusId: statuses[1].id });
+    await add(ctx, { projectId: other.data.id, title: 'Elsewhere' });
+
+    const res = await listWorkspaceTasks(ctx, { status: { op: 'is', ids: [statuses[1].id] } }, { projectId });
+
+    expect(res.tasks.map((t) => t.title)).toEqual(['Doing one']);
   });
 });
 

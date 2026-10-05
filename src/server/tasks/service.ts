@@ -9,6 +9,7 @@ import type { WorkspaceContext } from '@/lib/session';
 import { recordActivity, type ActivityKind } from '@/server/activity/service';
 import { attachmentKeysForTasks, purgeObjects } from '@/server/attachments/cleanup';
 import { emitChange } from '@/server/changes/service';
+import { replaceTaskLabels } from '@/server/labels/service';
 import { lastTaskPosition, lockColumns, nextTaskPosition } from '@/server/tasks/columns';
 
 const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const;
@@ -80,9 +81,10 @@ async function memberName(ctx: WorkspaceContext, userId: string | null): Promise
   return row?.name ?? null;
 }
 
-const dueDateSchema = z.string().refine(isCalendarDay, 'Use a real YYYY-MM-DD date.');
+// The format is for openapi.json, which cannot see the refine.
+const dueDateSchema = z.string().refine(isCalendarDay, 'Use a real YYYY-MM-DD date.').meta({ format: 'date' });
 
-const createSchema = z.object({
+export const createSchema = z.object({
   projectId: z.string().min(1),
   title: z.string().trim().min(1, 'Give the task a title.').max(200, 'Title is too long.'),
   statusId: z.string().optional(),
@@ -285,14 +287,37 @@ export async function updateTask(
   ctx: WorkspaceContext,
   input: UpdateTaskInput,
 ): Promise<Result<null>> {
+  return updateTaskAndLabels(ctx, input);
+}
+
+/**
+ * updateTask plus, when labelIds is given, the task's label set, in one
+ * transaction: a label that turns out unknown at write time rolls the field
+ * changes back with it.
+ */
+export async function updateTaskAndLabels(
+  ctx: WorkspaceContext,
+  input: UpdateTaskInput,
+  labelIds?: string[],
+): Promise<Result<null>> {
   return withAction(async () => {
     const plan = await planUpdate(ctx, input);
     if (!plan.ok) return plan;
-    return db.transaction(async (tx) => {
-      const result = await applyUpdate(ctx, tx, plan.data);
-      if (result.ok) await emitChange(ctx, { projectId: plan.data.owned.projectId }, tx);
-      return result;
-    });
+    try {
+      await db.transaction(async (tx) => {
+        const result = await applyUpdate(ctx, tx, plan.data);
+        if (!result.ok) throw new RolledBack(result);
+        if (labelIds) {
+          const labelled = await replaceTaskLabels(ctx, tx, plan.data.taskId, labelIds);
+          if (!labelled.ok) throw new RolledBack(labelled);
+        }
+        await emitChange(ctx, { projectId: plan.data.owned.projectId }, tx);
+      });
+    } catch (error) {
+      if (error instanceof RolledBack) return error.result;
+      throw error;
+    }
+    return ok(null);
   });
 }
 

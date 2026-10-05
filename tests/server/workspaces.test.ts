@@ -80,7 +80,7 @@ describe('createWorkspaceForUser', () => {
   it('disambiguates every reserved top-level segment that exists in src/app today', async () => {
     const ada = await createUser('ada-reserved2@example.com');
 
-    const reserved = ['New Workspace', 'Sign In', 'Sign Up', 'Api', 'Invite'];
+    const reserved = ['New Workspace', 'Sign In', 'Sign Up', 'Api', 'Invite', 'Docs'];
     for (const name of reserved) {
       const created = await createWorkspaceForUser(ada.id, name);
       expect(created.slug).not.toBe(slugify(name));
