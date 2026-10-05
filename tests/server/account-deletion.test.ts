@@ -4,6 +4,7 @@ import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
 import { member, organization, project, user } from '@/db';
 import type { WorkspaceContext } from '@/lib/session';
+import { getWorkspaceVersion } from '@/server/changes/queries';
 import { listTaskFeed } from '@/server/activity/queries';
 import { assertAccountDeletable, prepareAccountDeletion } from '@/server/account/deletion';
 import { createComment } from '@/server/comments/service';
@@ -145,5 +146,17 @@ describe('account deletion', () => {
 
       expect(await owners(ws.id)).toHaveLength(0);
     });
+  });
+
+  it('bumps the counter of every workspace the user shares', async () => {
+    const owner = await createUser('d-live-1@example.com');
+    const leaver = await createUser('d-live-2@example.com');
+    const ws = await createWorkspace(owner.id, 'Shared', 'ws-live');
+    await joinWorkspace(leaver.id, ws.id, 'member');
+    const ctx = ctxFor(owner.id, ws.id, 'ws-live');
+
+    const before = await getWorkspaceVersion(ctx);
+    await deleteUser(leaver.id);
+    expect(await getWorkspaceVersion(ctx)).toBe(before + 1);
   });
 });

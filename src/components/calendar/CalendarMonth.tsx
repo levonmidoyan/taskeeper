@@ -17,6 +17,7 @@ import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Popover from '@/components/ui/popover';
 import { formatDueDate } from '@/lib/dates';
+import { useDragBusy } from '@/lib/live/use-drag-busy';
 import { settle } from '@/lib/settle';
 import type { CalendarTask } from '@/server/tasks/calendar';
 import { updateTaskAction } from '@/server/tasks/actions';
@@ -68,6 +69,7 @@ export function CalendarMonth({
   showProject: boolean;
 }) {
   const router = useRouter();
+  const drag = useDragBusy('calendar');
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
   const [announcement, setAnnouncement] = useState('');
@@ -98,6 +100,7 @@ export function CalendarMonth({
   }
 
   function onDragEnd(event: DragEndEvent) {
+    drag.end();
     const from = (event.active.data.current?.day as string | undefined) ?? null;
     const to = dropTarget(from, event.over ? String(event.over.id) : null);
     const title = chipTitle(event.active);
@@ -161,7 +164,9 @@ export function CalendarMonth({
         id="calendar"
         sensors={sensors}
         collisionDetection={collisionDetection}
+        onDragStart={drag.start}
         onDragEnd={onDragEnd}
+        onDragCancel={drag.end}
         accessibility={{ announcements, screenReaderInstructions }}
       >
         {/* Grid from sm up. A table, not role="grid": there is no arrow-key navigation between days. */}

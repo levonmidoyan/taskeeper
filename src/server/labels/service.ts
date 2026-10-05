@@ -4,6 +4,7 @@ import { db, label, task, taskLabel } from '@/db';
 import { newId } from '@/lib/ids';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
+import { emitChange } from '@/server/changes/service';
 import type { LabelRow } from '@/server/tasks/queries';
 
 const nameSchema = z
@@ -34,7 +35,11 @@ export async function createLabel(
       color: parsed.data.color ?? 'muted',
     };
     // Two members creating the same name at once: the loser gets the winner's row.
-    const [inserted] = await db.insert(label).values(row).onConflictDoNothing().returning({ id: label.id });
+    const [inserted] = await db.transaction(async (tx) => {
+      const rows = await tx.insert(label).values(row).onConflictDoNothing().returning({ id: label.id });
+      if (rows.length > 0) await emitChange(ctx, {}, tx);
+      return rows;
+    });
     if (!inserted) {
       const [winner] = await db
         .select({ id: label.id, name: label.name, color: label.color })
@@ -86,6 +91,7 @@ export async function setTaskLabels(
           labelIds.map((labelId) => ({ taskId: parsed.data.taskId, labelId })),
         );
       }
+      await emitChange(ctx, { projectId: owned.projectId }, tx);
     });
 
     return ok(null);
@@ -97,10 +103,14 @@ export async function deleteLabel(
   input: { labelId: string },
 ): Promise<Result<null>> {
   return withAction(async () => {
-    const deleted = await db
-      .delete(label)
-      .where(and(eq(label.id, input.labelId), eq(label.workspaceId, ctx.workspaceId)))
-      .returning({ id: label.id });
+    const deleted = await db.transaction(async (tx) => {
+      const rows = await tx
+        .delete(label)
+        .where(and(eq(label.id, input.labelId), eq(label.workspaceId, ctx.workspaceId)))
+        .returning({ id: label.id });
+      if (rows.length > 0) await emitChange(ctx, {}, tx);
+      return rows;
+    });
 
     if (deleted.length === 0) return err('Label not found.');
 

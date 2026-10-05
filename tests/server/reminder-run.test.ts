@@ -6,6 +6,7 @@ import { notification } from '@/db';
 import { EmailSendError } from '@/lib/email';
 import type { OutgoingMail } from '@/lib/reminders';
 import type { WorkspaceContext } from '@/lib/session';
+import { getWorkspaceVersion } from '@/server/changes/queries';
 import { createProject } from '@/server/projects/service';
 import { claimUnsentEmails, runReminders } from '@/server/reminders/run';
 import { setTaskReminders } from '@/server/reminders/service';
@@ -16,11 +17,11 @@ afterAll(closeDb);
 
 const NOW = new Date('2026-10-10T06:00:00Z');
 
-async function setup() {
-  const ada = await createUser('run@example.com', 'Ada');
-  const ws = await createWorkspace(ada.id, 'Acme', 'ws-run');
+async function setup(email = 'run@example.com', slug = 'ws-run') {
+  const ada = await createUser(email, 'Ada');
+  const ws = await createWorkspace(ada.id, 'Acme', slug);
   const ctx: WorkspaceContext = {
-    userId: ada.id, workspaceId: ws.id, slug: 'ws-run', role: 'owner', timezone: 'Asia/Yerevan', workspaceTimezone: 'Asia/Yerevan',
+    userId: ada.id, workspaceId: ws.id, slug, role: 'owner', timezone: 'Asia/Yerevan', workspaceTimezone: 'Asia/Yerevan',
   };
   const project = await createProject(ctx, { name: 'Website' });
   if (!project.ok) throw new Error();
@@ -179,5 +180,31 @@ describe('runReminders', () => {
     const ids = [...a, ...b].map((m) => m.notificationId);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toHaveLength(2);
+  });
+
+  it('bumps the workspace counter when it claims something, not on an empty rerun', async () => {
+    const { ctx } = await setup();
+    const { send } = recorder();
+
+    const before = await getWorkspaceVersion(ctx);
+    await runReminders({ now: NOW, send, gapMs: 0 });
+    const afterFirst = await getWorkspaceVersion(ctx);
+    expect(afterFirst).toBe(before + 1);
+
+    await runReminders({ now: NOW, send, gapMs: 0 });
+    expect(await getWorkspaceVersion(ctx)).toBe(afterFirst);
+  });
+
+  it('leaves a workspace whose drafts were all repeats alone', async () => {
+    const { ctx: first } = await setup();
+    const { send } = recorder();
+    await runReminders({ now: NOW, send, gapMs: 0 });
+    const { ctx: second } = await setup('run-2@example.com', 'ws-run-2');
+
+    const before = [await getWorkspaceVersion(first), await getWorkspaceVersion(second)];
+    const result = await runReminders({ now: NOW, send, gapMs: 0 });
+    expect(result.claimed).toBe(2);
+    expect(await getWorkspaceVersion(first)).toBe(before[0]);
+    expect(await getWorkspaceVersion(second)).toBe(before[1] + 1);
   });
 });

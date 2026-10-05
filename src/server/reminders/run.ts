@@ -2,6 +2,7 @@ import { eq, inArray, sql } from 'drizzle-orm';
 import { db, notification, organization, user } from '@/db';
 import { EmailSendError, sendNotificationEmail } from '@/lib/email';
 import { REMINDER_CRON_HOURLY, type MailSender, type OutgoingMail } from '@/lib/reminders';
+import { emitChangeFor } from '@/server/changes/service';
 import { claimNotifications, selectDueDigests, selectDueReminders } from './select';
 
 const EMAIL_BATCH = 500;
@@ -110,7 +111,14 @@ export async function runReminders({
 }: { now?: Date; send?: MailSender; gapMs?: number; budgetMs?: number } = {}): Promise<{ claimed: number; emailed: number; failed: number }> {
   const started = Date.now();
   const drafts = [...(await selectDueReminders(now)), ...(await selectDueDigests(now))];
-  const claimed = await claimNotifications(drafts);
+  const claimedIn = await claimNotifications(drafts);
+  const claimed = claimedIn.length;
+
+  // Recipients' bells live in the workspace layout, so tell those pages. Only
+  // workspaces that got something new: repeats change nothing on screen.
+  for (const workspaceId of new Set(claimedIn)) {
+    await emitChangeFor(workspaceId, db);
+  }
 
   let emailed = 0;
   let failed = 0;

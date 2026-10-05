@@ -4,6 +4,7 @@ import { db, workspaceSettings } from '@/db';
 import { isValidTimezone } from '@/lib/dates';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import { requireRole, type WorkspaceContext } from '@/lib/session';
+import { emitChange } from '@/server/changes/service';
 
 export async function updateWorkspaceSettings(
   ctx: WorkspaceContext,
@@ -29,9 +30,12 @@ export async function updateWorkspaceSettings(
     if (parsed.data.weekStart !== undefined) patch.weekStart = parsed.data.weekStart;
     if (Object.keys(patch).length === 0) return ok(null);
 
-    await db
-      .update(workspaceSettings).set(patch)
-      .where(eq(workspaceSettings.workspaceId, ctx.workspaceId));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(workspaceSettings).set(patch)
+        .where(eq(workspaceSettings.workspaceId, ctx.workspaceId));
+      await emitChange(ctx, {}, tx);
+    });
 
     return ok(null);
   });

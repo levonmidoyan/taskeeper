@@ -56,7 +56,8 @@ export function CommandPalette({
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const modK = e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey;
+      // Autofill fires keydown events with no `key`.
+      const modK = e.key?.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey;
       if (modK) {
         // Another dialog, menu or dropdown owns the screen; leave it alone.
         if (!open && document.querySelector(OVERLAY_SELECTOR)) return;

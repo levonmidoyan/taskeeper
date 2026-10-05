@@ -14,6 +14,7 @@ import * as Button from '@/components/ui/button';
 import * as Popover from '@/components/ui/popover';
 import * as SegmentedControl from '@/components/ui/segmented-control';
 import * as Switch from '@/components/ui/switch';
+import { useDragBusy } from '@/lib/live/use-drag-busy';
 import {
   COLUMN_LABEL,
   DEFAULT_TABLE_SETTINGS,
@@ -41,6 +42,7 @@ export function TaskTableSettings({
   onReset: () => void;
 }) {
   const [dragging, setDragging] = useState(false);
+  const drag = useDragBusy('table-columns');
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
@@ -51,6 +53,7 @@ export function TaskTableSettings({
   const isDefault = JSON.stringify(settings) === JSON.stringify(DEFAULT_TABLE_SETTINGS);
 
   function onDragEnd({ active, over }: DragEndEvent) {
+    drag.end();
     setDragging(false);
     if (!over || active.id === over.id) return;
     const from = movable.indexOf(active.id as TableColumn);
@@ -95,9 +98,15 @@ export function TaskTableSettings({
             id="table-settings-columns"
             sensors={sensors}
             collisionDetection={closestCenter}
-            onDragStart={() => setDragging(true)}
+            onDragStart={() => {
+              drag.start();
+              setDragging(true);
+            }}
             onDragEnd={onDragEnd}
-            onDragCancel={() => setDragging(false)}
+            onDragCancel={() => {
+              drag.end();
+              setDragging(false);
+            }}
           >
             <SortableContext items={movable} strategy={verticalListSortingStrategy}>
               <ul className="-mt-2 flex flex-col gap-0.5">
