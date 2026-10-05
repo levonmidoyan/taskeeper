@@ -132,6 +132,27 @@ describe('GET /tasks', () => {
     }
   });
 
+  it('rejects a misspelled parameter name instead of ignoring it', async () => {
+    const f = await apiFixture('k7b');
+    for (const qs of ['?assigne=me', '?label=x', '?project=x']) {
+      const res = await list(f, qs);
+      expect(res.status, qs).toBe(400);
+      expect(res.json.error.issues[0].path, qs).toBe('query');
+    }
+  });
+
+  it('rejects id filters the list would drop: too many, too long, blank, created=none', async () => {
+    const f = await apiFixture('k7c');
+    const many = Array.from({ length: 51 }, (_, i) => `l${i}`).join(',');
+    for (const [qs, field] of [
+      [`?labels=${many}`, 'labels'], [`?assignee=${'x'.repeat(65)}`, 'assignee'], ['?assignee=%20', 'assignee'], ['?created=none', 'created'],
+    ]) {
+      const res = await list(f, qs);
+      expect(res.status, qs).toBe(400);
+      expect(res.json.error.issues.map((i: { path: string }) => i.path), qs).toContain(`query.${field}`);
+    }
+  });
+
   it('pages with an opaque cursor', async () => {
     const f = await apiFixture('k8');
     for (const t of ['A', 'B', 'C', 'D', 'E']) await add(f.ctx, { projectId: f.project.id, title: t });
@@ -229,6 +250,9 @@ describe('PATCH /tasks/{taskId}', () => {
     const id = await add(f.ctx, { projectId: f.project.id, title: 'T' });
 
     expect((await one(f, id, { method: 'PATCH', body: {} })).status).toBe(400);
+    const typo = await one(f, id, { method: 'PATCH', body: { statusId: f.statuses[2].id, assignee: 'me' } });
+    expect(typo.status).toBe(400);
+    expect((await one(f, id)).json.status.id).toBe(f.statuses[0].id);
     const moved = await one(f, id, { method: 'PATCH', body: { statusId: foreignStatus } });
     expect(moved.status).toBe(422);
     expect(moved.json.error.message).toBe('That column does not belong to this project.');

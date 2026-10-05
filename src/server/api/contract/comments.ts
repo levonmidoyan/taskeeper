@@ -27,7 +27,7 @@ export const createCommentEndpoint = defineEndpoint({
   description: 'Markdown, up to 10,000 characters. You are the author.',
   workspace: true,
   params: taskParams,
-  body: z.object({ body: commentBodySchema.describe('Markdown.') }),
+  body: z.strictObject({ body: commentBodySchema.describe('Markdown.') }),
   status: 201,
   response: commentShape,
   errors: [],

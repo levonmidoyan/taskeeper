@@ -30,4 +30,12 @@ describe('GET /api/cron/reminders', () => {
     expect(await res.json()).toEqual({ claimed: 1, emailed: 1, failed: 0 });
     expect(pruneRateLimits).toHaveBeenCalledOnce();
   });
+
+  it('still sends reminders when pruning the rate-limit table fails', async () => {
+    process.env.CRON_SECRET = 's3cret';
+    vi.mocked(pruneRateLimits).mockRejectedValueOnce(new Error('db down'));
+    const res = await call('Bearer s3cret');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ claimed: 1, emailed: 1, failed: 0 });
+  });
 });
