@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { cronAuthorized } from '@/lib/cron';
+import { pruneRateLimits } from '@/server/api/rate-limit';
 import { runReminders } from '@/server/reminders/run';
 
 // Up to 500 emails a run, one SMTP send each.
@@ -11,5 +12,7 @@ export const maxDuration = 300;
  */
 export async function GET(request: NextRequest) {
   if (!cronAuthorized(request)) return new Response('Unauthorized', { status: 401 });
+  // Housekeeping for the REST API rides on this cron because it always runs.
+  await pruneRateLimits();
   return Response.json(await runReminders());
 }
