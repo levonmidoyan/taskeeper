@@ -1,5 +1,8 @@
 import { meEndpoint } from './account';
 import { getProjectEndpoint, listProjectsEndpoint } from './projects';
+import {
+  createTaskEndpoint, deleteTaskEndpoint, getTaskEndpoint, listTasksEndpoint, updateTaskEndpoint,
+} from './tasks';
 import type { Endpoint } from './types';
 import { listLabelsEndpoint, listMembersEndpoint, listWorkspacesEndpoint } from './workspaces';
 
@@ -11,4 +14,9 @@ export const endpoints: readonly Endpoint[] = [
   listMembersEndpoint,
   listProjectsEndpoint,
   getProjectEndpoint,
+  listTasksEndpoint,
+  createTaskEndpoint,
+  getTaskEndpoint,
+  updateTaskEndpoint,
+  deleteTaskEndpoint,
 ];

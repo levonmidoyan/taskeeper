@@ -82,7 +82,7 @@ async function memberName(ctx: WorkspaceContext, userId: string | null): Promise
 
 const dueDateSchema = z.string().refine(isCalendarDay, 'Use a real YYYY-MM-DD date.');
 
-const createSchema = z.object({
+export const createSchema = z.object({
   projectId: z.string().min(1),
   title: z.string().trim().min(1, 'Give the task a title.').max(200, 'Title is too long.'),
   statusId: z.string().optional(),

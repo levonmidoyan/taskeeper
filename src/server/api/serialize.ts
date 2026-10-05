@@ -1,7 +1,9 @@
 import type { WorkspaceSummary } from '@/server/workspaces/queries';
 import type { MemberRow } from '@/server/labels/queries';
 import type { LabelRow } from '@/server/tasks/queries';
-import type { ApiLabel, ApiMember, ApiProject, ApiStatus, ApiWorkspace } from './contract/shapes';
+import { appUrl } from '@/lib/url';
+import type { ApiLabel, ApiMember, ApiProject, ApiStatus, ApiTask, ApiTaskSummary, ApiWorkspace } from './contract/shapes';
+import type { ApiTaskSource } from './queries';
 
 /**
  * Internal rows → the public contract. Nothing else may put a row into a
@@ -26,4 +28,25 @@ export function serializeLabel(l: LabelRow): ApiLabel {
 
 export function serializeMember(m: MemberRow): ApiMember {
   return { id: m.userId, name: m.name, email: m.email, role: m.role };
+}
+
+export function serializeTaskSummary(slug: string, t: ApiTaskSource): ApiTaskSummary {
+  return {
+    id: t.id,
+    projectId: t.projectId,
+    parentTaskId: t.parentTaskId,
+    title: t.title,
+    status: { id: t.statusId, name: t.statusName, isDone: t.isDone },
+    priority: t.priority,
+    assignee: t.assigneeId ? { id: t.assigneeId, name: t.assigneeName ?? 'Deleted user' } : null,
+    dueDate: t.dueDate,
+    labels: t.labels,
+    createdAt: t.createdAt.toISOString(),
+    updatedAt: t.updatedAt.toISOString(),
+    url: `${appUrl()}/${slug}/tasks/${t.id}`,
+  };
+}
+
+export function serializeTask(slug: string, t: ApiTaskSource & { description: string }): ApiTask {
+  return { ...serializeTaskSummary(slug, t), description: t.description };
 }
