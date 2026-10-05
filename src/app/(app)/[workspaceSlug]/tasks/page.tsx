@@ -60,7 +60,7 @@ export default async function AllTasksPage({
     );
   } else {
     const { tasks, truncated } = await listWorkspaceTasks(ctx, resolved.filter, { sort: parseSortParam(resolved.sort)[0] ?? null });
-    body = tasks.length === 0 && filtered ? <FilterEmpty defaultState="open" /> : (
+    body = tasks.length === 0 && filtered ? <FilterEmpty defaultState={defaultState(layout)} /> : (
       <>
         {truncated && (
           <p className="px-4 py-2 text-paragraph-xs text-text-sub-600 lg:px-6">
