@@ -1,3 +1,4 @@
+import { relations } from 'drizzle-orm';
 import { bigint, boolean, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('user', {
@@ -131,3 +132,35 @@ export const rateLimit = pgTable('rate_limit', {
   count: integer('count').notNull(),
   lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
 });
+
+// Relations for Better Auth's joined reads (advanced.database.joins): a
+// session or account loads its user, a user its accounts, and an organization
+// its members and invitations, in one query. Key names are what the Drizzle
+// adapter looks up: the model name for one, the plural for many.
+export const userRelations = relations(user, ({ many }) => ({
+  sessions: many(session),
+  accounts: many(account),
+  members: many(member),
+}));
+
+export const sessionRelations = relations(session, ({ one }) => ({
+  user: one(user, { fields: [session.userId], references: [user.id] }),
+}));
+
+export const accountRelations = relations(account, ({ one }) => ({
+  user: one(user, { fields: [account.userId], references: [user.id] }),
+}));
+
+export const organizationRelations = relations(organization, ({ many }) => ({
+  members: many(member),
+  invitations: many(invitation),
+}));
+
+export const memberRelations = relations(member, ({ one }) => ({
+  organization: one(organization, { fields: [member.organizationId], references: [organization.id] }),
+  user: one(user, { fields: [member.userId], references: [user.id] }),
+}));
+
+export const invitationRelations = relations(invitation, ({ one }) => ({
+  organization: one(organization, { fields: [invitation.organizationId], references: [organization.id] }),
+}));

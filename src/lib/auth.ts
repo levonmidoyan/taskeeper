@@ -52,6 +52,9 @@ function blockOrganizationEndpoints(): BetterAuthPlugin {
 }
 
 export const auth = betterAuth({
+  // Defaults to "Better Auth" — the name plugins (and the Infrastructure
+  // dashboard) show users when they are not given their own.
+  appName: 'Taskeeper',
   database: drizzleAdapter(db, { provider: 'pg', schema }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: appUrl(),
@@ -113,6 +116,19 @@ export const auth = betterAuth({
   // rate_limit table: serverless instances do not share memory, so the default
   // in-memory store would give each instance its own count.
   rateLimit: { enabled: process.env.AUTH_RATE_LIMIT !== 'off', storage: 'database' },
+  advanced: {
+    // A session read loads its user in the same query instead of a second
+    // round trip. Needs the Drizzle relations at the end of db/schema/auth.ts.
+    database: { joins: true },
+    // The rate limiter keys on the client IP. Vercel sets both headers to the
+    // one client address and overwrites whatever the client sent. A header
+    // holding a chain of addresses is not trusted, and the request then shares
+    // one bucket per path with every other such request.
+    ipAddress: { ipAddressHeaders: ['x-vercel-forwarded-for', 'x-forwarded-for'] },
+  },
+  // OAuth failures (Google sign-in cancelled, account link refused) land here
+  // instead of Better Auth's built-in page under /api/auth/error.
+  onAPIError: { errorURL: '/auth/error' },
   plugins: [
     // Kept for its schema (organization, member, invitation, session's active
     // organization) only. Workspaces, members and invitations are managed by the
@@ -140,6 +156,9 @@ export const auth = betterAuth({
       issuer: 'Taskeeper',
       otpOptions: {
         period: TWO_FACTOR_CODE_EXPIRY_MINUTES, // minutes, unlike expiresIn below
+        // Only a hash goes in the verification table, so a database leak gives
+        // away no live codes. The code is only ever compared, never read back.
+        storeOTP: 'hashed',
         sendOTP: ({ user, otp }) => sendTwoFactorCodeEmail(user.email, otp),
       },
     }),
@@ -150,6 +169,7 @@ export const auth = betterAuth({
     emailOTP({
       disableSignUp: true,
       expiresIn: SIGN_IN_CODE_EXPIRY_MINUTES * 60,
+      storeOTP: 'hashed', // as for the two-factor code above
       sendVerificationOTP: async ({ email, otp, type }) => {
         if (type === 'sign-in') await sendSignInCodeEmail(email, otp);
       },
