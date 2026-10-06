@@ -1,5 +1,7 @@
 import { TimezoneForm } from '@/components/settings/TimezoneForm';
+import { WorkspaceLogoForm } from '@/components/settings/WorkspaceLogoForm';
 import { requireWorkspace } from '@/lib/session';
+import { listMyWorkspaces } from '@/server/workspaces/queries';
 
 export default async function GeneralSettingsPage({
   params,
@@ -8,6 +10,8 @@ export default async function GeneralSettingsPage({
 }) {
   const { workspaceSlug } = await params;
   const ctx = await requireWorkspace(workspaceSlug);
+  const workspace = (await listMyWorkspaces(ctx.userId)).find((w) => w.id === ctx.workspaceId);
+  const canEdit = ctx.role === 'owner' || ctx.role === 'admin';
 
   return (
     <div className="space-y-8">
@@ -16,11 +20,15 @@ export default async function GeneralSettingsPage({
         <p className="mt-1 text-paragraph-sm text-text-sub-600">Workspace-wide preferences.</p>
       </div>
 
-      <TimezoneForm
+      <WorkspaceLogoForm
         workspaceSlug={workspaceSlug}
-        current={ctx.workspaceTimezone}
-        canEdit={ctx.role === 'owner' || ctx.role === 'admin'}
+        workspaceId={ctx.workspaceId}
+        name={workspace?.name ?? ''}
+        current={workspace?.logo ?? null}
+        canEdit={canEdit}
       />
+
+      <TimezoneForm workspaceSlug={workspaceSlug} current={ctx.workspaceTimezone} canEdit={canEdit} />
     </div>
   );
 }
