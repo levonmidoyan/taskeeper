@@ -19,6 +19,7 @@ import * as Input from '@/components/ui/input';
 import * as Modal from '@/components/ui/modal';
 import * as Select from '@/components/ui/select';
 import * as Switch from '@/components/ui/switch';
+import { useDragBusy } from '@/lib/live/use-drag-busy';
 import { settle } from '@/lib/settle';
 import type { StatusRow } from '@/server/projects/queries';
 import {
@@ -53,6 +54,7 @@ export function ManageColumnsDialog({
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [adding, setAdding] = useState('');
   const [dragging, setDragging] = useState(false);
+  const drag = useDragBusy('columns');
   const [ordered, applyOrder] = useOptimistic(statuses, (_current: StatusRow[], next: StatusRow[]) => next);
 
   const sensors = useSensors(
@@ -84,6 +86,7 @@ export function ManageColumnsDialog({
   }
 
   function onDragEnd({ active, over }: DragEndEvent) {
+    drag.end();
     setDragging(false);
     if (!over || active.id === over.id) return;
     const from = ordered.findIndex((s) => s.id === active.id);
@@ -168,9 +171,15 @@ export function ManageColumnsDialog({
             id="manage-columns"
             sensors={sensors}
             collisionDetection={closestCenter}
-            onDragStart={() => setDragging(true)}
+            onDragStart={() => {
+              drag.start();
+              setDragging(true);
+            }}
             onDragEnd={onDragEnd}
-            onDragCancel={() => setDragging(false)}
+            onDragCancel={() => {
+              drag.end();
+              setDragging(false);
+            }}
           >
             <SortableContext items={ordered.map((s) => s.id)} strategy={verticalListSortingStrategy}>
               <ul className="flex flex-col gap-2">

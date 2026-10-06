@@ -12,6 +12,7 @@ import { ActivityFeed } from '@/components/task/ActivityFeed';
 import { AssigneePicker } from '@/components/task/AssigneePicker';
 import { AttachmentSection } from '@/components/task/AttachmentSection';
 import { DueDateField } from '@/components/task/DueDateField';
+import { ReminderField } from '@/components/task/ReminderField';
 import { LabelPicker } from '@/components/task/LabelPicker';
 import { PRIORITY_LABEL, PriorityIcon } from '@/components/task/Priority';
 import { RichTextField } from '@/components/task/RichTextField';
@@ -33,6 +34,7 @@ import type { MemberRow } from '@/server/labels/queries';
 import type { StatusRow } from '@/server/projects/queries';
 import { deleteTaskAction, updateTaskAction } from '@/server/tasks/actions';
 import type { LabelRow, Priority, TaskDetail } from '@/server/tasks/queries';
+import type { ReminderOffset } from '@/lib/reminders';
 
 const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
 
@@ -43,6 +45,21 @@ function Field({ id, label, children }: { id: string; label: string; children: R
       {children}
     </div>
   );
+}
+
+/**
+ * Local state for a field the server also holds. When a refresh brings a new
+ * server value (a teammate's edit, via live refresh), it replaces the local one,
+ * unless the local one has an edit of its own not yet saved.
+ */
+function useServerValue<T>(server: T) {
+  const [value, setValue] = useState(server);
+  const [synced, setSynced] = useState(server);
+  if (server !== synced) {
+    setSynced(server);
+    if (value === synced) setValue(server);
+  }
+  return [value, setValue] as const;
 }
 
 export type TaskDetailViewProps = {
@@ -58,6 +75,8 @@ export type TaskDetailViewProps = {
   timezone: string;
   /** Null when storage is not configured; the section is then hidden. */
   attachments: AttachmentView[] | null;
+  /** My own reminders on this task. */
+  reminders: ReminderOffset[];
 };
 
 /**
@@ -79,18 +98,19 @@ export function TaskDetailView({
   canModerate,
   timezone,
   attachments,
+  reminders,
 }: TaskDetailViewProps & { mode: 'modal' | 'page'; projectName?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
   const confirm = useConfirm();
-  const [title, setTitle] = useState(task.title);
+  const [title, setTitle] = useServerValue(task.title);
   // Field values are held here so a save the server rejects can put the old
   // value back; router.refresh() alone would not, as the server's is unchanged.
-  const [assigneeId, setAssigneeId] = useState(task.assigneeId);
-  const [statusId, setStatusId] = useState(task.statusId);
-  const [priority, setPriority] = useState<Priority>(task.priority);
-  const [dueDate, setDueDate] = useState(task.dueDate);
+  const [assigneeId, setAssigneeId] = useServerValue(task.assigneeId);
+  const [statusId, setStatusId] = useServerValue(task.statusId);
+  const [priority, setPriority] = useServerValue<Priority>(task.priority);
+  const [dueDate, setDueDate] = useServerValue(task.dueDate);
 
   const tasksBase = `/${workspaceSlug}/tasks`;
   const projectHref = `/${workspaceSlug}/projects/${projectId}`;
@@ -298,6 +318,13 @@ export function TaskDetailView({
               patch({ taskId: task.id, dueDate: next }, () => setDueDate(previous));
             }}
           />
+          <ReminderField
+            id="task-reminders"
+            workspaceSlug={workspaceSlug}
+            taskId={task.id}
+            value={reminders}
+            hasDueDate={dueDate !== null}
+          />
 
           <div className="flex flex-col gap-1">
             <span className="text-label-sm text-text-strong-950">Labels</span>
@@ -326,7 +353,10 @@ export function TaskDetailView({
             <span id="task-description-label" className="text-label-sm text-text-strong-950">
               Description
             </span>
+            {/* Reloads when the stored description changes (a teammate's edit). Never while
+                I am in it: a focused editor holds live refresh back, and mine saves on blur. */}
             <RichTextField
+              key={task.description}
               value={task.description}
               labelledBy="task-description-label"
               placeholder="Add details… Type / for headings, lists and more."

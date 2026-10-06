@@ -1,19 +1,24 @@
 'use client';
 
 import {
-  IconChecklist, IconClock, IconClockFilled, IconMenu2, IconSparkles, IconStar, IconStarFilled,
+  IconCalendar, IconCalendarFilled, IconChecklist, IconClock, IconClockFilled, IconListDetails, IconLock, IconMenu2,
+  IconSparkles, IconStar, IconStarFilled,
 } from '@tabler/icons-react';
 import Link from 'next/link';
-import { useParams, usePathname } from 'next/navigation';
+import { useParams, usePathname, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { UserButton } from '@/components/auth/user/user-button';
 import { NewProjectDialog } from '@/components/shell/NewProjectDialog';
 import { ProjectColorButton } from '@/components/shell/ProjectColorPicker';
+import { ProjectMenu } from '@/components/shell/ProjectMenu';
 import { ThemeControl } from '@/components/shell/ThemeControl';
 import { WorkspaceSwitcher } from '@/components/shell/WorkspaceSwitcher';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Drawer from '@/components/ui/drawer';
+import { ViewMenu } from '@/components/views/ViewMenu';
+import { viewHref } from '@/lib/views';
 import type { ProjectSummary } from '@/server/projects/queries';
+import type { SavedView } from '@/server/views/queries';
 import type { WorkspaceSummary } from '@/server/workspaces/queries';
 import { cn } from '@/utils/cn';
 
@@ -21,8 +26,10 @@ type Props = {
   workspaceSlug: string;
   workspaces: WorkspaceSummary[];
   projects: ProjectSummary[];
-  /** Owners and admins may recolor projects; members see the color only. */
+  /** Owners and admins may recolor and manage projects; members see the color only. */
   canManageProjects: boolean;
+  /** Workspace views (All tasks) the caller can open: their own plus shared ones. */
+  views: SavedView[];
 };
 
 const navItem =
@@ -42,8 +49,8 @@ function ProjectLink({
   active: boolean;
   canManage: boolean;
 }) {
-  // The dot is its own button beside the link, not inside it: a button nested
-  // in an anchor is invalid and would navigate on every color change.
+  // The dot and the menu are their own buttons beside the link, not inside it: a
+  // button nested in an anchor is invalid and would navigate on every click.
   return (
     <div className={cn(navItem, 'group relative h-9 pl-1', active ? navActive : navIdle)}>
       <ProjectColorButton
@@ -61,11 +68,27 @@ function ProjectLink({
       >
         <span className="truncate">{project.name}</span>
         {project.openTaskCount > 0 && (
-          <span className="tabular ml-auto text-label-xs text-text-soft-400">
+          <span
+            className={cn(
+              'tabular ml-auto text-label-xs text-text-soft-400',
+              // The menu takes the count's place while the row is hovered or focused.
+              canManage && 'group-focus-within:hidden group-hover:hidden',
+            )}
+          >
             {project.openTaskCount}
           </span>
         )}
       </Link>
+      {canManage && (
+        <ProjectMenu
+          workspaceSlug={workspaceSlug}
+          projectId={project.id}
+          name={project.name}
+          placement="rail"
+          // Shown on hover and focus; always on touch screens, which have no hover.
+          className="relative z-10 -mr-1 hidden shrink-0 group-focus-within:flex group-hover:flex data-shown:flex pointer-coarse:flex"
+        />
+      )}
     </div>
   );
 }
@@ -74,16 +97,19 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return <span className="text-subheading-2xs uppercase text-text-soft-400">{children}</span>;
 }
 
-function RailBody({ workspaceSlug, workspaces, projects, canManageProjects }: Props) {
+function RailBody({ workspaceSlug, workspaces, projects, canManageProjects, views }: Props) {
   const params = useParams<{ projectId?: string }>();
   const pathname = usePathname();
+  const openView = useSearchParams().get('view');
   const starred = projects.filter((p) => p.starred);
 
-  const views = [
+  const items = [
     { href: `/${workspaceSlug}`, label: 'For you', icon: IconSparkles, activeIcon: IconSparkles },
+    { href: `/${workspaceSlug}/tasks`, label: 'All tasks', icon: IconListDetails, activeIcon: IconListDetails },
     { href: `/${workspaceSlug}/recent`, label: 'Recent', icon: IconClock, activeIcon: IconClockFilled },
     { href: `/${workspaceSlug}/starred`, label: 'Starred', icon: IconStar, activeIcon: IconStarFilled },
     { href: `/${workspaceSlug}/todo`, label: 'To-do', icon: IconChecklist, activeIcon: IconChecklist },
+    { href: `/${workspaceSlug}/calendar`, label: 'My calendar', icon: IconCalendar, activeIcon: IconCalendarFilled },
   ];
 
   return (
@@ -94,8 +120,9 @@ function RailBody({ workspaceSlug, workspaces, projects, canManageProjects }: Pr
       <WorkspaceSwitcher current={workspaceSlug} workspaces={workspaces} />
 
       <div className="space-y-0.5">
-        {views.map(({ href, label, icon, activeIcon }) => {
-          const active = pathname === href;
+        {items.map(({ href, label, icon, activeIcon }) => {
+          // A saved view highlights its own row below, not All tasks.
+          const active = pathname === href && !openView;
           const Icon = active ? activeIcon : icon;
           return (
             <Link
@@ -126,6 +153,35 @@ function RailBody({ workspaceSlug, workspaces, projects, canManageProjects }: Pr
                 canManage={canManageProjects}
               />
             ))}
+          </div>
+        )}
+
+        {views.length > 0 && (
+          <div className="space-y-1">
+            <div className="px-2.5 py-1"><SectionLabel>Views</SectionLabel></div>
+            {views.map((view) => {
+              const active = openView === view.id;
+              const Icon = view.layout === 'calendar' ? IconCalendar : IconListDetails;
+              return (
+                <div key={view.id} className={cn(navItem, 'group relative h-9', active ? navActive : navIdle)}>
+                  <Link
+                    href={viewHref(workspaceSlug, view)}
+                    aria-current={active ? 'page' : undefined}
+                    className="flex min-w-0 flex-1 items-center gap-2 self-stretch after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-primary-base"
+                  >
+                    <Icon className={cn('size-4 shrink-0', active ? 'text-primary-base' : 'text-text-soft-400')} aria-hidden="true" />
+                    <span className="truncate">{view.name}</span>
+                    {!view.shared && <IconLock className="size-3.5 shrink-0 text-text-soft-400" aria-label="Private" />}
+                  </Link>
+                  <ViewMenu
+                    workspaceSlug={workspaceSlug}
+                    view={view}
+                    placement="rail"
+                    className="relative z-10 -mr-1 hidden shrink-0 group-focus-within:flex group-hover:flex data-shown:flex pointer-coarse:flex"
+                  />
+                </div>
+              );
+            })}
           </div>
         )}
 

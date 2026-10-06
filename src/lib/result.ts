@@ -1,13 +1,19 @@
 import { unstable_rethrow } from 'next/navigation';
 
-export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
+/**
+ * Why a failure happened, for callers that must tell kinds apart (the REST API
+ * maps them to 403 / 404 / 500). UI callers ignore it and show `error`.
+ */
+export type FailureCode = 'forbidden' | 'not_found' | 'internal';
+
+export type Result<T> = { ok: true; data: T } | { ok: false; error: string; code?: FailureCode };
 
 export function ok<T>(data: T): Result<T> {
   return { ok: true, data };
 }
 
-export function err(error: string): Result<never> {
-  return { ok: false, error };
+export function err(error: string, code?: FailureCode): Result<never> {
+  return code ? { ok: false, error, code } : { ok: false, error };
 }
 
 /** Thrown by requireRole; converted to a Result by withAction. */
@@ -33,8 +39,8 @@ export async function withAction<T>(fn: () => Promise<Result<T>>): Promise<Resul
     // call funnels through here, so those must escape uncaught rather than be
     // swallowed and reported as a generic failure.
     unstable_rethrow(error);
-    if (error instanceof ForbiddenError) return err(error.message);
+    if (error instanceof ForbiddenError) return err(error.message, 'forbidden');
     console.error('[action]', error);
-    return err('Something went wrong. Please try again.');
+    return err('Something went wrong. Please try again.', 'internal');
   }
 }

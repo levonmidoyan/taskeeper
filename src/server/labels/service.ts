@@ -4,6 +4,7 @@ import { db, label, task, taskLabel } from '@/db';
 import { newId } from '@/lib/ids';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
+import { emitChange } from '@/server/changes/service';
 import type { LabelRow } from '@/server/tasks/queries';
 
 const nameSchema = z
@@ -34,7 +35,11 @@ export async function createLabel(
       color: parsed.data.color ?? 'muted',
     };
     // Two members creating the same name at once: the loser gets the winner's row.
-    const [inserted] = await db.insert(label).values(row).onConflictDoNothing().returning({ id: label.id });
+    const [inserted] = await db.transaction(async (tx) => {
+      const rows = await tx.insert(label).values(row).onConflictDoNothing().returning({ id: label.id });
+      if (rows.length > 0) await emitChange(ctx, {}, tx);
+      return rows;
+    });
     if (!inserted) {
       const [winner] = await db
         .select({ id: label.id, name: label.name, color: label.color })
@@ -65,31 +70,51 @@ export async function setTaskLabels(
       .limit(1);
     if (!owned) return err('Task not found.');
 
-    // Deduplicated first: task_label is keyed on (task_id, label_id), so a repeated
-    // id would break the insert, and comparing counts against a list holding the
-    // same id twice would reject a perfectly valid selection.
-    const labelIds = [...new Set(parsed.data.labelIds)];
-
-    if (labelIds.length > 0) {
-      // Every id must belong to this workspace, or the whole call is rejected.
-      const valid = await db
-        .select({ id: label.id })
-        .from(label)
-        .where(and(eq(label.workspaceId, ctx.workspaceId), inArray(label.id, labelIds)));
-      if (valid.length !== labelIds.length) return err('Unknown label.');
-    }
-
-    await db.transaction(async (tx) => {
-      await tx.delete(taskLabel).where(eq(taskLabel.taskId, parsed.data.taskId));
-      if (labelIds.length > 0) {
-        await tx.insert(taskLabel).values(
-          labelIds.map((labelId) => ({ taskId: parsed.data.taskId, labelId })),
-        );
-      }
+    const result = await db.transaction(async (tx) => {
+      const replaced = await replaceTaskLabels(ctx, tx, parsed.data.taskId, parsed.data.labelIds);
+      if (replaced.ok) await emitChange(ctx, { projectId: owned.projectId }, tx);
+      return replaced;
     });
+    if (!result.ok) return result;
 
     return ok(null);
   });
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Replaces a task's labels inside the caller's transaction, checking every id
+ * before writing. The checked labels stay locked until commit, so a label
+ * deleted concurrently waits for this write instead of failing it half-way.
+ */
+export async function replaceTaskLabels(
+  ctx: WorkspaceContext,
+  tx: Tx,
+  taskId: string,
+  ids: string[],
+): Promise<Result<null>> {
+  // Deduplicated first: task_label is keyed on (task_id, label_id), so a repeated
+  // id would break the insert, and comparing counts against a list holding the
+  // same id twice would reject a perfectly valid selection.
+  const labelIds = [...new Set(ids)];
+
+  if (labelIds.length > 0) {
+    // Every id must belong to this workspace, or the whole call is rejected.
+    const valid = await tx
+      .select({ id: label.id })
+      .from(label)
+      .where(and(eq(label.workspaceId, ctx.workspaceId), inArray(label.id, labelIds)))
+      .for('key share');
+    if (valid.length !== labelIds.length) return err('Unknown label.');
+  }
+
+  await tx.delete(taskLabel).where(eq(taskLabel.taskId, taskId));
+  if (labelIds.length > 0) {
+    await tx.insert(taskLabel).values(labelIds.map((labelId) => ({ taskId, labelId })));
+  }
+  await tx.update(task).set({ updatedAt: new Date() }).where(eq(task.id, taskId));
+  return ok(null);
 }
 
 export async function deleteLabel(
@@ -97,10 +122,14 @@ export async function deleteLabel(
   input: { labelId: string },
 ): Promise<Result<null>> {
   return withAction(async () => {
-    const deleted = await db
-      .delete(label)
-      .where(and(eq(label.id, input.labelId), eq(label.workspaceId, ctx.workspaceId)))
-      .returning({ id: label.id });
+    const deleted = await db.transaction(async (tx) => {
+      const rows = await tx
+        .delete(label)
+        .where(and(eq(label.id, input.labelId), eq(label.workspaceId, ctx.workspaceId)))
+        .returning({ id: label.id });
+      if (rows.length > 0) await emitChange(ctx, {}, tx);
+      return rows;
+    });
 
     if (deleted.length === 0) return err('Label not found.');
 

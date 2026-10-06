@@ -6,6 +6,7 @@ import { newId } from '@/lib/ids';
 import { appUrl } from '@/lib/url';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import { requireRole, type WorkspaceContext } from '@/lib/session';
+import { emitChange, emitChangeFor } from '@/server/changes/service';
 
 const INVITE_TTL_DAYS = 7;
 
@@ -14,11 +15,14 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 /**
  * Locks the workspace row for the rest of the transaction, so owner changes in
  * one workspace run one at a time: two owners demoting or removing each other
- * at once must not both pass the last-owner check.
+ * at once must not both pass the last-owner check. NO KEY UPDATE, not UPDATE:
+ * it still excludes other lockers but not the KEY SHARE lock a foreign-key
+ * insert takes, so a concurrent first insert into workspace_change cannot
+ * deadlock against this transaction's own emitChange.
  */
 async function lockWorkspace(tx: Tx, workspaceId: string): Promise<void> {
   await tx.select({ id: organization.id }).from(organization)
-    .where(eq(organization.id, workspaceId)).for('update');
+    .where(eq(organization.id, workspaceId)).for('no key update');
 }
 
 async function ownerCount(tx: Tx, workspaceId: string): Promise<number> {
@@ -84,6 +88,7 @@ export async function inviteMember(
       return err('The invitation email could not be sent. Please try again.');
     }
 
+    await emitChange(ctx, {}, db);
     return ok({ invitationId: id });
   });
 }
@@ -114,6 +119,7 @@ export async function removeMember(
       await tx
         .delete(member)
         .where(and(eq(member.organizationId, ctx.workspaceId), eq(member.userId, input.userId)));
+      await emitChange(ctx, {}, tx);
 
       return ok(null);
     });
@@ -158,6 +164,7 @@ export async function changeMemberRole(
         .where(
           and(eq(member.organizationId, ctx.workspaceId), eq(member.userId, parsed.data.userId)),
         );
+      await emitChange(ctx, {}, tx);
 
       return ok(null);
     });
@@ -249,6 +256,7 @@ export async function acceptInvitation(
           role: invite.role ?? 'member',
         });
       }
+      await emitChangeFor(invite.organizationId, tx);
       return true;
     });
     if (!accepted) return err('This invitation is no longer valid.');
@@ -266,11 +274,15 @@ export async function declineInvitation(
     const found = await loadRedeemable(userEmail, invitationId);
     if (!found.ok) return found;
 
-    const [declined] = await db
-      .update(invitation)
-      .set({ status: 'rejected' })
-      .where(and(eq(invitation.id, found.data.id), eq(invitation.status, 'pending')))
-      .returning({ id: invitation.id });
+    const [declined] = await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(invitation)
+        .set({ status: 'rejected' })
+        .where(and(eq(invitation.id, found.data.id), eq(invitation.status, 'pending')))
+        .returning({ id: invitation.id });
+      if (rows.length > 0) await emitChangeFor(found.data.organizationId, tx);
+      return rows;
+    });
     if (!declined) return err('This invitation is no longer valid.');
 
     return ok(null);

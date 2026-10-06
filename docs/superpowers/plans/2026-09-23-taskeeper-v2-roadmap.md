@@ -1,12 +1,66 @@
 # Taskeeper v2 — Deferred Scope Roadmap
 
 **Source:** `docs/superpowers/specs/2026-09-20-taskeeper-design.md` §9 (Deferred), §2 non-goals.
-**Status of v1:** complete on `feat/taskeeper-v1` (`9b078c7..3ff2cc0`).
+**Status of v1:** released as `1.0.0` (tag on `209a3c6`, 2026-10-03).
 
 This is a sequencing document, not an implementation plan. Each slice below gets its own
 plan in `docs/superpowers/plans/` when it is reached, written with the
 `superpowers:writing-plans` skill and executed task-by-task. Only Slice 1 has a plan today:
 `docs/superpowers/plans/2026-09-23-comments-and-activity.md`.
+
+## Priority order (2026-10-03)
+
+Set after the 1.0.0 release; supersedes the value order in **Ordering** below. The slice
+table and slice notes stay as the design reference for each slice.
+
+**P0: before real users touch prod** — done with 1.0.0.
+
+1. ~~Prod R2 and `CRON_SECRET`.~~
+2. ~~One green CI run on GitHub Actions with the MinIO service.~~
+3. ~~Attachment ✕ bug: dismissing an upload before confirm left the file attached.~~
+4. ~~Real-browser crawl of every route as admin and member, with overdue, archived and empty data.~~
+5. ~~Release version: `1.0.0`.~~
+
+**P1: small, high value**
+
+6. Project archive / unarchive UI. The services and actions exist in `src/server/projects/`,
+   but no component calls archive, unarchive, rename or delete, so a project can be neither
+   archived nor brought back from the UI.
+7. Slice 2: per-user timezone. Must land before reminders.
+8. Slice 3: full-text search + ⌘K. Today's `ilike` search covers titles only.
+
+**P2: core team features**
+
+9. Slice 5: calendar + reminders. Cron and email already exist.
+10. Slice 6: saved filters and views, on slice 3's filter predicates.
+11. Slice 8: realtime sync — built as polling (2026-10-04, `feat/live-refresh`): a
+    per-workspace change counter bumped in every shared write's transaction, polled every
+    30 s while visible. Pusher later = a second `ChangeTransport` plus a publish in
+    `emitChange`; spec `docs/superpowers/specs/2026-10-04-live-refresh-design.md`.
+
+**P3: bigger or more niche** (decided 2026-10-05)
+
+12. ~~Slice 9: public share links.~~ Dropped: no need for guest access, and it would be the
+    first auth path past `requireWorkspace`.
+13. Slice 7: custom per-project properties. Parked as a possible future feature; not
+    scheduled. Revisit only when users ask for fields beyond the fixed set.
+
+**P4: last or optional**
+
+14. Slice 10, split in two:
+    - **14a REST API v1** — personal API tokens, `/api/v1` core task loop, OpenAPI +
+      `/docs/api`. Spec `docs/superpowers/specs/2026-10-05-rest-api-design.md`, plan
+      `docs/superpowers/plans/2026-10-05-rest-api.md`.
+    - **14b Mobile** — enable Better Auth's `bearer` plugin, add a session strategy to
+      `src/server/api/auth.ts`, sign in through the existing device-authorization flow.
+      Designed when a mobile app is real.
+15. Polish (`feat/polish`, 2026-10-05): relative dates on attachment cards; a test for the
+    401 response on the attachment route. Coloured status dots on board columns: already
+    covered by the coloured `StatusIcon` in every column header since the UI reset.
+16. Slice 4: rich text — closed. Shipped as Markdown through Tiptap (`@tiptap/markdown`);
+    `task.description` stays `text`, not the `jsonb` the slice note below planned.
+
+Slice 1 (comments + activity log) shipped in v1.
 
 ## Ordering
 
@@ -32,7 +86,8 @@ in Postgres, high daily value, and saved filters want its query shape).
 Every global constraint in `docs/superpowers/plans/2026-09-20-taskeeper-v1.md` still holds
 verbatim — Yarn 4, pinned versions, Node runtime only, no session-level Postgres state, no
 component imports from `src/db/`, `ctx: WorkspaceContext` first parameter on every
-`src/server/**` export, `Result<T>` across the action boundary, semantic Tailwind tokens,
+`src/server/**` export (or `ctx: UserContext` for account-level services with no workspace
+in the URL, since slice 2), `Result<T>` across the action boundary, semantic Tailwind tokens,
 Lucide icons only, dates through `src/lib/dates.ts`, `TZ=UTC`, TDD, Conventional Commits,
 no `Co-Authored-By` trailers.
 

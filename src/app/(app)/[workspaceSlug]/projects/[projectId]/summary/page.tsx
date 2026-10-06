@@ -6,6 +6,7 @@ import {
 } from '@tabler/icons-react';
 import { notFound } from 'next/navigation';
 import { ProjectHeader } from '@/components/shell/ProjectHeader';
+import { ProjectMenu } from '@/components/shell/ProjectMenu';
 import { StarButton } from '@/components/shell/StarButton';
 import { PRIORITY_DOT, PRIORITY_LABEL, PriorityIcon } from '@/components/task/Priority';
 import { statusBg } from '@/components/task/status-color';
@@ -14,6 +15,7 @@ import { requireWorkspace } from '@/lib/session';
 import { DUE_SOON_DAYS, summarizeTasks } from '@/lib/task-summary';
 import { getProject } from '@/server/projects/queries';
 import { listProjectTasks } from '@/server/tasks/queries';
+import { listViews } from '@/server/views/queries';
 import { cn } from '@/utils/cn';
 
 export default async function ProjectSummaryPage({
@@ -23,11 +25,12 @@ export default async function ProjectSummaryPage({
 }) {
   const { workspaceSlug, projectId } = await params;
   const ctx = await requireWorkspace(workspaceSlug);
+  const canManage = ctx.role === 'owner' || ctx.role === 'admin';
 
   const project = await getProject(ctx, projectId);
   if (!project) notFound();
 
-  const tasks = await listProjectTasks(ctx, projectId);
+  const [tasks, views] = await Promise.all([listProjectTasks(ctx, projectId), listViews(ctx, { projectId })]);
   const summary = summarizeTasks(tasks, project.statuses, ctx.timezone);
   const basePath = `/${workspaceSlug}/projects/${projectId}`;
 
@@ -49,6 +52,9 @@ export default async function ProjectSummaryPage({
         name={project.name}
         basePath={basePath}
         star={<StarButton workspaceSlug={workspaceSlug} projectId={projectId} starred={project.starred} />}
+        menu={canManage && <ProjectMenu workspaceSlug={workspaceSlug} projectId={projectId} name={project.name} />}
+        workspaceSlug={workspaceSlug}
+        views={views}
       />
       <div className="mx-auto w-full max-w-400 px-4 py-6 lg:px-6">
         <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">

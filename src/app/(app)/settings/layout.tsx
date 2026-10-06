@@ -21,7 +21,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
         <div>
           <AccountBreadcrumb className="mb-3" workspaceSlug={ctx.slug} />
           <h1 className="text-title-h5 text-text-strong-950">Account</h1>
-          <p className="mt-1 text-paragraph-sm text-text-sub-600">Your profile, sign-in and sessions.</p>
+          <p className="mt-1 text-paragraph-sm text-text-sub-600">Your profile, sign-in, sessions and preferences.</p>
         </div>
         <AccountSettingsTabs>{children}</AccountSettingsTabs>
       </main>

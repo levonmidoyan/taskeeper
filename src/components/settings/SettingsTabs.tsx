@@ -4,6 +4,9 @@ import { viewPaths } from '@better-auth-ui/core';
 import {
   IconAdjustmentsHorizontal,
   IconChevronRight,
+  IconClock,
+  IconFolders,
+  IconKey,
   IconShield,
   IconUser,
   IconUsers,
@@ -67,6 +70,8 @@ export function AccountSettingsTabs({ children }: { children: React.ReactNode })
       tabs={[
         { label: 'Profile', href: `/settings/${viewPaths.settings.account}`, icon: IconUser },
         { label: 'Security', href: `/settings/${viewPaths.settings.security}`, icon: IconShield },
+        { label: 'Preferences', href: '/settings/preferences', icon: IconClock },
+        { label: 'API tokens', href: '/settings/api-tokens', icon: IconKey },
       ]}
     >
       {children}
@@ -87,6 +92,7 @@ export function WorkspaceSettingsTabs({
       tabs={[
         { label: 'General', href: `/${workspaceSlug}/settings/general`, icon: IconAdjustmentsHorizontal },
         { label: 'Members', href: `/${workspaceSlug}/settings/members`, icon: IconUsers },
+        { label: 'Projects', href: `/${workspaceSlug}/settings/projects`, icon: IconFolders },
       ]}
     >
       {children}

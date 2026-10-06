@@ -7,6 +7,7 @@ import { listTaskAttachments } from '@/server/attachments/queries';
 import { listLabels, listWorkspaceMembers } from '@/server/labels/queries';
 import { getProject } from '@/server/projects/queries';
 import { getTaskDetail } from '@/server/tasks/queries';
+import { listMyReminders } from '@/server/reminders/service';
 
 /**
  * A task on its own page, the link to share. Project views still open tasks
@@ -23,12 +24,13 @@ export default async function TaskPage({
   const task = await getTaskDetail(ctx, taskId);
   if (!task) notFound();
 
-  const [project, members, allLabels, feed, attachments] = await Promise.all([
+  const [project, members, allLabels, feed, attachments, reminders] = await Promise.all([
     getProject(ctx, task.projectId),
     listWorkspaceMembers(ctx),
     listLabels(ctx),
     listTaskFeed(ctx, task.id),
     storageEnabled() ? listTaskAttachments(ctx, task.id) : null,
+    listMyReminders(ctx, task.id),
   ]);
   if (!project) notFound();
 
@@ -52,6 +54,7 @@ export default async function TaskPage({
         canModerate={ctx.role === 'owner' || ctx.role === 'admin'}
         timezone={ctx.timezone}
         attachments={attachments}
+        reminders={reminders}
       />
     </main>
   );

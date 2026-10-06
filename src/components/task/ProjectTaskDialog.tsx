@@ -6,6 +6,7 @@ import { listTaskAttachments } from '@/server/attachments/queries';
 import { listLabels, listWorkspaceMembers } from '@/server/labels/queries';
 import type { StatusRow } from '@/server/projects/queries';
 import { getTaskDetail } from '@/server/tasks/queries';
+import { listMyReminders } from '@/server/reminders/service';
 
 /**
  * The task dialog every project view opens from ?task=<id>, so it is
@@ -30,9 +31,10 @@ export async function ProjectTaskDialog({
   // every status pick would then fail against the task's real project.
   if (!task || task.projectId !== projectId) return null;
 
-  const [members, allLabels, feed, attachments] = await Promise.all([
+  const [members, allLabels, feed, attachments, reminders] = await Promise.all([
     listWorkspaceMembers(ctx), listLabels(ctx), listTaskFeed(ctx, task.id),
     storageEnabled() ? listTaskAttachments(ctx, task.id) : null,
+    listMyReminders(ctx, task.id),
   ]);
 
   return (
@@ -51,6 +53,7 @@ export async function ProjectTaskDialog({
       canModerate={ctx.role === 'owner' || ctx.role === 'admin'}
       timezone={ctx.timezone}
       attachments={attachments}
+      reminders={reminders}
     />
   );
 }

@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { BoardColumn } from '@/components/board/BoardColumn';
 import { columnId, isUnchanged, neighboursAfterMove } from '@/components/board/neighbours';
 import { KanbanProvider } from '@/components/kibo-ui/kanban';
+import { useDragBusy } from '@/lib/live/use-drag-busy';
 import { settle } from '@/lib/settle';
 import type { StatusRow } from '@/server/projects/queries';
 import { moveTaskAction } from '@/server/tasks/actions';
@@ -30,6 +31,7 @@ export function Board({
   tasks,
   timezone,
   canEditColumns,
+  hiddenStatusIds = [],
 }: {
   workspaceSlug: string;
   statuses: StatusRow[];
@@ -37,6 +39,8 @@ export function Board({
   timezone: string;
   /** Owners and admins may rename a column from its header. */
   canEditColumns: boolean;
+  /** Columns the active filter hides; a card moved into one disappears after saving. */
+  hiddenStatusIds?: string[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -61,6 +65,7 @@ export function Board({
   // drop and cancel clear it — never an async callback, which could land mid-way through
   // the next drag.
   const [dragItems, setDragItems] = useState<BoardItem[] | null>(null);
+  const drag = useDragBusy('board');
   const items = dragItems ?? baseItems;
 
   const columns = useMemo(
@@ -148,6 +153,7 @@ export function Board({
   }
 
   function onDragEnd(event: DragEndEvent, finalItems: BoardItem[]) {
+    drag.end();
     setDragItems(null);
     // Released outside every column: the live preview is discarded, nothing is saved.
     if (!event.over) return;
@@ -180,6 +186,9 @@ export function Board({
           },
         });
       }
+      if (result.ok && hiddenStatusIds.includes(after.statusId)) {
+        toast(`Moved to ${statusName} — hidden by the current filter.`);
+      }
       // Refresh either way: on success to confirm, on failure to discard the
       // optimistic move and show the truth.
       router.refresh();
@@ -200,9 +209,13 @@ export function Board({
         measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         columns={columns}
         data={items}
+        onDragStart={drag.start}
         onDataChange={setDragItems}
         onDragEnd={onDragEnd}
-        onDragCancel={() => setDragItems(null)}
+        onDragCancel={() => {
+          drag.end();
+          setDragItems(null);
+        }}
         // Horizontal scroll lives here, never on the page (v1 spec §6.4).
         className="flex flex-1 gap-3 overflow-x-auto px-4 pt-4 pb-4 lg:px-6"
       >

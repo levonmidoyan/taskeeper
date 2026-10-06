@@ -10,6 +10,7 @@ import {
 import { getTask, getTaskDetail, listMyOpenTasks, listProjectTasks, searchTasks } from '@/server/tasks/queries';
 import { createLabel } from '@/server/labels/service';
 import { task } from '@/db';
+import { MARK_END, MARK_START } from '@/lib/highlights';
 import type { WorkspaceContext } from '@/lib/session';
 
 beforeEach(resetDb);
@@ -19,7 +20,7 @@ async function setup(email: string, slug: string) {
   const user = await createUser(email);
   const ws = await createWorkspace(user.id, 'Acme', slug);
   const ctx: WorkspaceContext = {
-    userId: user.id, workspaceId: ws.id, slug, role: 'owner', timezone: 'Asia/Yerevan',
+    userId: user.id, workspaceId: ws.id, slug, role: 'owner', timezone: 'Asia/Yerevan', workspaceTimezone: 'Asia/Yerevan',
   };
   const created = await createProject(ctx, { name: 'Website' });
   if (!created.ok) throw new Error('setup failed');
@@ -518,7 +519,8 @@ describe('searchTasks', () => {
     await createTask(ctx, { projectId, title: 'Grow 50% faster' });
     await createTask(ctx, { projectId, title: 'Grow 500 users' });
 
-    expect((await searchTasks(ctx, '50%')).map((h) => h.title)).toEqual(['Grow 50% faster']);
+    // "50" is also a word prefix of "500", so both match; the literal hit leads.
+    expect((await searchTasks(ctx, '50%')).map((h) => h.title)).toEqual(['Grow 50% faster', 'Grow 500 users']);
   });
 
   it('never returns another workspace’s tasks', async () => {
@@ -527,6 +529,94 @@ describe('searchTasks', () => {
     await createTask(b.ctx, { projectId: b.projectId, title: 'Secret roadmap' });
 
     expect(await searchTasks(a.ctx, 'roadmap')).toEqual([]);
+  });
+
+  it('finds a word that only appears in the description, with a snippet', async () => {
+    const { ctx, projectId } = await setup('s5@example.com', 'search-e');
+    await createTask(ctx, {
+      projectId,
+      title: 'Release checklist',
+      description: 'Before shipping, run the staging migration and smoke tests.',
+    });
+
+    const [hit] = await searchTasks(ctx, 'migration');
+
+    expect(hit.title).toBe('Release checklist');
+    expect(hit.snippet).toContain(`${MARK_START}migration${MARK_END}`);
+  });
+
+  it('returns snippets as plain text, not Markdown', async () => {
+    const { ctx, projectId } = await setup('s13@example.com', 'search-m');
+    await createTask(ctx, { projectId, title: 'Ops', description: '**Rotate** the [gateway](https://x.dev) keys' });
+
+    const [hit] = await searchTasks(ctx, 'gateway');
+
+    expect(hit.snippet).toBe(`Rotate the ${MARK_START}gateway${MARK_END} keys`);
+  });
+
+  it('keeps literal guillemets in a snippet as text', async () => {
+    const { ctx, projectId } = await setup('s14@example.com', 'search-n');
+    await createTask(ctx, { projectId, title: 'Copy', description: 'Rotate the \uE000gateway «prod» keys' });
+
+    const [hit] = await searchTasks(ctx, 'gateway');
+
+    expect(hit.snippet).toContain(`${MARK_START}gateway${MARK_END} «prod» keys`);
+    expect(hit.snippet!.split(MARK_START)).toHaveLength(2);
+  });
+
+  it('matches word prefixes while typing', async () => {
+    const { ctx, projectId } = await setup('s6@example.com', 'search-f');
+    // In the description, so the title substring match cannot be what finds it.
+    await createTask(ctx, { projectId, title: 'Ops notes', description: 'Deployment steps' });
+
+    expect((await searchTasks(ctx, 'deplo')).map((h) => h.title)).toEqual(['Ops notes']);
+  });
+
+  it('has no snippet when the title matched', async () => {
+    const { ctx, projectId } = await setup('s7@example.com', 'search-g');
+    await createTask(ctx, { projectId, title: 'Billing page', description: 'Billing copy update' });
+
+    const [hit] = await searchTasks(ctx, 'billing');
+
+    expect(hit.snippet).toBeNull();
+  });
+
+  it('ranks a title match above a description-only match', async () => {
+    const { ctx, projectId } = await setup('s8@example.com', 'search-h');
+    await createTask(ctx, { projectId, title: 'Misc', description: 'Mentions invoice once' });
+    await createTask(ctx, { projectId, title: 'Invoice export' });
+
+    expect((await searchTasks(ctx, 'invoice')).map((h) => h.title)).toEqual(['Invoice export', 'Misc']);
+  });
+
+  it('skips archived tasks and tasks in archived projects', async () => {
+    const { ctx, projectId } = await setup('s9@example.com', 'search-i');
+    const gone = await createTask(ctx, { projectId, title: 'Shelved widget' });
+    const other = await createProject(ctx, { name: 'Old' });
+    if (!gone.ok || !other.ok) throw new Error('setup failed');
+    await createTask(ctx, { projectId: other.data.id, title: 'Old widget' });
+    await db.update(task).set({ archivedAt: new Date() }).where(eq(task.id, gone.data.id));
+    await archiveProject(ctx, { projectId: other.data.id });
+
+    expect(await searchTasks(ctx, 'widget')).toEqual([]);
+  });
+
+  it('never returns another workspace’s description match', async () => {
+    const a = await setup('s10@example.com', 'search-j');
+    const b = await setup('s11@example.com', 'search-k');
+    await createTask(b.ctx, { projectId: b.projectId, title: 'Plan', description: 'confidential acquisition' });
+    await createTask(a.ctx, { projectId: a.projectId, title: 'Plan', description: 'public notes' });
+
+    expect(await searchTasks(a.ctx, 'acquisition')).toEqual([]);
+  });
+
+  it('survives operator-only and stop-word-only input', async () => {
+    const { ctx, projectId } = await setup('s12@example.com', 'search-l');
+    await createTask(ctx, { projectId, title: 'The plan' });
+
+    expect(await searchTasks(ctx, '&|!:*()')).toEqual([]);
+    // "the" is an English stop word, so FTS ignores it; the title ILIKE still finds it.
+    expect((await searchTasks(ctx, 'the')).map((h) => h.title)).toEqual(['The plan']);
   });
 });
 

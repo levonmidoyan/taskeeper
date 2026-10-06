@@ -2,11 +2,11 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
-import { getProject, listProjects } from '@/server/projects/queries';
+import { getProject, listArchivedProjects, listProjects } from '@/server/projects/queries';
 import {
   archiveProject, createProject, deleteProject, renameProject, setProjectColor, unarchiveProject,
 } from '@/server/projects/service';
-import { task, taskStatus } from '@/db';
+import { project, task, taskStatus } from '@/db';
 import { ForbiddenError } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
 
@@ -17,7 +17,7 @@ async function ctxFor(email: string, slug: string): Promise<WorkspaceContext> {
   const user = await createUser(email);
   const ws = await createWorkspace(user.id, 'Acme', slug);
   return {
-    userId: user.id, workspaceId: ws.id, slug, role: 'owner', timezone: 'Asia/Yerevan',
+    userId: user.id, workspaceId: ws.id, slug, role: 'owner', timezone: 'Asia/Yerevan', workspaceTimezone: 'Asia/Yerevan',
   };
 }
 
@@ -113,6 +113,47 @@ describe('listProjects', () => {
   });
 });
 
+describe('listArchivedProjects', () => {
+  it('lists only archived projects, newest archive first', async () => {
+    const ctx = await ctxFor('arch-list@example.com', 'arch-list');
+    const live = await createProject(ctx, { name: 'Live' });
+    const first = await createProject(ctx, { name: 'First' });
+    const second = await createProject(ctx, { name: 'Second' });
+    if (!live.ok || !first.ok || !second.ok) throw new Error('setup failed');
+
+    await archiveProject(ctx, { projectId: first.data.id });
+    await archiveProject(ctx, { projectId: second.data.id });
+    // Both archives can land in the same millisecond; pin the first one earlier.
+    await db.update(project).set({ archivedAt: new Date('2026-01-01T00:00:00Z') })
+      .where(eq(project.id, first.data.id));
+
+    const archived = await listArchivedProjects(ctx);
+    expect(archived.map((p) => p.name)).toEqual(['Second', 'First']);
+    expect(archived[0].archivedAt).toBeInstanceOf(Date);
+  });
+
+  it('never lists another workspace’s archived projects', async () => {
+    const a = await ctxFor('arch-a@example.com', 'arch-ws-a');
+    const b = await ctxFor('arch-b@example.com', 'arch-ws-b');
+    const created = await createProject(b, { name: 'Private' });
+    if (!created.ok) throw new Error('setup failed');
+    await archiveProject(b, { projectId: created.data.id });
+
+    expect(await listArchivedProjects(a)).toEqual([]);
+    expect(await listArchivedProjects(b)).toHaveLength(1);
+  });
+
+  it('drops a project once it is unarchived', async () => {
+    const ctx = await ctxFor('arch-back@example.com', 'arch-back');
+    const created = await createProject(ctx, { name: 'Back' });
+    if (!created.ok) throw new Error('setup failed');
+    await archiveProject(ctx, { projectId: created.data.id });
+    await unarchiveProject(ctx, { projectId: created.data.id });
+
+    expect(await listArchivedProjects(ctx)).toEqual([]);
+  });
+});
+
 describe('renameProject', () => {
   it('renames a project owned by this workspace', async () => {
     const ctx = await ctxFor('rename1@example.com', 'rename-ws1');
@@ -201,8 +242,8 @@ describe('project management roles', () => {
     await expect(archiveProject(asMember, { projectId })).rejects.toThrow(ForbiddenError);
     await expect(unarchiveProject(asMember, { projectId })).rejects.toThrow(ForbiddenError);
 
-    const project = await getProject(ctx, projectId);
-    expect(project!.name).toBe('Website');
+    const found = await getProject(ctx, projectId);
+    expect(found!.name).toBe('Website');
   });
 
   it('lets an admin archive a project and bring it back', async () => {

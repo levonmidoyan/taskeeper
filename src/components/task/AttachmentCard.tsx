@@ -7,6 +7,7 @@ import * as CompactButton from '@/components/ui/compact-button';
 import * as FileFormatIcon from '@/components/ui/file-format-icon';
 import * as ProgressBar from '@/components/ui/progress-bar';
 import { fileFormat, formatBytes, isInlineType } from '@/lib/attachments';
+import { formatDueDate, formatInZone, todayInZone } from '@/lib/dates';
 import type { UploadItem } from '@/lib/upload-queue';
 import { cn } from '@/utils/cn';
 
@@ -21,11 +22,12 @@ function FileGlyph({ fileName, contentType, thumbnail }: { fileName: string; con
   return <FileFormatIcon.Root format={label} color={color} />;
 }
 
-/** A saved attachment (File Upload 01, "completed"). */
+/** A saved attachment (File Upload 01, "completed"). The upload day reads relative, the exact time on hover. */
 export function ReadyAttachmentCard({
-  id, fileName, contentType, size, meta, canDelete, onDelete,
+  id, fileName, contentType, size, uploaderName, createdAt, timezone, canDelete, onDelete,
 }: {
-  id: string; fileName: string; contentType: string; size: number; meta: string;
+  id: string; fileName: string; contentType: string; size: number;
+  uploaderName: string; createdAt: Date; timezone: string;
   canDelete: boolean; onDelete: () => void;
 }) {
   const href = `/api/attachments/${id}`;
@@ -37,7 +39,12 @@ export function ReadyAttachmentCard({
         <a href={href} target="_blank" rel="noopener" className="block truncate text-label-sm text-text-strong-950 after:absolute after:inset-0">
           {fileName}
         </a>
-        <p className="truncate text-paragraph-xs text-text-sub-600">{formatBytes(size)} · {meta}</p>
+        <p className="truncate text-paragraph-xs text-text-sub-600">
+          {formatBytes(size)} · {uploaderName} ·{' '}
+          <time dateTime={createdAt.toISOString()} title={formatInZone(createdAt, timezone)}>
+            {formatDueDate(todayInZone(timezone, createdAt), timezone)}
+          </time>
+        </p>
       </div>
       <div className="relative flex shrink-0 items-center gap-1">
         <CompactButton.Root variant="ghost" size="large" asChild>

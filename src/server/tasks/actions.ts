@@ -5,7 +5,9 @@ import { requireWorkspace } from '@/lib/session';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import { listLabels, listWorkspaceMembers, type MemberRow } from '@/server/labels/queries';
 import { getProject, type StatusRow } from '@/server/projects/queries';
-import { searchTasks, type LabelRow, type TaskSearchHit } from './queries';
+import {
+  listRecentTasks, searchTasks, type LabelRow, type RecentTask, type TaskSearchHit,
+} from './queries';
 import {
   bulkDeleteTasks, bulkUpdateTasks, createTask, deleteTask, moveTask, updateTask,
   type BulkUpdateTasksInput, type CreateTaskInput, type MoveTaskInput, type UpdateTaskInput,
@@ -102,6 +104,14 @@ export async function searchTasksAction(
     const trimmed = term.trim().slice(0, 100);
     if (trimmed.length < 2) return ok([]);
     return ok(await searchTasks(ctx, trimmed));
+  });
+}
+
+/** Read-only. The palette's empty state: the caller's five latest touched tasks. */
+export async function recentTasksAction(workspaceSlug: string): Promise<Result<RecentTask[]>> {
+  return withAction(async () => {
+    const ctx = await requireWorkspace(workspaceSlug);
+    return ok(await listRecentTasks(ctx, 5));
   });
 }
 

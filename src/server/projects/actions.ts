@@ -50,13 +50,21 @@ export async function setProjectColorAction(
   });
 }
 
+/**
+ * `leaving`: the caller is on the project's own page and navigates away once this
+ * returns. Revalidating here would re-render that page in the same response, and
+ * it now 404s, so the caller refreshes after it has left instead.
+ */
+type LeaveOptions = { leaving?: boolean };
+
 export async function archiveProjectAction(
   workspaceSlug: string,
   input: { projectId: string },
+  options: LeaveOptions = {},
 ): Promise<Result<null>> {
   return withAction(async () => {
     const result = await archiveProject(await requireWorkspace(workspaceSlug), input);
-    if (result.ok) revalidatePath(`/${workspaceSlug}`, 'layout');
+    if (result.ok && options?.leaving !== true) revalidatePath(`/${workspaceSlug}`, 'layout');
     return result;
   });
 }
@@ -75,10 +83,11 @@ export async function unarchiveProjectAction(
 export async function deleteProjectAction(
   workspaceSlug: string,
   input: { projectId: string },
+  options: LeaveOptions = {},
 ): Promise<Result<null>> {
   return withAction(async () => {
     const result = await deleteProject(await requireWorkspace(workspaceSlug), input);
-    if (result.ok) revalidatePath(`/${workspaceSlug}`, 'layout');
+    if (result.ok && options?.leaving !== true) revalidatePath(`/${workspaceSlug}`, 'layout');
     return result;
   });
 }

@@ -27,7 +27,7 @@ async function setup(email: string, slug: string, role: 'owner' | 'admin' | 'mem
   const user = await createUser(email);
   const ws = await createWorkspace(user.id, 'Acme', slug);
   const ctx: WorkspaceContext = {
-    userId: user.id, workspaceId: ws.id, slug, role, timezone: 'Asia/Yerevan',
+    userId: user.id, workspaceId: ws.id, slug, role, timezone: 'Asia/Yerevan', workspaceTimezone: 'Asia/Yerevan',
   };
   return { ctx, ws, user };
 }
@@ -49,7 +49,7 @@ describe('inviteMember', () => {
   // pile up a duplicate on every retry.
   it('leaves no invitation behind when the email cannot be sent', async () => {
     const { ctx } = await setup('owner@example.com', 'acme');
-    sendInviteEmail.mockRejectedValueOnce(new Error('Resend invite failed: domain not verified'));
+    sendInviteEmail.mockRejectedValueOnce(new Error('SMTP invite failed: authentication rejected'));
 
     const result = await inviteMember(ctx, { email: 'new@example.com', role: 'member' });
 

@@ -7,6 +7,7 @@ import { positionsForCount } from '@/lib/position';
 import { err, ok, type Result } from '@/lib/result';
 import { requireRole, type WorkspaceContext } from '@/lib/session';
 import { attachmentKeysForProject, purgeObjects } from '@/server/attachments/cleanup';
+import { emitChange } from '@/server/changes/service';
 import { slugify } from '@/lib/slug';
 
 const DEFAULT_STATUSES = [
@@ -75,6 +76,7 @@ export async function createProject(
         position: positions[i], isDone: s.isDone,
       })),
     );
+    await emitChange(ctx, { projectId: id }, tx);
   });
 
   return ok({ id });
@@ -92,11 +94,15 @@ export async function renameProject(
   const parsed = z.object({ projectId: z.string(), name: nameSchema }).safeParse(input);
   if (!parsed.success) return err(parsed.error.issues[0].message);
 
-  const updated = await db
-    .update(project)
-    .set({ name: parsed.data.name, updatedAt: new Date() })
-    .where(and(eq(project.id, parsed.data.projectId), eq(project.workspaceId, ctx.workspaceId)))
-    .returning({ id: project.id });
+  const updated = await db.transaction(async (tx) => {
+    const rows = await tx
+      .update(project)
+      .set({ name: parsed.data.name, updatedAt: new Date() })
+      .where(and(eq(project.id, parsed.data.projectId), eq(project.workspaceId, ctx.workspaceId)))
+      .returning({ id: project.id });
+    if (rows.length > 0) await emitChange(ctx, { projectId: parsed.data.projectId }, tx);
+    return rows;
+  });
 
   if (updated.length === 0) return err('Project not found.');
 
@@ -111,11 +117,15 @@ export async function setProjectColor(
   const parsed = z.object({ projectId: z.string(), color: colorSchema }).safeParse(input);
   if (!parsed.success) return err(parsed.error.issues[0].message);
 
-  const updated = await db
-    .update(project)
-    .set({ color: parsed.data.color, updatedAt: new Date() })
-    .where(and(eq(project.id, parsed.data.projectId), eq(project.workspaceId, ctx.workspaceId)))
-    .returning({ id: project.id });
+  const updated = await db.transaction(async (tx) => {
+    const rows = await tx
+      .update(project)
+      .set({ color: parsed.data.color, updatedAt: new Date() })
+      .where(and(eq(project.id, parsed.data.projectId), eq(project.workspaceId, ctx.workspaceId)))
+      .returning({ id: project.id });
+    if (rows.length > 0) await emitChange(ctx, { projectId: parsed.data.projectId }, tx);
+    return rows;
+  });
 
   if (updated.length === 0) return err('Project not found.');
 
@@ -128,13 +138,17 @@ export async function archiveProject(
 ): Promise<Result<null>> {
   requireRole(ctx, ...MANAGE_ROLES);
 
-  const updated = await db
-    .update(project)
-    .set({ archivedAt: new Date(), updatedAt: new Date() })
-    .where(and(
-      eq(project.id, input.projectId), eq(project.workspaceId, ctx.workspaceId), isNull(project.archivedAt),
-    ))
-    .returning({ id: project.id });
+  const updated = await db.transaction(async (tx) => {
+    const rows = await tx
+      .update(project)
+      .set({ archivedAt: new Date(), updatedAt: new Date() })
+      .where(and(
+        eq(project.id, input.projectId), eq(project.workspaceId, ctx.workspaceId), isNull(project.archivedAt),
+      ))
+      .returning({ id: project.id });
+    if (rows.length > 0) await emitChange(ctx, { projectId: input.projectId }, tx);
+    return rows;
+  });
 
   if (updated.length === 0) return err('Project not found.');
 
@@ -148,13 +162,17 @@ export async function unarchiveProject(
 ): Promise<Result<null>> {
   requireRole(ctx, ...MANAGE_ROLES);
 
-  const updated = await db
-    .update(project)
-    .set({ archivedAt: null, updatedAt: new Date() })
-    .where(and(
-      eq(project.id, input.projectId), eq(project.workspaceId, ctx.workspaceId), isNotNull(project.archivedAt),
-    ))
-    .returning({ id: project.id });
+  const updated = await db.transaction(async (tx) => {
+    const rows = await tx
+      .update(project)
+      .set({ archivedAt: null, updatedAt: new Date() })
+      .where(and(
+        eq(project.id, input.projectId), eq(project.workspaceId, ctx.workspaceId), isNotNull(project.archivedAt),
+      ))
+      .returning({ id: project.id });
+    if (rows.length > 0) await emitChange(ctx, { projectId: input.projectId }, tx);
+    return rows;
+  });
 
   if (updated.length === 0) return err('Project not found.');
 
@@ -196,6 +214,7 @@ export async function deleteProject(
     await tx.delete(project).where(
       and(eq(project.id, input.projectId), eq(project.workspaceId, ctx.workspaceId)),
     );
+    await emitChange(ctx, { projectId: input.projectId }, tx);
 
     return { result: ok(null), keys };
   });

@@ -36,10 +36,13 @@ test('a comment survives a reload and priority changes show in the feed', async 
   await page.getByRole('tab', { name: 'Comments' }).click();
   await page.getByLabel('Comment').fill('First thoughts');
   await page.getByRole('button', { name: 'Comment' }).click();
-  await expect(page.getByText('First thoughts')).toBeVisible();
 
+  // Scoped to the feed, as in the Markdown test below: the composer still shows the
+  // draft until the post lands, and reloading before then would cancel it.
+  const posted = page.getByRole('listitem').getByText('First thoughts');
+  await expect(posted).toBeVisible();
   await page.reload();
-  await expect(page.getByText('First thoughts')).toBeVisible();
+  await expect(posted).toBeVisible();
 
   // The priority control is a Radix Select: its trigger picks up the
   // "Priority" label via the matching id/htmlFor, and its options render

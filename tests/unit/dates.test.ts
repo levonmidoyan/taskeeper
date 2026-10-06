@@ -3,6 +3,7 @@ import {
   DEFAULT_TIMEZONE,
   formatDueDate,
   formatInZone,
+  isValidTimezone,
   isOverdue,
   recencyBucket,
   todayInZone,
@@ -95,5 +96,27 @@ describe('recencyBucket', () => {
     expect(recencyBucket(new Date('2026-09-24T19:00:00Z'), tz, now)).toBe('Yesterday');
     expect(recencyBucket(new Date('2026-09-19T12:00:00Z'), tz, now)).toBe('Past week');
     expect(recencyBucket(new Date('2026-09-10T12:00:00Z'), tz, now)).toBe('Older');
+  });
+});
+
+describe('isValidTimezone', () => {
+  it('accepts real IANA zones', () => {
+    expect(isValidTimezone('Europe/Berlin')).toBe(true);
+    expect(isValidTimezone('UTC')).toBe(true);
+  });
+
+  it('rejects junk and the empty string', () => {
+    expect(isValidTimezone('Mars/Olympus')).toBe(false);
+    expect(isValidTimezone('')).toBe(false);
+  });
+
+  it('rejects raw offsets, which Postgres would read with the sign flipped', () => {
+    expect(isValidTimezone('+04:00')).toBe(false);
+    expect(isValidTimezone('-0700')).toBe(false);
+  });
+
+  it('still accepts Etc zones and multi-part names', () => {
+    expect(isValidTimezone('Etc/GMT+4')).toBe(true);
+    expect(isValidTimezone('America/Argentina/Buenos_Aires')).toBe(true);
   });
 });

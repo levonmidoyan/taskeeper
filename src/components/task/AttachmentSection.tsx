@@ -9,7 +9,6 @@ import { AttachmentUploadModal } from '@/components/task/AttachmentUploadModal';
 import { useAttachmentUploads } from '@/components/task/use-attachment-uploads';
 import * as Button from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
-import { formatInZone } from '@/lib/dates';
 import { settle } from '@/lib/settle';
 import type { AttachmentView } from '@/server/attachments/queries';
 import { deleteAttachmentAction } from '@/server/attachments/actions';
@@ -111,7 +110,9 @@ export function AttachmentSection({
               fileName={a.fileName}
               contentType={a.contentType}
               size={a.size}
-              meta={`${a.uploaderName} · ${formatInZone(a.createdAt, timezone)}`}
+              uploaderName={a.uploaderName}
+              createdAt={a.createdAt}
+              timezone={timezone}
               canDelete={a.uploaderId === currentUserId || canModerate}
               onDelete={() => void onDelete(a)}
             />

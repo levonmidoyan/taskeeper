@@ -5,14 +5,16 @@ import {
   RelativeTime, RelativeTimeZone, RelativeTimeZoneDisplay, RelativeTimeZoneLabel,
 } from '@/components/kibo-ui/relative-time';
 
-export function previewZones(workspaceZone: string, localZone: string) {
-  const zones = [{ label: 'Workspace time', zone: workspaceZone }];
-  if (localZone !== workspaceZone) zones.push({ label: 'Your time', zone: localZone });
+type LabelledZone = { label: string; zone: string };
+
+export function previewZones(chosen: LabelledZone, localZone: string): LabelledZone[] {
+  const zones = [chosen];
+  if (localZone !== chosen.zone) zones.push({ label: 'Your time', zone: localZone });
   return zones;
 }
 
-/** Live clock for the selected zone and the viewer's, so the setting's effect is visible. */
-export function ZonePreview({ workspaceZone }: { workspaceZone: string }) {
+/** Live clock for the chosen zone and the viewer's, so the setting's effect is visible. */
+export function ZonePreview({ label, zone }: LabelledZone) {
   // The clock and the browser zone only exist on the client (spec §5.2).
   const mounted = useSyncExternalStore(
     () => () => {},
@@ -25,7 +27,7 @@ export function ZonePreview({ workspaceZone }: { workspaceZone: string }) {
 
   return (
     <RelativeTime timeFormatOptions={{ hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }}>
-      {previewZones(workspaceZone, localZone).map(({ label, zone }) => (
+      {previewZones({ label, zone }, localZone).map(({ label, zone }) => (
         <RelativeTimeZone key={label} zone={zone}>
           <span className="w-28 text-paragraph-sm text-text-sub-600">{label}</span>
           <RelativeTimeZoneDisplay />
