@@ -143,6 +143,9 @@ export const auth = betterAuth({
       issuer: 'Taskeeper',
       otpOptions: {
         period: TWO_FACTOR_CODE_EXPIRY_MINUTES, // minutes, unlike expiresIn below
+        // Only a hash goes in the verification table, so a database leak gives
+        // away no live codes. The code is only ever compared, never read back.
+        storeOTP: 'hashed',
         sendOTP: ({ user, otp }) => sendTwoFactorCodeEmail(user.email, otp),
       },
     }),
@@ -153,6 +156,7 @@ export const auth = betterAuth({
     emailOTP({
       disableSignUp: true,
       expiresIn: SIGN_IN_CODE_EXPIRY_MINUTES * 60,
+      storeOTP: 'hashed', // as for the two-factor code above
       sendVerificationOTP: async ({ email, otp, type }) => {
         if (type === 'sign-in') await sendSignInCodeEmail(email, otp);
       },

@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { closeDb, db, resetDb } from '../setup/db';
 import { auth } from '@/lib/auth';
-import { user } from '@/db';
+import { user, verification } from '@/db';
 
 beforeEach(resetDb);
 afterEach(() => vi.restoreAllMocks());
@@ -102,5 +102,27 @@ describe('auth', () => {
     await expect(
       auth.api.signInEmail({ body: { email: 'wrong@example.com', password: 'wrong-pass' } }),
     ).rejects.toThrow();
+  });
+
+  it('keeps only a hash of an emailed sign-in code and accepts the code itself', async () => {
+    await auth.api.signUpEmail({
+      body: { name: 'Ada', email: 'code@example.com', password: 'correct-horse' },
+    });
+    await markVerified('code@example.com');
+    const codes: string[] = [];
+    vi.spyOn(console, 'info').mockImplementation((line: string) => {
+      const match = /^\[sign-in-code\] \S+ -> (\d+)$/.exec(line);
+      if (match) codes.push(match[1]);
+    });
+
+    await auth.api.sendVerificationOTP({ body: { email: 'code@example.com', type: 'sign-in' } });
+    expect(codes).toHaveLength(1);
+    const stored = await db.select().from(verification);
+    expect(stored.map((row) => row.value).join()).not.toContain(codes[0]);
+
+    const result = await auth.api.signInEmailOTP({
+      body: { email: 'code@example.com', otp: codes[0] },
+    });
+    expect(result.user.email).toBe('code@example.com');
   });
 });
