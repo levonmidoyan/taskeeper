@@ -32,6 +32,7 @@ import {
   TWO_FACTOR_CODE_EXPIRY_MINUTES,
 } from '@/lib/email';
 import { assertAccountDeletable, prepareAccountDeletion } from '@/server/account/deletion';
+import { fillImageFromGoogle } from '@/server/account/google-photo';
 import { appUrl, trustedOrigins } from '@/lib/url';
 
 /**
@@ -99,6 +100,15 @@ export const auth = betterAuth({
         await sendDeleteAccountEmail(user.email, url);
       },
       beforeDelete: (user) => prepareAccountDeletion(user.id),
+    },
+  },
+  // Google photo for accounts that linked Google after signing up with a
+  // password; see fillImageFromGoogle. Update covers the next Google sign-in,
+  // which rewrites the account's tokens.
+  databaseHooks: {
+    account: {
+      create: { after: (account) => fillImageFromGoogle(account) },
+      update: { after: (account) => fillImageFromGoogle(account) },
     },
   },
   emailVerification: {

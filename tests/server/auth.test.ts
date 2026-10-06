@@ -146,3 +146,81 @@ describe('auth', () => {
     expect(joined).toHaveBeenCalledWith(expect.objectContaining({ with: { user: true } }));
   });
 });
+
+/** An unsigned token carrying the claims; the hook reads, never verifies, it. */
+function googleIdToken(claims: Record<string, unknown>) {
+  const part = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${part({ alg: 'none' })}.${part({ sub: 'google-sub', ...claims })}.`;
+}
+
+describe('Google profile photo', () => {
+  const picture = 'https://lh3.googleusercontent.com/a/photo';
+
+  async function signUp(email: string) {
+    await auth.api.signUpEmail({ body: { name: 'Ada', email, password: 'correct-horse' } });
+    const [row] = await db.select().from(user).where(eq(user.email, email));
+    return row;
+  }
+
+  async function imageOf(id: string) {
+    const [row] = await db.select({ image: user.image }).from(user).where(eq(user.id, id));
+    return row.image;
+  }
+
+  it('takes the Google photo when Google is linked to an account without one', async () => {
+    const { id } = await signUp('link@example.com');
+    const { internalAdapter } = await auth.$context;
+
+    await internalAdapter.linkAccount({
+      userId: id,
+      providerId: 'google',
+      accountId: 'google-sub',
+      idToken: googleIdToken({ picture }),
+    });
+
+    expect(await imageOf(id)).toBe(picture);
+  });
+
+  it('takes the Google photo at a later Google sign-in when linking left none', async () => {
+    const { id } = await signUp('later@example.com');
+    const { internalAdapter } = await auth.$context;
+    const account = await internalAdapter.linkAccount({
+      userId: id,
+      providerId: 'google',
+      accountId: 'google-sub',
+    });
+
+    await internalAdapter.updateAccount(account.id, { idToken: googleIdToken({ picture }) });
+
+    expect(await imageOf(id)).toBe(picture);
+  });
+
+  it('keeps a photo the user already has', async () => {
+    const { id } = await signUp('keep@example.com');
+    await db.update(user).set({ image: 'https://example.com/mine.png' }).where(eq(user.id, id));
+    const { internalAdapter } = await auth.$context;
+
+    await internalAdapter.linkAccount({
+      userId: id,
+      providerId: 'google',
+      accountId: 'google-sub',
+      idToken: googleIdToken({ picture }),
+    });
+
+    expect(await imageOf(id)).toBe('https://example.com/mine.png');
+  });
+
+  it('ignores a token without a usable picture', async () => {
+    const { id } = await signUp('none@example.com');
+    const { internalAdapter } = await auth.$context;
+
+    await internalAdapter.linkAccount({
+      userId: id,
+      providerId: 'google',
+      accountId: 'google-sub',
+      idToken: googleIdToken({ picture: 'javascript:alert(1)' }),
+    });
+
+    expect(await imageOf(id)).toBeNull();
+  });
+});
