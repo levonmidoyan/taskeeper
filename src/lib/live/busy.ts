@@ -36,10 +36,19 @@ export function isTextEntry(el: Element | null): boolean {
 }
 
 // A request's response arrives before the page it carries is on screen, and
-// with it the version the layout reports. Held for this long after my last
-// request settles, so my own edit does not look like a teammate's.
-export const REQUEST_SETTLE_MS = 1000;
+// with it the version the layout reports. Held after my last request settles
+// until that page renders (endSettle), so my own edit does not look like a
+// teammate's. The timer is only a ceiling, for requests that render no new
+// version.
+export const REQUEST_SETTLE_MS = 3000;
 let settlingUntil = 0;
+
+/** The page my request carried is on screen: stop holding for it. */
+export function endSettle(): void {
+  if (Date.now() >= settlingUntil) return;
+  settlingUntil = 0;
+  emit();
+}
 
 export function isBusy(): boolean {
   return (

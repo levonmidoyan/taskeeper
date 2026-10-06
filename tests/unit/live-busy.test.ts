@@ -11,7 +11,7 @@ vi.mock('@/lib/request-tracker', () => ({
   },
 }));
 
-const { REQUEST_SETTLE_MS, isBusy, isTextEntry, markBusy, releaseBusy, subscribeBusy } = await import('@/lib/live/busy');
+const { REQUEST_SETTLE_MS, endSettle, isBusy, isTextEntry, markBusy, releaseBusy, subscribeBusy } = await import('@/lib/live/busy');
 
 function mount(html: string) {
   document.body.innerHTML = html;
@@ -111,6 +111,29 @@ describe('after my request settles', () => {
     expect(isBusy()).toBe(true);
     await vi.advanceTimersByTimeAsync(1);
     expect(isBusy()).toBe(false);
+    expect(listener).toHaveBeenCalledTimes(3);
+
+    stop();
+    vi.useRealTimers();
+  });
+
+  it('stops holding as soon as the page my request carried renders', () => {
+    vi.useFakeTimers();
+    const listener = vi.fn();
+    const stop = subscribeBusy(listener);
+
+    pending.n = 1;
+    for (const l of requestListeners) l();
+    pending.n = 0;
+    for (const l of requestListeners) l();
+    expect(isBusy()).toBe(true);
+
+    endSettle();
+    expect(isBusy()).toBe(false);
+    expect(listener).toHaveBeenCalledTimes(3);
+
+    // Nothing to end: no extra notification.
+    endSettle();
     expect(listener).toHaveBeenCalledTimes(3);
 
     stop();
