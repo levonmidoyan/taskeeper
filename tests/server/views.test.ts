@@ -71,6 +71,18 @@ describe('createView', () => {
     expect((await getView(ctx, list))!.sort).toBeNull();
   });
 
+  it('drops a non-string sort from a crafted call instead of failing', async () => {
+    const { ctx, projectId } = await setup();
+    const crafted = { projectId, name: 'C', layout: 'list' as const, filter: {}, sort: 42 as unknown as string };
+    const created = await createView(ctx, crafted);
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    expect((await getView(ctx, created.data.id))!.sort).toBeNull();
+    expect(await updateView(ctx, { id: created.data.id, sort: { id: 'due' } as unknown as string }))
+      .toEqual({ ok: true, data: null });
+    expect((await getView(ctx, created.data.id))!.sort).toBeNull();
+  });
+
   it('rejects a project from another workspace', async () => {
     const { ctx } = await setup();
     const eve = await createUser('eve-v@example.com', 'Eve');

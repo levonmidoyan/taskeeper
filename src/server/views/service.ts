@@ -13,8 +13,9 @@ import { canEditView, getView } from './queries';
 const nameSchema = z.string().trim().min(1, 'Give the view a name.').max(60, 'Name is too long.');
 
 /** Only the List sorts; a malformed sort is dropped rather than refused. */
-function cleanSort(layout: ViewLayout, sort: string | null | undefined): string | null {
-  return layout === 'list' ? formatSortParam(parseSortParam(sort)) : null;
+function cleanSort(layout: ViewLayout, sort: unknown): string | null {
+  if (layout !== 'list' || typeof sort !== 'string') return null;
+  return formatSortParam(parseSortParam(sort));
 }
 
 function cleanFilter(filter: unknown): TaskFilter | null {

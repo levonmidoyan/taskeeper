@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultState, layoutPath, viewHref } from '@/lib/views';
+import { defaultState, layoutPath, shareToast, viewHref } from '@/lib/views';
 
 describe('views helpers', () => {
   it('defaultState: board shows all, the rest open', () => {
@@ -23,5 +23,11 @@ describe('views helpers', () => {
       .toBe('/acme/projects/p1?view=v2&state=all');
     expect(viewHref('acme', { id: 'v3', projectId: null, layout: 'calendar', filter: { state: 'done' }, sort: null }))
       .toBe('/acme/tasks?layout=calendar&view=v3&state=done');
+  });
+
+  it('shareToast speaks to the owner, or about the owner when an admin acts', () => {
+    expect(shareToast({ name: 'Bugs', shared: false, mine: true })).toBe('Shared with the workspace.');
+    expect(shareToast({ name: 'Bugs', shared: true, mine: true })).toBe('Only you can see this view now.');
+    expect(shareToast({ name: 'Bugs', shared: true, mine: false })).toBe('“Bugs” is private to its owner now.');
   });
 });

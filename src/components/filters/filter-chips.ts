@@ -82,3 +82,20 @@ export function setValues(field: Exclude<FilterField, 'due'>, filter: TaskFilter
   if (field === 'labels') return { ...filter, labels: { op: filter.labels?.op ?? 'any', ids: values } };
   return { ...filter, [field]: { op: filter[field]?.op ?? 'is', ids: values } };
 }
+
+/**
+ * Sets one end of the due range. The filter parser drops a range whose From is
+ * after its To, so the end being set pulls the other one along rather than the
+ * whole due filter silently disappearing.
+ */
+export function setDueRange(filter: TaskFilter, patch: { from?: string; to?: string }): TaskFilter {
+  const due = filter.due;
+  const next = { ...(due && !('preset' in due) ? due : {}), ...patch };
+  if (!next.from) delete next.from;
+  if (!next.to) delete next.to;
+  if (next.from && next.to && next.from > next.to) {
+    if (patch.from) next.to = next.from;
+    else next.from = next.to;
+  }
+  return next.from || next.to ? { ...filter, due: next } : { ...filter, due: undefined };
+}

@@ -6,7 +6,7 @@ import * as Input from '@/components/ui/input';
 import { DUE_PRESETS, type TaskFilter } from '@/lib/task-filter';
 import { cn } from '@/utils/cn';
 import {
-  DUE_LABEL, selectedValues, setValues, valueOptions, type FilterField, type FilterOptions,
+  DUE_LABEL, selectedValues, setDueRange, setValues, valueOptions, type FilterField, type FilterOptions,
 } from './filter-chips';
 
 /** Multi-select list with a search box, or due presets plus a from/to range. */
@@ -26,12 +26,7 @@ export function FilterValuePicker({
   if (field === 'due') {
     const due = filter.due;
     const range = due && !('preset' in due) ? due : {};
-    const setRange = (patch: { from?: string; to?: string }) => {
-      const next = { ...range, ...patch };
-      if (!next.from) delete next.from;
-      if (!next.to) delete next.to;
-      onChange(next.from || next.to ? { ...filter, due: next } : { ...filter, due: undefined });
-    };
+    const setRange = (patch: { from?: string; to?: string }) => onChange(setDueRange(filter, patch));
     return (
       <div className="flex w-64 flex-col gap-1 p-1">
         {DUE_PRESETS.map((preset) => {

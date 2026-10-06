@@ -8,7 +8,7 @@ import * as CompactButton from '@/components/ui/compact-button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import * as Dropdown from '@/components/ui/dropdown';
 import { settle } from '@/lib/settle';
-import { viewHref } from '@/lib/views';
+import { shareToast, viewHref } from '@/lib/views';
 import { deleteViewAction, duplicateViewAction, updateViewAction } from '@/server/views/actions';
 import type { SavedView } from '@/server/views/queries';
 import { cn } from '@/utils/cn';
@@ -54,8 +54,7 @@ export function ViewMenu({
   }
 
   function onShare() {
-    run(updateViewAction(workspaceSlug, { id: view.id, shared: !view.shared }), () =>
-      toast.success(view.shared ? 'Only you can see this view now.' : 'Shared with the workspace.'));
+    run(updateViewAction(workspaceSlug, { id: view.id, shared: !view.shared }), () => toast.success(shareToast(view)));
   }
 
   async function onDelete() {

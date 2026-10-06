@@ -39,3 +39,13 @@ export function viewHref(workspaceSlug: string, view: ViewRef): string {
   if (view.layout === 'list' && view.sort) params.set('sort', view.sort);
   return `${pathname}?${params.toString()}`;
 }
+
+/**
+ * The toast after Share / Make private; `shared` is the state before the click.
+ * An admin making someone else's view private does not end up the only one who
+ * can see it: its owner does.
+ */
+export function shareToast(view: { name: string; shared: boolean; mine: boolean }): string {
+  if (!view.shared) return 'Shared with the workspace.';
+  return view.mine ? 'Only you can see this view now.' : `“${view.name}” is private to its owner now.`;
+}
