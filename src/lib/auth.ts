@@ -120,6 +120,11 @@ export const auth = betterAuth({
     // A session read loads its user in the same query instead of a second
     // round trip. Needs the Drizzle relations at the end of db/schema/auth.ts.
     database: { joins: true },
+    // The rate limiter keys on the client IP. Vercel sets both headers to the
+    // one client address and overwrites whatever the client sent. A header
+    // holding a chain of addresses is not trusted, and the request then shares
+    // one bucket per path with every other such request.
+    ipAddress: { ipAddressHeaders: ['x-vercel-forwarded-for', 'x-forwarded-for'] },
   },
   plugins: [
     // Kept for its schema (organization, member, invitation, session's active
