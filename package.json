@@ -12,6 +12,7 @@
     "db:down": "docker compose down",
     "storage:init": "tsx scripts/storage-init.ts",
     "attachments:sweep": "tsx scripts/sweep-attachments.ts",
+    "auth:backfill-google-photos": "tsx scripts/backfill-google-photos.ts",
     "db:init": "yarn db:setup && yarn db:seed",
     "db:setup": "drizzle-kit push && tsx scripts/db-sql.ts",
     "db:setup:test": "DRIZZLE_DB=test drizzle-kit push && DRIZZLE_DB=test tsx scripts/db-sql.ts",

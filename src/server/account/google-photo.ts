@@ -22,17 +22,20 @@ function pictureFromIdToken(idToken: string): string | null {
  * one. Runs on every Google account write (link and sign-in), so accounts
  * linked before this existed pick the photo up at their next Google sign-in.
  * A photo the user already has, uploaded or from Google, is never replaced.
+ * Returns whether the user's image was set.
  */
 export async function fillImageFromGoogle(account: {
   providerId: string;
   userId: string;
   idToken?: string | null;
-}): Promise<void> {
-  if (account.providerId !== 'google' || !account.idToken) return;
+}): Promise<boolean> {
+  if (account.providerId !== 'google' || !account.idToken) return false;
   const picture = pictureFromIdToken(account.idToken);
-  if (!picture) return;
-  await db
+  if (!picture) return false;
+  const updated = await db
     .update(user)
     .set({ image: picture })
-    .where(and(eq(user.id, account.userId), isNull(user.image)));
+    .where(and(eq(user.id, account.userId), isNull(user.image)))
+    .returning({ id: user.id });
+  return updated.length > 0;
 }

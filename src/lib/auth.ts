@@ -107,8 +107,16 @@ export const auth = betterAuth({
   // which rewrites the account's tokens.
   databaseHooks: {
     account: {
-      create: { after: (account) => fillImageFromGoogle(account) },
-      update: { after: (account) => fillImageFromGoogle(account) },
+      create: {
+        after: async (account) => {
+          await fillImageFromGoogle(account);
+        },
+      },
+      update: {
+        after: async (account) => {
+          await fillImageFromGoogle(account);
+        },
+      },
     },
   },
   emailVerification: {
