@@ -116,6 +116,11 @@ export const auth = betterAuth({
   // rate_limit table: serverless instances do not share memory, so the default
   // in-memory store would give each instance its own count.
   rateLimit: { enabled: process.env.AUTH_RATE_LIMIT !== 'off', storage: 'database' },
+  advanced: {
+    // A session read loads its user in the same query instead of a second
+    // round trip. Needs the Drizzle relations at the end of db/schema/auth.ts.
+    database: { joins: true },
+  },
   plugins: [
     // Kept for its schema (organization, member, invitation, session's active
     // organization) only. Workspaces, members and invitations are managed by the

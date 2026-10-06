@@ -125,4 +125,24 @@ describe('auth', () => {
     });
     expect(result.user.email).toBe('code@example.com');
   });
+
+  it('reads a session and its user in one joined query', async () => {
+    await auth.api.signUpEmail({
+      body: { name: 'Ada', email: 'join@example.com', password: 'correct-horse' },
+    });
+    await markVerified('join@example.com');
+    const { headers: signedIn } = await auth.api.signInEmail({
+      body: { email: 'join@example.com', password: 'correct-horse' },
+      returnHeaders: true,
+    });
+    const cookie = signedIn.getSetCookie().map((line) => line.split(';')[0]).join('; ');
+    const joined = vi.spyOn(db.query.session, 'findFirst');
+
+    const result = await auth.api.getSession({
+      headers: new Headers({ cookie }),
+    });
+
+    expect(result?.user.email).toBe('join@example.com');
+    expect(joined).toHaveBeenCalledWith(expect.objectContaining({ with: { user: true } }));
+  });
 });
