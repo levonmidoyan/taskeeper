@@ -139,4 +139,24 @@ describe('after my request settles', () => {
     stop();
     vi.useRealTimers();
   });
+
+  it('ends when its timer fires even if the wall clock was set back meanwhile', async () => {
+    vi.useFakeTimers();
+    const listener = vi.fn();
+    const stop = subscribeBusy(listener);
+
+    pending.n = 1;
+    for (const l of requestListeners) l();
+    pending.n = 0;
+    for (const l of requestListeners) l();
+
+    // A clock correction mid-hold: Date.now() falls behind the timers.
+    vi.setSystemTime(Date.now() - 500);
+    await vi.advanceTimersByTimeAsync(REQUEST_SETTLE_MS);
+    expect(isBusy()).toBe(false);
+    expect(listener).toHaveBeenCalledTimes(3);
+
+    stop();
+    vi.useRealTimers();
+  });
 });
