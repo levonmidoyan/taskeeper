@@ -52,6 +52,9 @@ function blockOrganizationEndpoints(): BetterAuthPlugin {
 }
 
 export const auth = betterAuth({
+  // Defaults to "Better Auth" — the name plugins (and the Infrastructure
+  // dashboard) show users when they are not given their own.
+  appName: 'Taskeeper',
   database: drizzleAdapter(db, { provider: 'pg', schema }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: appUrl(),
