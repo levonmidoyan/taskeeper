@@ -28,16 +28,26 @@ export function Avatar({ className, ...props }: React.ComponentProps<'span'>) {
 
 export function AvatarImage({ className, src, alt = '', ...props }: React.ComponentProps<'img'>) {
   const { loaded, setLoaded } = React.useContext(AvatarContext);
+  const ref = React.useRef<HTMLImageElement>(null);
 
-  React.useEffect(() => setLoaded(false), [src, setLoaded]);
+  // A server-rendered or cached image can finish loading before React attaches
+  // onLoad, which then never fires; read the element's own state instead.
+  React.useEffect(() => {
+    const img = ref.current;
+    setLoaded(!!img && img.complete && img.naturalWidth > 0);
+  }, [src, setLoaded]);
 
   if (!src) return null;
 
   return (
     // eslint-disable-next-line @next/next/no-img-element -- user avatars come from arbitrary origins
     <img
+      ref={ref}
       src={src}
       alt={alt}
+      // Google profile photos (lh3.googleusercontent.com) answer a request that
+      // carries the app's Referer with an error page, which the browser blocks.
+      referrerPolicy="no-referrer"
       onLoad={() => setLoaded(true)}
       onError={() => setLoaded(false)}
       className={cn('absolute inset-0 size-full object-cover', !loaded && 'invisible', className)}
