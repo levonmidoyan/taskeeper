@@ -6,7 +6,7 @@ import {
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { projectDot } from '@/components/brand/tint';
-import { matchActions, paletteActions, type PaletteAction } from '@/components/shell/palette-actions';
+import { matchActions, PALETTE_GROUPS, paletteActions, type PaletteAction } from '@/components/shell/palette-actions';
 import { ignoreShortcut, OVERLAY_SELECTOR } from '@/components/shell/shortcuts';
 import * as CommandMenu from '@/components/ui/command-menu';
 import { splitHighlights } from '@/lib/highlights';
@@ -170,7 +170,7 @@ export function CommandPalette({
             value={term}
             onValueChange={setTerm}
             maxLength={100}
-            placeholder="Search tasks, projects and actions"
+            placeholder="Search tasks, projects and pages"
             // 16px on phones stops iOS zooming the page when the field is focused.
             className="h-12 max-lg:text-paragraph-md"
           />
@@ -228,16 +228,20 @@ export function CommandPalette({
               ))}
             </CommandMenu.Group>
           )}
-          {actions.length > 0 && (
-            <CommandMenu.Group heading="Actions">
-              {actions.map((a) => (
-                <CommandMenu.Item key={a.id} value={`action-${a.id}`} onSelect={() => run(a)}>
-                  <CommandMenu.ItemIcon as={a.command === 'new-task' ? IconPlus : IconArrowRight} aria-hidden="true" />
-                  <span className="truncate">{a.label}</span>
-                </CommandMenu.Item>
-              ))}
-            </CommandMenu.Group>
-          )}
+          {PALETTE_GROUPS.map(({ id, heading }) => {
+            const rows = actions.filter((a) => a.group === id);
+            if (!rows.length) return null;
+            return (
+              <CommandMenu.Group key={id} heading={heading}>
+                {rows.map((a) => (
+                  <CommandMenu.Item key={a.id} value={`action-${a.id}`} onSelect={() => run(a)}>
+                    <CommandMenu.ItemIcon as={a.group === 'actions' ? IconPlus : IconArrowRight} aria-hidden="true" />
+                    <span className="truncate">{a.label}</span>
+                  </CommandMenu.Item>
+                ))}
+              </CommandMenu.Group>
+            );
+          })}
         </CommandMenu.List>
         <CommandMenu.Footer className="max-sm:hidden">
           <div className="flex items-center gap-2 text-paragraph-xs text-text-sub-600">
