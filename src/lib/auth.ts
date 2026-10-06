@@ -126,6 +126,9 @@ export const auth = betterAuth({
     // one bucket per path with every other such request.
     ipAddress: { ipAddressHeaders: ['x-vercel-forwarded-for', 'x-forwarded-for'] },
   },
+  // OAuth failures (Google sign-in cancelled, account link refused) land here
+  // instead of Better Auth's built-in page under /api/auth/error.
+  onAPIError: { errorURL: '/auth/error' },
   plugins: [
     // Kept for its schema (organization, member, invitation, session's active
     // organization) only. Workspaces, members and invitations are managed by the
