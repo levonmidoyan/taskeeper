@@ -27,7 +27,8 @@ export function UserTimezoneForm({ current }: { current: string | null }) {
   const localZone = useSyncExternalStore(() => () => {}, browserZone, () => null);
 
   const saved = current ?? FOLLOW;
-  const options = zoneOptions(choice === FOLLOW ? current : choice);
+  // Both: picking another zone must not drop the saved one from the list.
+  const options = zoneOptions(current, choice === FOLLOW ? null : choice);
 
   async function onSave() {
     setPending(true);

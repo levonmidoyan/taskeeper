@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
-import { isBusy, subscribeBusy } from '@/lib/live/busy';
+import { endSettle, isBusy, subscribeBusy } from '@/lib/live/busy';
 import { createRefresher, type Refresher } from '@/lib/live/refresher';
 import { createPollingTransport } from '@/lib/live/transport';
 
@@ -21,6 +21,8 @@ export function LiveRefresh({ slug, version }: { slug: string; version: number }
   useEffect(() => {
     seen.current = version;
     refresher.current?.setSeen(version);
+    // A new version on screen is the page my own request carried (or newer).
+    endSettle();
   }, [version]);
 
   useEffect(() => {

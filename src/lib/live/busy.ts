@@ -36,17 +36,28 @@ export function isTextEntry(el: Element | null): boolean {
 }
 
 // A request's response arrives before the page it carries is on screen, and
-// with it the version the layout reports. Held for this long after my last
-// request settles, so my own edit does not look like a teammate's.
-export const REQUEST_SETTLE_MS = 1000;
+// with it the version the layout reports. Held after my last request settles
+// until that page renders (endSettle), so my own edit does not look like a
+// teammate's. The timer is only a ceiling, for requests that render no new
+// version. Measured on the monotonic clock, like setTimeout: Date.now() jumps
+// when the system clock is corrected, which left the hold running after its
+// timer had already fired and nothing would end it.
+export const REQUEST_SETTLE_MS = 3000;
 let settlingUntil = 0;
+
+/** The page my request carried is on screen: stop holding for it. */
+export function endSettle(): void {
+  if (performance.now() >= settlingUntil) return;
+  settlingUntil = 0;
+  emit();
+}
 
 export function isBusy(): boolean {
   return (
     held.size > 0 ||
     isTextEntry(document.activeElement) ||
     getPendingRequests() > 0 ||
-    Date.now() < settlingUntil
+    performance.now() < settlingUntil
   );
 }
 
@@ -62,9 +73,13 @@ export function subscribeBusy(listener: () => void): () => void {
   let settleTimer: ReturnType<typeof setTimeout> | undefined;
   const unsubscribeRequests = subscribeToRequests(() => {
     if (getPendingRequests() === 0) {
-      settlingUntil = Date.now() + REQUEST_SETTLE_MS;
+      settlingUntil = performance.now() + REQUEST_SETTLE_MS;
       clearTimeout(settleTimer);
-      settleTimer = setTimeout(listener, REQUEST_SETTLE_MS);
+      // The timer ends the hold itself rather than trusting a clock read to agree.
+      settleTimer = setTimeout(() => {
+        settlingUntil = 0;
+        listener();
+      }, REQUEST_SETTLE_MS);
     }
     listener();
   });

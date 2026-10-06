@@ -5,9 +5,9 @@ export const ZONES = [
   'America/New_York', 'America/Los_Angeles', 'Asia/Dubai', 'Asia/Tokyo',
 ] as const;
 
-/** The curated zones, plus the stored one if it is not among them, so a select can still show it. */
-export function zoneOptions(stored: string | null): string[] {
+/** The curated zones, plus any stored or chosen ones not among them, so a select can still show them. */
+export function zoneOptions(...extra: (string | null)[]): string[] {
   const zones: string[] = [...ZONES];
-  if (stored && !zones.includes(stored)) zones.push(stored);
+  for (const zone of extra) if (zone && !zones.includes(zone)) zones.push(zone);
   return zones;
 }
