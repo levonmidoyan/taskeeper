@@ -36,7 +36,7 @@ test('preferences: digest switch and reminder hour persist', async ({ page }) =>
   await page.getByLabel('Reminder time').click();
   await page.getByRole('option', { name: '00:00' }).click();
   await page.getByRole('button', { name: 'Save' }).last().click();
-  await expect(page.getByText('Reminder settings updated.')).toBeVisible();
+  await expect(page.getByText('Notification settings updated.')).toBeVisible();
 
   await page.reload();
   await expect(page.getByLabel('Daily digest')).not.toBeChecked();
@@ -51,7 +51,7 @@ test('a reminder set in the dialog reaches the bell after the cron runs', async 
   await page.getByLabel('Reminder time').click();
   await page.getByRole('option', { name: '00:00' }).click();
   await page.getByRole('button', { name: 'Save' }).last().click();
-  await expect(page.getByText('Reminder settings updated.')).toBeVisible();
+  await expect(page.getByText('Notification settings updated.')).toBeVisible();
   await page.goBack();
 
   await createTask(page, 'Rotate keys');

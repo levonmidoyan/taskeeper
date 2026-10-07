@@ -19,24 +19,37 @@ export function ReminderPrefsForm({ current }: { current: ReminderPrefs }) {
   const router = useRouter();
   const [digestEnabled, setDigestEnabled] = useState(current.digestEnabled);
   const [reminderHour, setReminderHour] = useState(current.reminderHour);
+  const [changeNotify, setChangeNotify] = useState(current.changeNotify);
   const [pending, setPending] = useState(false);
 
-  const unchanged = digestEnabled === current.digestEnabled && reminderHour === current.reminderHour;
+  const unchanged = digestEnabled === current.digestEnabled
+    && reminderHour === current.reminderHour
+    && changeNotify === current.changeNotify;
 
   async function onSave() {
     setPending(true);
-    const result = await settle(updateReminderPrefsAction({ digestEnabled, reminderHour }));
+    const result = await settle(updateReminderPrefsAction({ digestEnabled, reminderHour, changeNotify }));
     setPending(false);
     if (!result.ok) {
       toast.error(result.error);
       return;
     }
-    toast.success('Reminder settings updated.');
+    toast.success('Notification settings updated.');
     router.refresh();
   }
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl bg-bg-white-0 p-5 ring-1 ring-inset ring-stroke-soft-200">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <Label.Root htmlFor="change-notify">Changes by teammates</Label.Root>
+          <Hint.Root>
+            Bell and pop-up when someone changes a task you created or are assigned, or renames, archives or deletes a project.
+          </Hint.Root>
+        </div>
+        <Switch.Root id="change-notify" checked={changeNotify} onCheckedChange={setChangeNotify} disabled={pending} />
+      </div>
+
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
           <Label.Root htmlFor="digest-enabled">Daily digest</Label.Root>
