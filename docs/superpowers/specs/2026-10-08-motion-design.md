@@ -78,7 +78,7 @@ All in `src/components/kibo-ui/kanban/index.tsx`, so the board gets it; other dn
 (ManageColumnsDialog, TodoList) can opt in.
 
 1. **Lift on pickup.** The `DragOverlay` content animates in with `--ease-spring` over
-   `--duration-base`: scale 1 → 1.03, rotate 0 → 2°, shadow `regular-xs` → `regular-lg`.
+   `--duration-base`: scale 1 → 1.03, rotate 0 → 2°, shadow `regular-xs` → `regular-md` (Align has no `regular-lg`).
    Done with a CSS keyframe on an inner wrapper so it never touches dnd-kit's transform.
 2. **Ghost slot.** The in-place card while dragging (`isDragging`) renders as an empty slot
    of the same height: dashed `stroke-soft-200` border, faint primary tint, content hidden
@@ -109,6 +109,10 @@ All in `src/components/kibo-ui/kanban/index.tsx`, so the board gets it; other dn
   state is snapshotted before unmount, which fixes today's cut-off close.
 - **No source element** (command palette, notification link, calendar, direct URL): the
   modal's `<ViewTransition>` enter/exit falls back to fade + scale from 96%.
+- Closing with the browser's Back button carries no transition type, so it does not morph
+  back; it closes instantly as today. Escape, the overlay and the close button morph.
+- **Reduced motion** keeps the existing global rule in `globals.css` (every animation and
+  transition ~0 ms), now extended to view-transition pseudo-elements: changes are instant.
 - Radix zoom/fade keyframes are removed from the task modal only (other modals keep theirs,
   retuned to tokens) to avoid double animation.
 
@@ -127,14 +131,17 @@ All in `src/components/kibo-ui/kanban/index.tsx`, so the board gets it; other dn
 - Each item: `<ViewTransition name={`todo-${id}`}>`.
 - Add: fade + 4 px slide down into place; following items shift smoothly.
 - Delete: fade out, the gap closes.
-- Reorder: section 2 treatment (ghost slot + drop settle), **no tilt**.
+- Reorder: the to-do list has no `DragOverlay` (the row itself moves), so the dragged row
+  gets a lift (shadow + scale 1.01, **no tilt**) and neighbours use the section 2 shift
+  timing. dnd-kit's own transition settles it on drop.
 - "Show done" toggle: crossfade expand/collapse.
 
 **Notification bell** (`src/components/shell/NotificationBell.tsx`). Dismiss and clear-all
 switch from bare `setItems` to `startTransition`.
 
 - Dismiss: item fades and collapses.
-- Clear all: items fade out with a 30 ms stagger, then the empty state fades in.
+- Clear all: items fade out together, then the empty state fades in. (A per-item stagger
+  needs per-name CSS; dropped as not worth it, 2026-10-08.)
 - Unread badge: small spring scale pop when the count increases.
 
 **List view** (`src/components/task/TaskTable.tsx`, `views/WorkspaceTaskTable.tsx`). Rows take
@@ -143,7 +150,9 @@ purpose.
 
 **Checkbox complete** (to-do items, subtasks):
 
-- Check mark draws in (SVG `stroke-dashoffset`, 180 ms).
+- Check mark pops in: the filled check icon scales 0.5 → 1 and fades in with `--ease-spring`
+  (180 ms), the empty circle fades out. (The Tabler filled icon has no stroke to draw.)
+  Transitions, not keyframes, so items that load already done do not animate.
 - Strike-through sweeps left to right (`background-size` on a line gradient, 220 ms), then
   the text dims. Unchecking reverses it.
 - A completed to-do moving into "done" animates via its `<ViewTransition>`.
