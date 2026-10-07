@@ -45,6 +45,9 @@ export const notification = pgTable(
     // Display snapshot, so a later rename does not rewrite history and the bell needs no join.
     data: jsonb('data').$type<NotificationData>().notNull(),
     readAt: timestamp('read_at', { withTimezone: true }),
+    // Cleared from the bell: hidden now, deleted by the cron later. Not deleted
+    // at once, so a reminder's dedupe_key still blocks a second insert and email.
+    clearedAt: timestamp('cleared_at', { withTimezone: true }),
     emailClaimedAt: timestamp('email_claimed_at', { withTimezone: true }),
     emailSentAt: timestamp('email_sent_at', { withTimezone: true }),
     emailAttempts: smallint('email_attempts').notNull().default(0),

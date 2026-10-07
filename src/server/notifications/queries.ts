@@ -24,7 +24,7 @@ export async function listNotifications(ctx: WorkspaceContext, limit = 30): Prom
       readAt: notification.readAt, createdAt: notification.createdAt,
     })
     .from(notification)
-    .where(mine(ctx))
+    .where(and(mine(ctx), isNull(notification.clearedAt)))
     .orderBy(desc(notification.createdAt), desc(notification.id))
     .limit(limit);
 }

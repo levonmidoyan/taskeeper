@@ -3,7 +3,7 @@
 import { ok, withAction, type Result } from '@/lib/result';
 import { requireWorkspace } from '@/lib/session';
 import { listNotifications, unreadCount, type NotificationItem } from './queries';
-import { markAllRead, markRead } from './service';
+import { clearAll, clearOne, markAllRead, markRead } from './service';
 
 /** Slug-taking wrappers only: every export here is a public endpoint. */
 
@@ -21,4 +21,12 @@ export async function markNotificationReadAction(workspaceSlug: string, id: stri
 
 export async function markAllNotificationsReadAction(workspaceSlug: string): Promise<Result<null>> {
   return withAction(async () => markAllRead(await requireWorkspace(workspaceSlug)));
+}
+
+export async function clearNotificationAction(workspaceSlug: string, id: string): Promise<Result<null>> {
+  return withAction(async () => clearOne(await requireWorkspace(workspaceSlug), id));
+}
+
+export async function clearAllNotificationsAction(workspaceSlug: string): Promise<Result<null>> {
+  return withAction(async () => clearAll(await requireWorkspace(workspaceSlug)));
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { IconBell } from '@tabler/icons-react';
+import { IconBell, IconX } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -10,7 +10,8 @@ import * as Popover from '@/components/ui/popover';
 import { bellHref, bellText, MAX_TOASTS, pickToasts } from '@/lib/notifications';
 import { settle } from '@/lib/settle';
 import {
-  listNotificationsAction, markAllNotificationsReadAction, markNotificationReadAction, unreadCountAction,
+  clearAllNotificationsAction, clearNotificationAction, listNotificationsAction, markAllNotificationsReadAction,
+  markNotificationReadAction, unreadCountAction,
 } from '@/server/notifications/actions';
 import type { NotificationItem } from '@/server/notifications/queries';
 import { cn } from '@/utils/cn';
@@ -121,6 +122,23 @@ export function NotificationBell({ workspaceSlug, initialUnread, serverNow }: {
     setItems((list) => list?.map((i) => ({ ...i, readAt: i.readAt ?? new Date() })) ?? null);
   }
 
+  async function clearOne(item: NotificationItem) {
+    // Clearing reads too: counted here, so a toast's Open cannot count it again.
+    const wasUnread = !item.readAt && !markedRead.current.has(item.id);
+    markedRead.current.add(item.id);
+    if (wasUnread) setUnread((n) => Math.max(0, n - 1));
+    setItems((list) => list?.filter((i) => i.id !== item.id) ?? null);
+    const result = await settle(clearNotificationAction(workspaceSlug, item.id));
+    if (!result.ok) toast.error(result.error);
+  }
+
+  async function clearAll() {
+    const result = await settle(clearAllNotificationsAction(workspaceSlug));
+    if (!result.ok) return toast.error(result.error);
+    setUnread(0);
+    setItems([]);
+  }
+
   const label = unread > 0 ? `Notifications, ${unread} unread` : 'Notifications';
 
   return (
@@ -141,14 +159,24 @@ export function NotificationBell({ workspaceSlug, initialUnread, serverNow }: {
       <Popover.Content align="end" sideOffset={8} showArrow={false} className="w-80 p-0">
         <div className="flex items-center justify-between border-b border-stroke-soft-200 px-4 py-3">
           <span className="text-label-sm text-text-strong-950">Notifications</span>
-          <button
-            type="button"
-            onClick={markAll}
-            disabled={unread === 0}
-            className="text-label-xs text-primary-base disabled:text-text-disabled-300"
-          >
-            Mark all read
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={markAll}
+              disabled={unread === 0}
+              className="text-label-xs text-primary-base disabled:text-text-disabled-300"
+            >
+              Mark all read
+            </button>
+            <button
+              type="button"
+              onClick={clearAll}
+              disabled={!items?.length}
+              className="text-label-xs text-text-sub-600 hover:text-text-strong-950 disabled:text-text-disabled-300"
+            >
+              Clear all
+            </button>
+          </div>
         </div>
         <ul className="max-h-96 overflow-y-auto p-1" aria-label="Notifications">
           {items === null && <li className="px-3 py-6 text-center text-paragraph-sm text-text-sub-600">Loading…</li>}
@@ -158,11 +186,11 @@ export function NotificationBell({ workspaceSlug, initialUnread, serverNow }: {
           {items?.map((item) => {
             const { title, detail } = bellText(item);
             return (
-              <li key={item.id}>
+              <li key={item.id} className="group relative">
                 <Link
                   href={bellHref(workspaceSlug, item)}
                   onClick={() => markOne(item)}
-                  className="flex items-start gap-2 rounded-lg p-2 hover:bg-bg-weak-50"
+                  className="flex items-start gap-2 rounded-lg p-2 pr-8 hover:bg-bg-weak-50"
                 >
                   <span
                     aria-hidden="true"
@@ -176,6 +204,14 @@ export function NotificationBell({ workspaceSlug, initialUnread, serverNow }: {
                   </span>
                   {!item.readAt && <span className="sr-only">Unread</span>}
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => clearOne(item)}
+                  aria-label={`Clear notification: ${title}`}
+                  className="absolute right-1.5 top-2 flex size-5 items-center justify-center rounded-md text-text-soft-400 opacity-0 hover:bg-bg-soft-200 hover:text-text-strong-950 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                >
+                  <IconX className="size-3.5" aria-hidden="true" />
+                </button>
               </li>
             );
           })}

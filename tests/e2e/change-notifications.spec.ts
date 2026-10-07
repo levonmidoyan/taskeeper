@@ -129,3 +129,26 @@ test('a browser clock running ahead does not swallow toasts', async ({ page, bro
   await expect(page.getByRole('button', { name: 'Notifications, 1 unread' })).toBeVisible();
   await expect(page.getByText('Bob changed title')).toBeVisible();
 });
+
+test('clearing removes items from the bell, one or all, and they stay gone', async ({ page, browser }) => {
+  const { bob } = await twoMembers(page, browser);
+  await createTask(page, 'Fix login');
+  await createTask(page, 'Write docs');
+  await bobRenames(bob, 'Fix login', 'Fix login on Safari');
+  await bobRenames(bob, 'Write docs', 'Write the docs');
+
+  await refocus(page);
+  await page.getByRole('button', { name: 'Notifications, 2 unread' }).click();
+  const list = page.getByRole('list', { name: 'Notifications' });
+  await list.getByRole('button', { name: 'Clear notification: Fix login on Safari' }).click();
+  await expect(list.getByText('Fix login on Safari')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Notifications, 1 unread' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Clear all' }).click();
+  await expect(list.getByText('Nothing yet.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Notifications', exact: true })).toBeVisible();
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Notifications', exact: true }).click();
+  await expect(page.getByRole('list', { name: 'Notifications' }).getByText('Nothing yet.')).toBeVisible();
+});

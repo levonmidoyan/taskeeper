@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
@@ -6,7 +6,9 @@ import { notification } from '@/db';
 import { newId } from '@/lib/ids';
 import type { WorkspaceContext } from '@/lib/session';
 import { bellSnapshot, listNotifications, unreadCount } from '@/server/notifications/queries';
-import { markAllRead, markRead } from '@/server/notifications/service';
+import {
+  clearAll, clearOne, markAllRead, markRead, pruneNotifications,
+} from '@/server/notifications/service';
 
 beforeEach(resetDb);
 afterAll(closeDb);
@@ -97,5 +99,70 @@ describe('bellSnapshot', () => {
     const snap = await bellSnapshot(ada);
     expect(snap.unread).toBe(1);
     expect(Math.abs(snap.now - new Date(now).getTime())).toBeLessThan(5_000);
+  });
+});
+
+describe('clearing', () => {
+  it('clears one of mine: hidden, read, but kept for reminder dedupe', async () => {
+    const { ada, bob } = await setup();
+    const mine = await seed(ada.userId, ada.workspaceId, 'a1');
+    const theirs = await seed(bob.userId, bob.workspaceId, 'b1');
+
+    expect(await clearOne(ada, mine)).toEqual({ ok: true, data: null });
+    expect(await clearOne(ada, theirs)).toEqual({ ok: false, error: 'Notification not found.' });
+
+    expect(await listNotifications(ada)).toEqual([]);
+    expect(await unreadCount(ada)).toBe(0);
+    expect(await listNotifications(bob)).toHaveLength(1);
+    const [row] = await db.select().from(notification).where(eq(notification.id, mine));
+    expect(row.clearedAt).not.toBeNull();
+    expect(row.readAt).not.toBeNull();
+  });
+
+  it('clears all of mine in this workspace only', async () => {
+    const { ada, adaOther, bob } = await setup();
+    await seed(ada.userId, ada.workspaceId, 'a1');
+    await seed(ada.userId, ada.workspaceId, 'a2');
+    await seed(ada.userId, adaOther.workspaceId, 'a3');
+    await seed(bob.userId, bob.workspaceId, 'b1');
+
+    expect(await clearAll(ada)).toEqual({ ok: true, data: null });
+
+    expect(await listNotifications(ada)).toEqual([]);
+    expect(await unreadCount(ada)).toBe(0);
+    expect(await listNotifications(adaOther)).toHaveLength(1);
+    expect(await listNotifications(bob)).toHaveLength(1);
+  });
+
+  it('keeps the read state of an already-read item it clears', async () => {
+    const { ada } = await setup();
+    const id = await seed(ada.userId, ada.workspaceId, 'a1');
+    await markRead(ada, id);
+    const [before] = await db.select().from(notification).where(eq(notification.id, id));
+    await clearAll(ada);
+    const [after] = await db.select().from(notification).where(eq(notification.id, id));
+    expect(after.readAt).toEqual(before.readAt);
+  });
+});
+
+describe('pruneNotifications', () => {
+  const ids = async () => (await db.select({ id: notification.id }).from(notification)).map((r) => r.id).sort();
+  const now = new Date('2026-10-08T12:00:00Z');
+  const daysAgo = (n: number) => new Date(now.getTime() - n * 86_400_000);
+
+  it('deletes read items older than 30 days and cleared items older than 3', async () => {
+    const { ada } = await setup();
+    const oldRead = await seed(ada.userId, ada.workspaceId, 'k1', daysAgo(31));
+    const freshRead = await seed(ada.userId, ada.workspaceId, 'k2', daysAgo(29));
+    const oldUnread = await seed(ada.userId, ada.workspaceId, 'k3', daysAgo(40));
+    const oldCleared = await seed(ada.userId, ada.workspaceId, 'k4', daysAgo(4));
+    const freshCleared = await seed(ada.userId, ada.workspaceId, 'k5', daysAgo(2));
+    await markRead(ada, oldRead);
+    await markRead(ada, freshRead);
+    await clearOne(ada, oldCleared);
+    await clearOne(ada, freshCleared);
+
+    expect(await pruneNotifications(now)).toBe(2);
+    expect(await ids()).toEqual([freshRead, oldUnread, freshCleared].sort());
   });
 });
