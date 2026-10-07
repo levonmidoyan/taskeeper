@@ -25,22 +25,51 @@
  * - shadcn Card and ScrollArea (Radix) replaced by Align-styled elements and native overflow.
  *   The drop-target ring is drawn on an overlay above the column's content, so a footer
  *   does not paint over it. The provider has no grid defaults; the caller lays out columns.
+ * - Motion (2026-10-08 motion spec): the overlay lifts and settles, the source card becomes an
+ *   empty slot, columns tint while hovered. The overlay card stays set until the drop
+ *   animation ends, so the settle animates the card rather than an empty frame.
  */
 
 import {
   type Collision, DndContext, type DndContextProps, type DragEndEvent, type DragOverEvent,
-  DragOverlay, type DragStartEvent, useDroppable,
+  defaultDropAnimationSideEffects, type DropAnimation, DragOverlay, type DragStartEvent, useDroppable,
 } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
-  createContext, type HTMLAttributes, type ReactNode, useContext, useState, useSyncExternalStore,
+  createContext, type HTMLAttributes, type ReactNode, useContext, useMemo, useState,
+  useSyncExternalStore,
 } from 'react';
 import { createPortal } from 'react-dom';
 import tunnel from 'tunnel-rat';
+import { DURATION, EASE_OUT_SOFT, EASE_SPRING } from '@/lib/motion';
+import { useReducedMotion } from '@/lib/use-reduced-motion';
 import { cn } from '@/utils/cn';
 
 const overlay = tunnel();
+
+/**
+ * The overlay glides into the slot and its lift (scale + tilt) eases back. The
+ * source card stays invisible until then, so the swap back to it does not flash.
+ * `onSettled` runs with the dropped card's id once the animation has finished.
+ */
+function dropAnimation(onSettled: (id: string) => void): DropAnimation {
+  const sideEffects = defaultDropAnimationSideEffects({
+    styles: { active: { opacity: '0' } },
+    className: { dragOverlay: 'kanban-settling' },
+  });
+  return {
+    duration: DURATION.slow,
+    easing: EASE_SPRING,
+    sideEffects: (args) => {
+      const cleanup = sideEffects(args);
+      return () => {
+        cleanup?.();
+        onSettled(String(args.active.id));
+      };
+    },
+  };
+}
 
 export type { DragEndEvent } from '@dnd-kit/core';
 
@@ -67,9 +96,9 @@ export function KanbanBoard({ id, children, className, ...props }: KanbanBoardPr
       className={cn(
         // The ring sits on an ::after overlay above the content, so nothing inside the
         // column (such as a footer with its own background) paints over it.
-        'relative flex min-h-40 flex-col overflow-hidden rounded-2xl bg-bg-weak-50',
-        'after:pointer-events-none after:absolute after:inset-0 after:z-10 after:rounded-2xl after:ring-2 after:ring-inset after:transition-shadow after:duration-150',
-        isOver ? 'after:ring-primary-base' : 'after:ring-transparent',
+        'relative flex min-h-40 flex-col overflow-hidden rounded-2xl transition-colors duration-120 ease-out-soft',
+        'after:pointer-events-none after:absolute after:inset-0 after:z-10 after:rounded-2xl after:ring-2 after:ring-inset after:transition-shadow after:duration-120',
+        isOver ? 'bg-primary-lighter after:ring-primary-base' : 'bg-bg-weak-50 after:ring-transparent',
         className,
       )}
       {...props}
@@ -88,7 +117,10 @@ export type KanbanCardProps = {
 };
 
 export function KanbanCard({ id, name, children, className, onClick }: KanbanCardProps) {
-  const { attributes, listeners, setNodeRef, transition, transform, isDragging } = useSortable({ id });
+  const { attributes, listeners, setNodeRef, transition, transform, isDragging } = useSortable({
+    id,
+    transition: { duration: DURATION.base, easing: EASE_OUT_SOFT },
+  });
   const { activeCardId } = useContext(KanbanContext);
   const body = children ?? <p className="m-0 text-paragraph-sm text-text-strong-950">{name}</p>;
 
@@ -103,18 +135,20 @@ export function KanbanCard({ id, name, children, className, onClick }: KanbanCar
         onClick={onClick}
         className={cn(
           'w-full cursor-grab rounded-10 bg-bg-white-0 p-3 text-left shadow-regular-xs ring-1 ring-inset ring-stroke-soft-200 transition-shadow duration-150 hover:shadow-regular-sm active:cursor-grabbing',
-          isDragging && 'pointer-events-none opacity-30',
+          // The slot the card will land in: same size, content hidden but still named
+          // for assistive tech.
+          isDragging && 'pointer-events-none bg-primary-lighter shadow-none ring-0 outline-1 -outline-offset-1 outline-dashed outline-primary-base',
           className,
         )}
       >
-        {body}
+        <span data-card-body className={cn('block', isDragging && 'opacity-0')}>{body}</span>
       </button>
       {activeCardId === id && (
         <overlay.In>
           <div
             aria-hidden="true"
             className={cn(
-              'w-full cursor-grabbing rounded-10 bg-bg-white-0 p-3 shadow-regular-md ring-2 ring-primary-base',
+              'w-full animate-kanban-lift cursor-grabbing rounded-10 bg-bg-white-0 p-3 shadow-regular-md ring-2 ring-primary-base',
               className,
             )}
           >
@@ -189,6 +223,17 @@ export function KanbanProvider<T extends KanbanItemProps, C extends KanbanColumn
     () => true,
     () => false,
   );
+  const reducedMotion = useReducedMotion();
+  // A newer drag may have started by the time a drop settles; it keeps its card.
+  const drop = useMemo(
+    () => (reducedMotion ? null : dropAnimation((id) => setActiveCardId((current) => (current === id ? null : current)))),
+    [reducedMotion],
+  );
+
+  /** Ends the drag; with a drop animation the overlay card stays until it has settled. */
+  function release() {
+    if (!drop) setActiveCardId(null);
+  }
 
   function handleDragStart(event: DragStartEvent) {
     if (data.some((item) => item.id === event.active.id)) setActiveCardId(String(event.active.id));
@@ -222,7 +267,7 @@ export function KanbanProvider<T extends KanbanItemProps, C extends KanbanColumn
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    setActiveCardId(null);
+    release();
     const { active, over } = event;
 
     let next = data;
@@ -247,7 +292,7 @@ export function KanbanProvider<T extends KanbanItemProps, C extends KanbanColumn
   }
 
   function handleDragCancel() {
-    setActiveCardId(null);
+    release();
     onDragCancel?.();
   }
 
@@ -263,7 +308,7 @@ export function KanbanProvider<T extends KanbanItemProps, C extends KanbanColumn
         <div className={cn('flex size-full gap-4', className)}>
           {columns.map((column) => children(column))}
         </div>
-        {mounted && createPortal(<DragOverlay><overlay.Out /></DragOverlay>, document.body)}
+        {mounted && createPortal(<DragOverlay dropAnimation={drop}><overlay.Out /></DragOverlay>, document.body)}
       </DndContext>
     </KanbanContext.Provider>
   );
