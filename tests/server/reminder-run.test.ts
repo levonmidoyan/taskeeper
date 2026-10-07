@@ -4,6 +4,7 @@ import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
 import { notification } from '@/db';
 import { EmailSendError } from '@/lib/email';
+import { newId } from '@/lib/ids';
 import type { OutgoingMail } from '@/lib/reminders';
 import type { WorkspaceContext } from '@/lib/session';
 import { getWorkspaceVersion } from '@/server/changes/queries';
@@ -206,5 +207,16 @@ describe('runReminders', () => {
     expect(result.claimed).toBe(2);
     expect(await getWorkspaceVersion(first)).toBe(before[0]);
     expect(await getWorkspaceVersion(second)).toBe(before[1] + 1);
+  });
+});
+
+describe('claimUnsentEmails', () => {
+  it('never claims change notifications', async () => {
+    const { ctx, taskId } = await setup();
+    await db.insert(notification).values({
+      id: newId(), userId: ctx.userId, workspaceId: ctx.workspaceId, kind: 'task_change', taskId,
+      dedupeKey: `chg:${newId()}`, data: { title: 'Ship', projectName: 'Website', actorName: 'Bob', changes: ['title'] },
+    });
+    expect(await claimUnsentEmails()).toEqual([]);
   });
 });

@@ -5,8 +5,9 @@ import type { WorkspaceContext } from '@/lib/session';
 
 export type NotificationItem = {
   id: string;
-  kind: 'reminder' | 'digest';
+  kind: 'reminder' | 'digest' | 'task_change' | 'project_change';
   taskId: string | null;
+  projectId: string | null;
   data: NotificationData;
   readAt: Date | null;
   createdAt: Date;
@@ -18,7 +19,8 @@ const mine = (ctx: WorkspaceContext) =>
 export async function listNotifications(ctx: WorkspaceContext, limit = 30): Promise<NotificationItem[]> {
   return db
     .select({
-      id: notification.id, kind: notification.kind, taskId: notification.taskId, data: notification.data,
+      id: notification.id, kind: notification.kind, taskId: notification.taskId, projectId: notification.projectId,
+      data: notification.data,
       readAt: notification.readAt, createdAt: notification.createdAt,
     })
     .from(notification)

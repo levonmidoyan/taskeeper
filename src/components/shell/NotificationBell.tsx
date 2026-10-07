@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Popover from '@/components/ui/popover';
-import { notificationHref, notificationText } from '@/lib/reminders';
+import { bellHref, bellText } from '@/lib/notifications';
 import { settle } from '@/lib/settle';
 import {
   listNotificationsAction, markAllNotificationsReadAction, markNotificationReadAction, unreadCountAction,
@@ -97,11 +97,11 @@ export function NotificationBell({ workspaceSlug, initialUnread }: { workspaceSl
             <li className="px-3 py-6 text-center text-paragraph-sm text-text-sub-600">Nothing yet.</li>
           )}
           {items?.map((item) => {
-            const { title, detail } = notificationText(item);
+            const { title, detail } = bellText(item);
             return (
               <li key={item.id}>
                 <Link
-                  href={notificationHref(workspaceSlug, item)}
+                  href={bellHref(workspaceSlug, item)}
                   onClick={() => markOne(item)}
                   className="flex items-start gap-2 rounded-lg p-2 hover:bg-bg-weak-50"
                 >

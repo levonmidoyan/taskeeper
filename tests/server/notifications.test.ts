@@ -74,3 +74,16 @@ describe('notifications', () => {
     expect(await listNotifications(ada)).toHaveLength(30);
   });
 });
+
+describe('change items', () => {
+  it('lists change items with their project id', async () => {
+    const { ada } = await setup();
+    await db.insert(notification).values({
+      id: newId(), userId: ada.userId, workspaceId: ada.workspaceId, kind: 'project_change', dedupeKey: `chg:${newId()}`,
+      data: { projectName: 'Website', actorName: 'Bob', changes: ['deleted'] },
+    });
+    const [item] = await listNotifications(ada);
+    expect(item).toMatchObject({ kind: 'project_change', projectId: null, taskId: null });
+    expect(await unreadCount(ada)).toBe(1);
+  });
+});
