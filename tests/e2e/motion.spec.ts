@@ -92,4 +92,39 @@ test.describe('reduced motion', () => {
   });
 });
 
+test.describe('task modal', () => {
+  test('a task opened from the board grows out of its card and shrinks back', async ({ page }) => {
+    await signUpWithProject(page, 'motion-modal');
+    await createTask(page, 'Morph me');
+    await recordViewTransitions(page);
+
+    await card(page, 'Todo', 'Morph me').click();
+    const details = page.getByRole('dialog', { name: 'Task details' });
+    await expect(details).toBeVisible();
+    await expect(page).toHaveURL(/[?&]task=/);
+    // Clickable straight away: the root swaps instantly, nothing covers the dialog.
+    await details.getByRole('tab', { name: 'Comments' }).click();
+    await viewTransitionsDone(page);
+    expect((await seenViewTransitions(page)).some((p) => p.startsWith('::view-transition-group(task-'))).toBe(true);
+
+    await recordViewTransitions(page);
+    await page.keyboard.press('Escape');
+    await expect(details).toBeHidden();
+    await expect(card(page, 'Todo', 'Morph me')).toBeVisible();
+    await viewTransitionsDone(page);
+    expect((await seenViewTransitions(page)).some((p) => p.startsWith('::view-transition-group(task-'))).toBe(true);
+  });
+
+  test('a task opened from the list morphs too', async ({ page }) => {
+    await signUpWithProject(page, 'motion-list');
+    await createTask(page, 'Row task');
+    await page.getByRole('tab', { name: 'List' }).click();
+    await recordViewTransitions(page);
+    await page.getByRole('button', { name: 'Row task', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Task details' })).toBeVisible();
+    await viewTransitionsDone(page);
+    expect((await seenViewTransitions(page)).some((p) => p.startsWith('::view-transition-group(task-'))).toBe(true);
+  });
+});
+
 export { card, column, recordViewTransitions, seenViewTransitions, signUpWithProject, viewTransitionsDone };

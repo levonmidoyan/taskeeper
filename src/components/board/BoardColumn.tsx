@@ -21,6 +21,7 @@ export function BoardColumn({
   workspaceSlug,
   timezone,
   canEdit,
+  openTaskId,
   onOpen,
 }: {
   status: StatusRow;
@@ -28,6 +29,8 @@ export function BoardColumn({
   workspaceSlug: string;
   timezone: string;
   canEdit: boolean;
+  /** ?task=, so that card gives its morph name to the modal. */
+  openTaskId: string | null;
   onOpen: (id: string) => void;
 }) {
   const id = columnId(status.id);
@@ -56,7 +59,7 @@ export function BoardColumn({
           </li>
         }
       >
-        {(item) => <TaskCard key={item.id} task={item.task} timezone={timezone} onOpen={onOpen} />}
+        {(item) => <TaskCard key={item.id} task={item.task} timezone={timezone} openTaskId={openTaskId} onOpen={onOpen} />}
       </KanbanCards>
     </KanbanBoard>
   );

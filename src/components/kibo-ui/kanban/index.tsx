@@ -38,11 +38,11 @@ import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities';
 import {
   createContext, type HTMLAttributes, type ReactNode, useContext, useMemo, useState,
-  useSyncExternalStore,
+  useSyncExternalStore, ViewTransition,
 } from 'react';
 import { createPortal } from 'react-dom';
 import tunnel from 'tunnel-rat';
-import { DURATION, EASE_OUT_SOFT, EASE_SPRING } from '@/lib/motion';
+import { DURATION, EASE_OUT_SOFT, EASE_SPRING, TASK_MORPH_SHARE } from '@/lib/motion';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 import { cn } from '@/utils/cn';
 
@@ -114,9 +114,16 @@ export type KanbanCardProps = {
   children?: ReactNode;
   className?: string;
   onClick?: () => void;
+  /**
+   * Opts the card into view transitions (board cards; Task 4 names the button with it).
+   * Without it the card renders no <ViewTransition>.
+   */
+  transitionName?: string;
+  /** The name shared with the task modal; undefined while this card's task is open. */
+  morphName?: string;
 };
 
-export function KanbanCard({ id, name, children, className, onClick }: KanbanCardProps) {
+export function KanbanCard({ id, name, children, className, onClick, transitionName, morphName }: KanbanCardProps) {
   const { attributes, listeners, setNodeRef, transition, transform, isDragging } = useSortable({
     id,
     transition: { duration: DURATION.base, easing: EASE_OUT_SOFT },
@@ -141,7 +148,16 @@ export function KanbanCard({ id, name, children, className, onClick }: KanbanCar
           className,
         )}
       >
-        <span data-card-body className={cn('block', isDragging && 'opacity-0')}>{body}</span>
+        {transitionName ? (
+          // Keyed by name: giving the name up remounts this boundary, which is what
+          // pairs it with the modal's (React shares a name only between an unmount and
+          // a mount). Only the body remounts; the button keeps focus and listeners.
+          <ViewTransition key={morphName ?? 'open'} name={morphName} share={TASK_MORPH_SHARE} default="none">
+            <span data-card-body className={cn('block', isDragging && 'opacity-0')}>{body}</span>
+          </ViewTransition>
+        ) : (
+          <span data-card-body className={cn('block', isDragging && 'opacity-0')}>{body}</span>
+        )}
       </button>
       {activeCardId === id && (
         <overlay.In>

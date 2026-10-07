@@ -13,6 +13,7 @@ import { BoardColumn } from '@/components/board/BoardColumn';
 import { columnId, isUnchanged, neighboursAfterMove } from '@/components/board/neighbours';
 import { KanbanProvider } from '@/components/kibo-ui/kanban';
 import { useDragBusy } from '@/lib/live/use-drag-busy';
+import { TASK_OPEN } from '@/lib/motion';
 import { settle } from '@/lib/settle';
 import type { StatusRow } from '@/server/projects/queries';
 import { moveTaskAction } from '@/server/tasks/actions';
@@ -44,6 +45,7 @@ export function Board({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const openTaskId = searchParams.get('task');
   const [, startTransition] = useTransition();
   const [announcement, setAnnouncement] = useState('');
 
@@ -149,7 +151,7 @@ export function Board({
   function openTask(taskId: string) {
     const next = new URLSearchParams(searchParams);
     next.set('task', taskId);
-    router.push(`?${next.toString()}`, { scroll: false });
+    router.push(`?${next.toString()}`, { scroll: false, transitionTypes: [TASK_OPEN] });
   }
 
   function onDragEnd(event: DragEndEvent, finalItems: BoardItem[]) {
@@ -227,6 +229,7 @@ export function Board({
             workspaceSlug={workspaceSlug}
             timezone={timezone}
             canEdit={canEditColumns}
+            openTaskId={openTaskId}
             onOpen={openTask}
           />
         )}

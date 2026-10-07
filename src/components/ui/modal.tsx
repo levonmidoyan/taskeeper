@@ -38,14 +38,19 @@ const ModalContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     overlayClassName?: string;
     showClose?: boolean;
+    /**
+     * Where the portal renders. Given, the content mounts in the same commit as the
+     * modal; without it Radix waits a layout effect, which a view transition misses.
+     */
+    container?: HTMLElement | null;
   }
 >(
   (
-    { className, overlayClassName, children, showClose = true, ...rest },
+    { className, overlayClassName, children, showClose = true, container, ...rest },
     forwardedRef,
   ) => {
     return (
-      <ModalPortal>
+      <ModalPortal container={container}>
         <ModalOverlay className={overlayClassName}>
           <DialogPrimitive.Content
             ref={forwardedRef}
