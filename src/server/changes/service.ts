@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { db, workspaceChange } from '@/db';
 import type { WorkspaceContext } from '@/lib/session';
+import { schedulePublish } from '@/server/changes/publish';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -9,8 +10,7 @@ export type Executor = typeof db | Tx;
 
 /**
  * What changed. No projectId = anything in the workspace may have changed.
- * Polling ignores it today; a Pusher publish will send it, so clients can skip
- * changes to projects they are not looking at.
+ * Unused for now: Pusher publishes workspace-wide (see publish.ts).
  */
 export type ChangeScope = { projectId?: string | null };
 
@@ -23,12 +23,13 @@ export async function emitChangeFor(workspaceId: string, tx: Executor): Promise<
       target: workspaceChange.workspaceId,
       set: { version: sql`${workspaceChange.version} + 1`, changedAt: sql`now()` },
     });
+  schedulePublish(workspaceId);
 }
 
 /**
  * Tells open pages that shared workspace data changed. Call it inside the
  * mutation's transaction, after the write, so a rolled-back write never bumps.
- * When Pusher lands, this also queues a publish of `scope` to run after commit.
+ * Pusher publishes the committed counter after the response (schedulePublish).
  */
 export async function emitChange(ctx: WorkspaceContext, scope: ChangeScope, tx: Executor): Promise<void> {
   await emitChangeFor(ctx.workspaceId, tx);

@@ -46,15 +46,16 @@ render stale data.
 
 ## Configuration
 
-| var | side | notes |
-|---|---|---|
-| `PUSHER_APP_ID` | server | |
-| `PUSHER_SECRET` | server | |
-| `NEXT_PUBLIC_PUSHER_KEY` | both | the server also needs it to sign |
-| `NEXT_PUBLIC_PUSHER_CLUSTER` | both | e.g. `eu` |
+| var | notes |
+|---|---|
+| `PUSHER_APP_ID` | |
+| `PUSHER_KEY` | public; the workspace layout passes it to the browser |
+| `PUSHER_SECRET` | |
+| `PUSHER_CLUSTER` | e.g. `eu`; passed to the browser with the key |
 
-Server publishing is on only when all four are set. The client uses Pusher only when both
-`NEXT_PUBLIC_*` vars are set. Added to `.env.example`. No DB migration.
+Pusher is on only when all four are set, on server and client alike: the layout reads them at
+request time and gives `LiveRefresh` `{ key, cluster }` or `null`. No `NEXT_PUBLIC_*` vars, so
+nothing is inlined at build time. Added to `.env.example`. No DB migration.
 
 ## Server
 
@@ -132,12 +133,12 @@ the channel uses the id so a slug rename does not break it.
 
 The single `ChangeTransport` `LiveRefresh` uses.
 
-- No `NEXT_PUBLIC_PUSHER_KEY`/cluster → polling in `fast` mode only (today).
+- No Pusher config from the layout → polling in `fast` mode only (today).
 - Otherwise starts polling in `fast` mode and Pusher together. `healthy` → polling `safety`;
   `unhealthy` → polling `fast` (one `console.warn` per fall-back, not per retry). Pusher keeps
   reconnecting on its own; on returning to `healthy` after being unhealthy, call
   `checkNow()` to pick up events missed while disconnected.
-- Pusher `change` events are debounced 500 ms (trailing, keeping the highest version) before
+- Pusher `change` events are coalesced for 500 ms after the first one (a steady stream still lands every 500 ms), keeping the highest version before
   reaching `onVersion`. Poll answers are not debounced.
 - Hidden tabs keep the socket open; refresh decisions are unchanged.
 
@@ -179,7 +180,7 @@ Vitest:
 E2E: suite runs without Pusher env; existing live-refresh specs stay as they are.
 
 Manual smoke with the dev Pusher app: two browsers, a change shows in ~1 s; break
-`NEXT_PUBLIC_PUSHER_KEY` → falls back to 30 s polling; break `PUSHER_SECRET` → same.
+`PUSHER_KEY` → falls back to 30 s polling; break `PUSHER_SECRET` → same.
 
 ## Deploy notes (for the PR)
 
