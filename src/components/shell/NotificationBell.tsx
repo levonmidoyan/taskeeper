@@ -2,11 +2,12 @@
 
 import { IconBell } from '@tabler/icons-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Popover from '@/components/ui/popover';
-import { bellHref, bellText } from '@/lib/notifications';
+import { bellHref, bellText, MAX_TOASTS, pickToasts } from '@/lib/notifications';
 import { settle } from '@/lib/settle';
 import {
   listNotificationsAction, markAllNotificationsReadAction, markNotificationReadAction, unreadCountAction,
@@ -17,12 +18,20 @@ import { cn } from '@/utils/cn';
 /**
  * Header bell. The count arrives server-rendered with the shell and is
  * re-fetched when the window regains focus; the list loads when opened.
- * No realtime (roadmap slice 8).
+ * When the count rises (a live refresh or the focus re-count), new change items
+ * also pop up as toasts.
  */
 export function NotificationBell({ workspaceSlug, initialUnread }: { workspaceSlug: string; initialUnread: number }) {
   const [unread, setUnread] = useState(initialUnread);
   const [items, setItems] = useState<NotificationItem[] | null>(null);
   const [open, setOpen] = useState(false);
+  const router = useRouter();
+  // Only what arrives after this tab opened toasts; the count it opened with does not.
+  const lastToastAt = useRef(0);
+  const seenUnread = useRef(initialUnread);
+  useEffect(() => {
+    lastToastAt.current = Date.now();
+  }, []);
 
   // A fresh server count (navigation, revalidation) replaces the local one.
   const [serverUnread, setServerUnread] = useState(initialUnread);
@@ -39,6 +48,40 @@ export function NotificationBell({ workspaceSlug, initialUnread }: { workspaceSl
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, [workspaceSlug]);
+
+  useEffect(() => {
+    const rose = unread > seenUnread.current;
+    seenUnread.current = unread;
+    if (!rose) return;
+    let cancelled = false;
+    void (async () => {
+      const result = await settle(listNotificationsAction(workspaceSlug));
+      if (cancelled || !result.ok) return;
+      setItems(result.data);
+      const fresh = pickToasts(result.data, lastToastAt.current);
+      if (fresh.length === 0) return;
+      lastToastAt.current = new Date(fresh[0].createdAt).getTime();
+      if (fresh.length > MAX_TOASTS) {
+        toast(`${fresh.length} new updates`, { action: { label: 'View', onClick: () => setOpen(true) } });
+        return;
+      }
+      for (const item of fresh) {
+        const { title, detail } = bellText(item);
+        toast(title, {
+          description: detail,
+          action: {
+            label: 'Open',
+            onClick: () => {
+              setUnread((n) => Math.max(0, n - 1));
+              void settle(markNotificationReadAction(workspaceSlug, item.id));
+              router.push(bellHref(workspaceSlug, item));
+            },
+          },
+        });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [unread, workspaceSlug, router]);
 
   async function onOpenChange(next: boolean) {
     setOpen(next);
