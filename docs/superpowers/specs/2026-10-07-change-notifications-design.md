@@ -108,7 +108,8 @@ Merge (SQL, one fragment): `data` = incoming data, except
 - `assignedToYou` = existing OR incoming,
 - `comment` / `status` = incoming when present, else existing;
 
-`created_at = now()` so the item rises to the top and re-toasts. Email columns are left alone.
+`created_at = now()` so the item rises to the top of the bell. A merge does not raise the unread
+count, so it does not toast again (a burst toasts once). Email columns are left alone.
 
 `notifyProjectChange(ctx, tx, { projectId, change, projectName, newName? })`
 
@@ -157,22 +158,23 @@ Change rows are never claimed or emailed.
 
 ### Text and links (src/lib/notifications.ts)
 
-`notificationText` and `notificationHref` move here from `src/lib/reminders.ts` (reminders
-re-exports for existing imports) and gain:
+New `bellText(item)` and `bellHref(slug, item)` handle the two change kinds and delegate
+reminder/digest items to the existing `notificationText` / `notificationHref` in
+`src/lib/reminders.ts` (unchanged, so no runtime import cycle). The bell switches to them.
 
 | kind | title | detail | href |
 |---|---|---|---|
-| `task_change` | task title | "Anna assigned you" / "Anna commented: “…”" / "Anna changed status, priority" (assigned/comment lead when present) | `/<slug>/tasks/<taskId>` |
-| `project_change` | project name | "Anna renamed to Site v2" / "Anna archived this project" / "Anna deleted this project" (multiple: "Anna renamed, archived") | rename/unarchive: `/<slug>/projects/<projectId>`; archived: `/<slug>/settings/projects`; deleted or `projectId` null: `/<slug>` |
+| `task_change` | task title | `assignedToYou` → "Anna assigned you"; only a comment → "Anna commented: “…”"; only status → "Anna moved to Done"; otherwise "Anna changed status, priority" | `/<slug>/tasks/<taskId>` (`/<slug>` when null) |
+| `project_change` | project name (before rename) | "Anna renamed to Site v2" / "Anna archived this project" / "Anna restored this project" / "Anna deleted this project"; several: "Anna renamed, archived" | rename/unarchive: `/<slug>/projects/<projectId>`; archived: `/<slug>/settings/projects`; deleted or `projectId` null: `/<slug>` |
 
-Field labels: title, description, status → "<status>", priority, assignee, due date, labels,
-attachments, comment.
+Field labels: title, description, status, priority, assignee, due date, labels, attachments,
+comment.
 
 ### Toast (src/components/shell/NotificationBell.tsx)
 
 - A ref holds `lastToastAt`, initialised to mount time (no toasts for what was already there).
-- Whenever `unread` rises — from a new server `initialUnread` after `router.refresh()`, or from
-  the focus re-count — the bell fetches the list and passes it to a pure
+- Whenever `unread` rises (a new server `initialUnread` after `router.refresh()`, or the focus
+  re-count), the bell fetches the list and passes it to a pure
   `pickToasts(items, lastToastAt)` (src/lib/notifications.ts): unread `task_change` /
   `project_change` items with `createdAt > lastToastAt`, newest first.
 - Up to 3 are shown as toasts (`toast(title, { description: detail, action: Open })`); more than 3
