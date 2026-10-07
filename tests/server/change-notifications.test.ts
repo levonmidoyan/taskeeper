@@ -2,12 +2,14 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
-import { notification, task, userSettings } from '@/db';
+import { notification, task, taskStatus, userSettings } from '@/db';
 import { newId } from '@/lib/ids';
 import type { WorkspaceContext } from '@/lib/session';
 import { commentExcerpt, notifyProjectChange, notifyTaskChange } from '@/server/notifications/changes';
 import { createProject } from '@/server/projects/service';
-import { createTask } from '@/server/tasks/service';
+import { createComment } from '@/server/comments/service';
+import { createLabel, setTaskLabels } from '@/server/labels/service';
+import { bulkUpdateTasks, createTask, moveTask, updateTask, updateTaskAndLabels } from '@/server/tasks/service';
 
 beforeEach(resetDb);
 afterAll(closeDb);
@@ -191,5 +193,92 @@ describe('commentExcerpt', () => {
     const long = commentExcerpt('x'.repeat(200));
     expect(long).toHaveLength(120);
     expect(long.endsWith('…')).toBe(true);
+  });
+});
+
+async function statuses(projectId: string) {
+  return db.select().from(taskStatus).where(eq(taskStatus.projectId, projectId)).orderBy(taskStatus.position);
+}
+
+describe('task call sites', () => {
+  it('updateTask notifies with every changed field, description included', async () => {
+    const { ada, bob, taskId } = await setup();
+    expect((await updateTask(bob, { taskId, title: 'Ship it', description: 'Now', priority: 'high' })).ok).toBe(true);
+    const [row] = await rows();
+    expect(row.userId).toBe(ada.userId);
+    expect(row.data).toMatchObject({ title: 'Ship it', changes: ['title', 'priority', 'description'] });
+  });
+
+  it('an update that changes nothing notifies no one', async () => {
+    const { bob, taskId } = await setup();
+    await updateTask(bob, { taskId, title: 'Ship' });
+    expect(await rows()).toHaveLength(0);
+  });
+
+  it('reassignment tells the new assignee and the previous one', async () => {
+    const { ws, ada, bob, taskId } = await setup();
+    const cy = await createUser('cn-cy4@example.com', 'Cy');
+    await joinWorkspace(cy.id, ws.id, 'member');
+    await updateTask(ada, { taskId, assigneeId: cy.id });
+    expect(await rows()).toMatchObject([{ userId: cy.id, data: { assignedToYou: true } }]);
+    await db.delete(notification);
+    await updateTask(ada, { taskId, assigneeId: bob.userId });
+    const byUser = Object.fromEntries((await rows()).map((r) => [r.userId, r.data]));
+    expect(byUser[bob.userId]).toMatchObject({ assignedToYou: true });
+    expect(byUser[cy.id]).toMatchObject({ changes: ['assignee'] });
+  });
+
+  it('labels via updateTaskAndLabels merge into the same row; an unknown label rolls everything back', async () => {
+    const { ada, bob, taskId } = await setup();
+    const bug = await createLabel(ada, { name: 'Bug' });
+    if (!bug.ok) throw new Error('setup');
+    await updateTaskAndLabels(bob, { taskId, title: 'Ship 2' }, [bug.data.id]);
+    expect((await rows())[0].data).toMatchObject({ changes: ['title', 'labels'] });
+
+    await db.delete(notification);
+    const failed = await updateTaskAndLabels(bob, { taskId, title: 'Ship 3' }, ['nope']);
+    expect(failed.ok).toBe(false);
+    expect(await rows()).toHaveLength(0);
+  });
+
+  it('setTaskLabels notifies only when the set changes', async () => {
+    const { ada, bob, taskId } = await setup();
+    const bug = await createLabel(ada, { name: 'Bug' });
+    if (!bug.ok) throw new Error('setup');
+    await setTaskLabels(bob, { taskId, labelIds: [bug.data.id] });
+    expect(await rows()).toHaveLength(1);
+    await db.delete(notification);
+    await setTaskLabels(bob, { taskId, labelIds: [bug.data.id] });
+    expect(await rows()).toHaveLength(0);
+  });
+
+  it('a board move across columns notifies with the new status; a reorder does not', async () => {
+    const { bob, taskId, projectId } = await setup();
+    const [todo, , done] = await statuses(projectId);
+    await moveTask(bob, { taskId, statusId: todo.id, beforeId: null, afterId: null });
+    expect(await rows()).toHaveLength(0);
+    await moveTask(bob, { taskId, statusId: done.id, beforeId: null, afterId: null });
+    expect((await rows())[0].data).toMatchObject({ changes: ['status'], status: 'Done' });
+  });
+
+  it('bulk updates notify per task', async () => {
+    const { ada, bob, taskId, projectId } = await setup();
+    const second = await createTask(ada, { projectId, title: 'Docs' });
+    if (!second.ok) throw new Error('setup');
+    await bulkUpdateTasks(bob, { taskIds: [taskId, second.data.id], patch: { priority: 'high' } });
+    expect((await rows()).map((r) => r.taskId).sort()).toEqual([taskId, second.data.id].sort());
+  });
+
+  it('creating a task assigned to someone else tells them', async () => {
+    const { ada, bob, projectId } = await setup();
+    const made = await createTask(ada, { projectId, title: 'For Bob', assigneeId: bob.userId });
+    if (!made.ok) throw new Error('setup');
+    expect(await rows()).toMatchObject([{ userId: bob.userId, taskId: made.data.id, data: { assignedToYou: true, changes: ['assignee'] } }]);
+  });
+
+  it('a comment notifies with an excerpt', async () => {
+    const { ada, bob, taskId } = await setup();
+    await createComment(bob, { taskId, body: 'Looks\n\ngood' });
+    expect(await rows()).toMatchObject([{ userId: ada.userId, data: { changes: ['comment'], comment: 'Looks good' } }]);
   });
 });

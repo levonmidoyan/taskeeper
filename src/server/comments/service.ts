@@ -5,6 +5,7 @@ import { newId } from '@/lib/ids';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
 import { emitChange } from '@/server/changes/service';
+import { commentExcerpt, notifyTaskChange } from '@/server/notifications/changes';
 
 export const commentBodySchema = z
   .string()
@@ -49,6 +50,9 @@ export async function createComment(
         // From the context, never the input.
         authorId: ctx.userId,
         body: parsed.data.body,
+      });
+      await notifyTaskChange(ctx, tx, {
+        taskId: parsed.data.taskId, changes: ['comment'], comment: commentExcerpt(parsed.data.body),
       });
       await emitChange(ctx, {}, tx);
     });
