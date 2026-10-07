@@ -23,6 +23,8 @@ export const userSettings = pgTable(
     // Local hour (0–23) for the daily digest and per-task reminders.
     reminderHour: smallint('reminder_hour').notNull().default(9),
     digestEnabled: boolean('digest_enabled').notNull().default(true),
+    // Bell + toast when a teammate changes my tasks or a project.
+    changeNotify: boolean('change_notify').notNull().default(true),
   },
   (t) => [check('user_settings_reminder_hour_ck', sql`${t.reminderHour} between 0 and 23`)],
 );

@@ -4,6 +4,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { NotificationData } from '@/lib/reminders';
 import { organization, user } from './auth';
+import { project } from './project';
 import { task } from './task';
 
 // A personal reminder: the user who set it is the one told (spec: Per-task reminders).
@@ -23,7 +24,7 @@ export const reminder = pgTable(
   ],
 );
 
-export const notificationKind = pgEnum('notification_kind', ['digest', 'reminder']);
+export const notificationKind = pgEnum('notification_kind', ['digest', 'reminder', 'task_change', 'project_change']);
 
 // One bell item, and the cron's idempotency claim: dedupe_key is unique, so a
 // second run inserting the same key does nothing.
@@ -35,6 +36,11 @@ export const notification = pgTable(
     workspaceId: text('workspace_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
     kind: notificationKind('kind').notNull(),
     taskId: text('task_id').references(() => task.id, { onDelete: 'cascade' }),
+    // Change kinds only. Set null, not cascade: "Anna deleted Website" must
+    // outlive the project it names.
+    projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+    // Who made the change (change kinds only); part of the merge key.
+    actorId: text('actor_id').references(() => user.id, { onDelete: 'set null' }),
     dedupeKey: text('dedupe_key').notNull().unique(),
     // Display snapshot, so a later rename does not rewrite history and the bell needs no join.
     data: jsonb('data').$type<NotificationData>().notNull(),
@@ -47,5 +53,13 @@ export const notification = pgTable(
   (t) => [
     index('notification_bell_idx').on(t.userId, t.workspaceId, t.createdAt),
     index('notification_unsent_idx').on(t.createdAt).where(sql`${t.emailSentAt} is null`),
+    // Merge targets: one unread change item per recipient, subject and actor
+    // (src/server/notifications/changes.ts upserts on these).
+    uniqueIndex('notification_open_task_change_uq')
+      .on(t.userId, t.taskId, t.actorId)
+      .where(sql`kind = 'task_change' and read_at is null`),
+    uniqueIndex('notification_open_project_change_uq')
+      .on(t.userId, t.projectId, t.actorId)
+      .where(sql`kind = 'project_change' and read_at is null`),
   ],
 );
