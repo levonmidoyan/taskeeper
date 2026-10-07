@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Popover from '@/components/ui/popover';
+import { playChime } from '@/lib/chime';
 import { bellHref, bellText, MAX_TOASTS, pickToasts } from '@/lib/notifications';
 import { settle } from '@/lib/settle';
 import {
@@ -20,13 +21,15 @@ import { cn } from '@/utils/cn';
  * Header bell. The count arrives server-rendered with the shell and is
  * re-fetched when the window regains focus; the list loads when opened.
  * When the count rises (a live refresh or the focus re-count), new change items
- * also pop up as toasts.
+ * also pop up as toasts, with one chime per batch when the user keeps sound on.
  */
-export function NotificationBell({ workspaceSlug, initialUnread, serverNow }: {
+export function NotificationBell({ workspaceSlug, initialUnread, serverNow, sound }: {
   workspaceSlug: string;
   initialUnread: number;
   /** The database clock when the shell rendered: the toast cutoff starts here, not at the browser's clock. */
   serverNow: number;
+  /** Chime with new toasts (the user's change-sound setting). */
+  sound: boolean;
 }) {
   const [unread, setUnread] = useState(initialUnread);
   const [items, setItems] = useState<NotificationItem[] | null>(null);
@@ -71,6 +74,7 @@ export function NotificationBell({ workspaceSlug, initialUnread, serverNow }: {
       const fresh = pickToasts(result.data, since.current).filter((item) => !toasted.current.has(key(item)));
       if (fresh.length === 0) return;
       for (const item of fresh) toasted.current.add(key(item));
+      if (sound) playChime();
       if (fresh.length > MAX_TOASTS) {
         toast(`${fresh.length} new updates`, { action: { label: 'View', onClick: () => setOpen(true) } });
         return;
@@ -90,7 +94,8 @@ export function NotificationBell({ workspaceSlug, initialUnread, serverNow }: {
       }
     })();
     return () => { cancelled = true; };
-    // markRead only touches refs and state setters.
+    // markRead only touches refs and state setters. `sound` is read when the
+    // count rises; as a dep, flipping it would cancel an in-flight batch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unread, workspaceSlug, router]);
 

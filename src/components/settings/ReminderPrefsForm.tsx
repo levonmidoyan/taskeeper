@@ -20,15 +20,17 @@ export function ReminderPrefsForm({ current }: { current: ReminderPrefs }) {
   const [digestEnabled, setDigestEnabled] = useState(current.digestEnabled);
   const [reminderHour, setReminderHour] = useState(current.reminderHour);
   const [changeNotify, setChangeNotify] = useState(current.changeNotify);
+  const [changeSound, setChangeSound] = useState(current.changeSound);
   const [pending, setPending] = useState(false);
 
   const unchanged = digestEnabled === current.digestEnabled
     && reminderHour === current.reminderHour
-    && changeNotify === current.changeNotify;
+    && changeNotify === current.changeNotify
+    && changeSound === current.changeSound;
 
   async function onSave() {
     setPending(true);
-    const result = await settle(updateReminderPrefsAction({ digestEnabled, reminderHour, changeNotify }));
+    const result = await settle(updateReminderPrefsAction({ digestEnabled, reminderHour, changeNotify, changeSound }));
     setPending(false);
     if (!result.ok) {
       toast.error(result.error);
@@ -48,6 +50,19 @@ export function ReminderPrefsForm({ current }: { current: ReminderPrefs }) {
           </Hint.Root>
         </div>
         <Switch.Root id="change-notify" checked={changeNotify} onCheckedChange={setChangeNotify} disabled={pending} />
+      </div>
+
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <Label.Root htmlFor="change-sound">Play a sound</Label.Root>
+          <Hint.Root>A short chime with those pop-ups.</Hint.Root>
+        </div>
+        <Switch.Root
+          id="change-sound"
+          checked={changeSound}
+          onCheckedChange={setChangeSound}
+          disabled={pending || !changeNotify}
+        />
       </div>
 
       <div className="flex items-start justify-between gap-4">

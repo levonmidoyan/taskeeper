@@ -32,7 +32,7 @@ describe('user timezone', () => {
     await updateUserTimezone({ userId: ada.id }, 'Asia/Tokyo');
 
     const rows = await db.select().from(userSettings).where(eq(userSettings.userId, ada.id));
-    expect(rows).toEqual([{ userId: ada.id, timezone: 'Asia/Tokyo', reminderHour: 9, digestEnabled: true, changeNotify: true }]);
+    expect(rows).toEqual([{ userId: ada.id, timezone: 'Asia/Tokyo', reminderHour: 9, digestEnabled: true, changeNotify: true, changeSound: true }]);
   });
 
   it('null clears the override so the user follows the workspace again', async () => {
@@ -67,7 +67,7 @@ describe('user timezone', () => {
 describe('reminder preferences', () => {
   it('defaults to 09:00 with the digest on when the user has no row', async () => {
     const ada = await createUser('ada-rp@example.com');
-    expect(await getReminderPrefs({ userId: ada.id })).toEqual({ reminderHour: 9, digestEnabled: true, changeNotify: true });
+    expect(await getReminderPrefs({ userId: ada.id })).toEqual({ reminderHour: 9, digestEnabled: true, changeNotify: true, changeSound: true });
   });
 
   it('stores hour and digest switch, and keeps an existing timezone', async () => {
@@ -77,7 +77,7 @@ describe('reminder preferences', () => {
     const result = await updateReminderPrefs({ userId: ada.id }, { reminderHour: 18, digestEnabled: false });
 
     expect(result.ok).toBe(true);
-    expect(await getReminderPrefs({ userId: ada.id })).toEqual({ reminderHour: 18, digestEnabled: false, changeNotify: true });
+    expect(await getReminderPrefs({ userId: ada.id })).toEqual({ reminderHour: 18, digestEnabled: false, changeNotify: true, changeSound: true });
     expect(await getUserTimezone({ userId: ada.id })).toBe('Europe/Berlin');
   });
 
@@ -85,7 +85,14 @@ describe('reminder preferences', () => {
     const ada = await createUser('us-cn@example.com', 'Ada');
     await updateReminderPrefs({ userId: ada.id }, { reminderHour: 9, digestEnabled: true, changeNotify: false });
     await updateReminderPrefs({ userId: ada.id }, { reminderHour: 10, digestEnabled: true });
-    expect(await getReminderPrefs({ userId: ada.id })).toEqual({ reminderHour: 10, digestEnabled: true, changeNotify: false });
+    expect(await getReminderPrefs({ userId: ada.id })).toEqual({ reminderHour: 10, digestEnabled: true, changeNotify: false, changeSound: true });
+  });
+
+  it('turns the change sound off and keeps it off when omitted later', async () => {
+    const ada = await createUser('us-cs@example.com', 'Ada');
+    await updateReminderPrefs({ userId: ada.id }, { reminderHour: 9, digestEnabled: true, changeSound: false });
+    await updateReminderPrefs({ userId: ada.id }, { reminderHour: 9, digestEnabled: true, changeNotify: false });
+    expect(await getReminderPrefs({ userId: ada.id })).toEqual({ reminderHour: 9, digestEnabled: true, changeNotify: false, changeSound: false });
   });
 
   it.each([-1, 24, 9.5])('rejects hour %j and writes nothing', async (hour) => {

@@ -25,6 +25,8 @@ export const userSettings = pgTable(
     digestEnabled: boolean('digest_enabled').notNull().default(true),
     // Bell + toast when a teammate changes my tasks or a project.
     changeNotify: boolean('change_notify').notNull().default(true),
+    // Chime with those toasts.
+    changeSound: boolean('change_sound').notNull().default(true),
   },
   (t) => [check('user_settings_reminder_hour_ck', sql`${t.reminderHour} between 0 and 23`)],
 );

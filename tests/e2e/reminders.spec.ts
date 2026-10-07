@@ -28,11 +28,12 @@ async function signUpWithProject(page: Page) {
   return page.url();
 }
 
-test('preferences: digest switch and reminder hour persist', async ({ page }) => {
+test('preferences: digest switch, sound switch and reminder hour persist', async ({ page }) => {
   await signUpWithProject(page);
   await page.goto('/settings/preferences');
 
   await page.getByLabel('Daily digest').click();
+  await page.getByLabel('Play a sound').click();
   await page.getByLabel('Reminder time').click();
   await page.getByRole('option', { name: '00:00' }).click();
   await page.getByRole('button', { name: 'Save' }).last().click();
@@ -40,6 +41,11 @@ test('preferences: digest switch and reminder hour persist', async ({ page }) =>
 
   await page.reload();
   await expect(page.getByLabel('Daily digest')).not.toBeChecked();
+  await expect(page.getByLabel('Play a sound')).not.toBeChecked();
+
+  // The sound rides on change notifications: off with them.
+  await page.getByLabel('Changes by teammates').click();
+  await expect(page.getByLabel('Play a sound')).toBeDisabled();
   await expect(page.getByLabel('Reminder time')).toHaveText('00:00');
 });
 

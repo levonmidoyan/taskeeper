@@ -12,7 +12,11 @@ import { MobileNav, type RailProps } from '@/components/shell/Rail';
  * floating button, and the create dialog's open state, which the command
  * palette's "New task" also drives.
  */
-export function AppHeader({ unread, serverNow, ...props }: RailProps & { unread: number; serverNow: number }) {
+export function AppHeader({ unread, serverNow, sound, ...props }: RailProps & {
+  unread: number;
+  serverNow: number;
+  sound: boolean;
+}) {
   const [creating, setCreating] = useState(false);
   const canCreate = props.projects.length > 0;
 
@@ -26,7 +30,7 @@ export function AppHeader({ unread, serverNow, ...props }: RailProps & { unread:
           onNewTask={() => { if (canCreate) setCreating(true); }}
         />
       </div>
-      <NotificationBell workspaceSlug={props.workspaceSlug} initialUnread={unread} serverNow={serverNow} />
+      <NotificationBell workspaceSlug={props.workspaceSlug} initialUnread={unread} serverNow={serverNow} sound={sound} />
       <CreateTaskDialog
         workspaceSlug={props.workspaceSlug}
         projects={props.projects}

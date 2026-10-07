@@ -37,13 +37,19 @@ export async function updateUserTimezone(
   });
 }
 
-export type ReminderPrefs = { reminderHour: number; digestEnabled: boolean; changeNotify: boolean };
+export type ReminderPrefs = {
+  reminderHour: number;
+  digestEnabled: boolean;
+  changeNotify: boolean;
+  changeSound: boolean;
+};
 
 const reminderPrefsSchema = z.object({
   reminderHour: z.number().int().min(0).max(23),
   digestEnabled: z.boolean(),
   // Optional so older callers keep working; omitted = unchanged.
   changeNotify: z.boolean().optional(),
+  changeSound: z.boolean().optional(),
 });
 
 /** When reminders and the digest go out, in the user's local time. */
@@ -53,16 +59,17 @@ export async function getReminderPrefs(ctx: UserContext): Promise<ReminderPrefs>
       reminderHour: userSettings.reminderHour,
       digestEnabled: userSettings.digestEnabled,
       changeNotify: userSettings.changeNotify,
+      changeSound: userSettings.changeSound,
     })
     .from(userSettings)
     .where(eq(userSettings.userId, ctx.userId))
     .limit(1);
-  return row ?? { reminderHour: DEFAULT_REMINDER_HOUR, digestEnabled: true, changeNotify: true };
+  return row ?? { reminderHour: DEFAULT_REMINDER_HOUR, digestEnabled: true, changeNotify: true, changeSound: true };
 }
 
 export async function updateReminderPrefs(
   ctx: UserContext,
-  input: Omit<ReminderPrefs, 'changeNotify'> & { changeNotify?: boolean },
+  input: Omit<ReminderPrefs, 'changeNotify' | 'changeSound'> & { changeNotify?: boolean; changeSound?: boolean },
 ): Promise<Result<null>> {
   return withAction(async () => {
     const parsed = reminderPrefsSchema.safeParse(input);
