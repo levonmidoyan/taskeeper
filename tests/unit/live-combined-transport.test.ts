@@ -8,12 +8,20 @@ let polling: PollingTransport & { subscribe: ReturnType<typeof vi.fn>; setMode: 
 let stopPusher: ReturnType<typeof vi.fn>;
 let health: (h: PusherHealth) => void;
 let pusherVersion: (v: number) => void;
+let pollVersion: (v: number) => void;
 let pusherTransport: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.useFakeTimers();
   stopPolling = vi.fn();
-  polling = { subscribe: vi.fn(() => stopPolling), setMode: vi.fn(), checkNow: vi.fn() } as never;
+  polling = {
+    subscribe: vi.fn((onVersion: (v: number) => void) => {
+      pollVersion = onVersion;
+      return stopPolling;
+    }),
+    setMode: vi.fn(),
+    checkNow: vi.fn(),
+  } as never;
   stopPusher = vi.fn();
   pusherTransport = vi.fn((onHealth: (h: PusherHealth) => void) => {
     health = onHealth;
@@ -109,5 +117,77 @@ describe('createLiveTransport', () => {
     expect(onVersion).not.toHaveBeenCalled();
     expect(stopPusher).toHaveBeenCalledTimes(1);
     expect(stopPolling).toHaveBeenCalledTimes(1);
+  });
+
+  it('poll answers still reach the page', () => {
+    const { onVersion, stop } = start();
+    pollVersion(3);
+    expect(onVersion).toHaveBeenCalledWith(3);
+    stop();
+  });
+
+  it('a poll ahead of Pusher that Pusher never catches up on drops back to fast polling', async () => {
+    // Wrong app id, REST API down, quota spent: the socket is fine but publishes fail.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { stop } = start();
+    health('healthy');
+    pollVersion(3); // the reconnect poll: a baseline, not evidence
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(polling.setMode).toHaveBeenLastCalledWith('safety');
+    pollVersion(4);
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(polling.setMode).toHaveBeenLastCalledWith('safety');
+    await vi.advanceTimersByTimeAsync(1);
+    expect(polling.setMode).toHaveBeenLastCalledWith('fast');
+    expect(warn).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it('a Pusher event that catches up within the grace period keeps the safety net', async () => {
+    const { stop } = start();
+    health('healthy');
+    pollVersion(3);
+    pollVersion(4);
+    pusherVersion(4);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(polling.setMode).toHaveBeenLastCalledWith('safety');
+    stop();
+  });
+
+  it('a poll that Pusher already announced is not evidence', async () => {
+    const { stop } = start();
+    health('healthy');
+    pollVersion(3);
+    pusherVersion(4);
+    await vi.advanceTimersByTimeAsync(600);
+    pollVersion(4);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(polling.setMode).toHaveBeenLastCalledWith('safety');
+    stop();
+  });
+
+  it('after giving up on Pusher, the next return to healthy trusts it again', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { stop } = start();
+    health('healthy');
+    pollVersion(3);
+    pollVersion(4);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(polling.setMode).toHaveBeenLastCalledWith('fast');
+    health('unhealthy');
+    health('healthy');
+    expect(polling.setMode).toHaveBeenLastCalledWith('safety');
+    stop();
+  });
+
+  it('unsubscribe clears a pending grace timer', async () => {
+    const { stop } = start();
+    health('healthy');
+    pollVersion(3);
+    pollVersion(4);
+    stop();
+    polling.setMode.mockClear();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(polling.setMode).not.toHaveBeenCalled();
   });
 });

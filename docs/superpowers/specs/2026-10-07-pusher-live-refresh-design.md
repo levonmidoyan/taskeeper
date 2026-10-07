@@ -152,7 +152,8 @@ Todo-page opt-out are unchanged.
 |---|---|
 | env vars missing | 30 s polling (today) |
 | invalid key | `error` 4001 / `failed` → 30 s polling |
-| invalid secret or app id | auth signature rejected → `subscription_error` → 30 s polling; publishes fail and are logged |
+| invalid secret | Pusher rejects the auth signature, the channel never subscribes → 30 s polling; publishes fail and are logged |
+| invalid app id, REST API down, quota spent | socket healthy but publishes fail (logged); the first poll (5 min or focus) that finds a version Pusher did not announce within 5 s → 30 s polling until Pusher reconnects |
 | Pusher outage / websocket blocked | `unavailable` → 30 s polling until it reconnects |
 | one publish lost, socket healthy | safety poll within 5 min, or the next focus |
 | signed out / removed | auth 401/403 stops Pusher; poll 401/404 stops polling |
