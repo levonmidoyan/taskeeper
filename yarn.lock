@@ -9341,6 +9341,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"pusher-js@npm:8.6.0":
+  version: 8.6.0
+  resolution: "pusher-js@npm:8.6.0"
+  dependencies:
+    tweetnacl: "npm:^1.0.3"
+  checksum: 10c0/93ed5ecc9eb30c2b3d8bd17eeb3b18a7a2e54480129eebb848c1837e9f7ea19d2cda124c833a6a6a460eb33b70b97976a7355f6f83193f43f7838f8511d34982
+  languageName: node
+  linkType: hard
+
 "pusher@npm:5.3.4":
   version: 5.3.4
   resolution: "pusher@npm:5.3.4"
@@ -10447,6 +10456,7 @@ __metadata:
     nodemailer: "npm:10.0.15"
     pg: "npm:8.23.0"
     pusher: "npm:5.3.4"
+    pusher-js: "npm:8.6.0"
     react: "npm:19.3.0"
     react-day-picker: "npm:9.14.0"
     react-dom: "npm:19.3.0"
@@ -10667,7 +10677,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tweetnacl@npm:^1.0.0":
+"tweetnacl@npm:^1.0.0, tweetnacl@npm:^1.0.3":
   version: 1.0.3
   resolution: "tweetnacl@npm:1.0.3"
   checksum: 10c0/069d9df51e8ad4a89fbe6f9806c68e06c65be3c7d42f0701cc43dba5f0d6064686b238bbff206c5addef8854e3ce00c643bff59432ea2f2c639feab0ee1a93f9

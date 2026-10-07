@@ -11,10 +11,11 @@ let fetchMock: ReturnType<typeof vi.fn<typeof fetch>>;
 const json = (version: number) => new Response(JSON.stringify({ version }), { status: 200 });
 
 function start(onVersion = vi.fn()) {
-  const stop = createPollingTransport('acme', {
+  const transport = createPollingTransport('acme', {
     fetch: fetchMock as never, doc: doc as never, win: win as never,
-  }).subscribe(onVersion);
-  return { onVersion, stop };
+  });
+  const stop = transport.subscribe(onVersion);
+  return { onVersion, stop, transport };
 }
 
 beforeEach(() => {
@@ -119,5 +120,59 @@ describe('createPollingTransport', () => {
     win.dispatchEvent(new Event('focus'));
     await vi.advanceTimersByTimeAsync(120_000);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('safety mode polls every 5 min, idle or not', async () => {
+    const { stop, transport } = start();
+    transport.setMode('safety');
+    await vi.advanceTimersByTimeAsync(299_999);
+    expect(fetchMock).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    stop();
+  });
+
+  it('back to fast mode restarts the 30 s timer without checking at once', async () => {
+    const { stop, transport } = start();
+    transport.setMode('safety');
+    await vi.advanceTimersByTimeAsync(100_000);
+    transport.setMode('fast');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it('focus still checks at once in safety mode', async () => {
+    const { stop, transport } = start();
+    transport.setMode('safety');
+    win.dispatchEvent(new Event('focus'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it('checkNow checks at once, and is a no-op once unsubscribed', async () => {
+    const { stop, transport } = start();
+    transport.checkNow();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    stop();
+    transport.checkNow();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('checkNow is a no-op after a 401 stopped it', async () => {
+    fetchMock.mockResolvedValue(new Response('', { status: 401 }));
+    const { transport } = start();
+    transport.checkNow();
+    await vi.advanceTimersByTimeAsync(0);
+    transport.checkNow();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

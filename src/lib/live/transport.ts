@@ -1,12 +1,18 @@
 import { LIVE_POLL_HEADER } from '@/lib/request-tracker';
 
-/**
- * Where change notices come from. Polling today; a Pusher transport later
- * implements the same shape and LiveRefresh picks one.
- */
+/** Where change notices come from: polling, Pusher, or both (live-transport.ts). */
 export type ChangeTransport = {
   /** Calls onVersion with the workspace's change counter; returns unsubscribe. */
   subscribe(onVersion: (version: number) => void): () => void;
+};
+
+/** fast: today's cadence. safety: slow net while Pusher carries changes. */
+export type PollMode = 'fast' | 'safety';
+
+export type PollingTransport = ChangeTransport & {
+  setMode(mode: PollMode): void;
+  /** Checks at once (after Pusher reconnects). No-op while not subscribed. */
+  checkNow(): void;
 };
 
 export type PollingOptions = {
@@ -14,6 +20,7 @@ export type PollingOptions = {
   /** No pointer or key input for this long counts as idle. */
   idleAfterMs?: number;
   idleIntervalMs?: number;
+  safetyIntervalMs?: number;
   fetch?: typeof fetch;
   doc?: Pick<Document, 'visibilityState' | 'addEventListener' | 'removeEventListener'>;
   win?: Pick<Window, 'addEventListener' | 'removeEventListener'>;
@@ -25,12 +32,25 @@ const INPUT_EVENTS = ['pointerdown', 'keydown'] as const;
  * Polls GET /api/workspaces/[slug]/changes while the tab is visible: every 30 s,
  * every 2 min once the user has been idle for 5 min, and at once when the tab
  * comes back. 401/404 (signed out, removed) stops it for good; anything else
- * that goes wrong waits for the next tick.
+ * that goes wrong waits for the next tick. In safety mode it polls every 5 min
+ * instead, still checking at once on focus.
  */
-export function createPollingTransport(slug: string, options: PollingOptions = {}): ChangeTransport {
-  const { intervalMs = 30_000, idleAfterMs = 300_000, idleIntervalMs = 120_000 } = options;
+export function createPollingTransport(slug: string, options: PollingOptions = {}): PollingTransport {
+  const {
+    intervalMs = 30_000, idleAfterMs = 300_000, idleIntervalMs = 120_000, safetyIntervalMs = 300_000,
+  } = options;
+  let mode: PollMode = 'fast';
+  let active: { schedule(): void; check(): Promise<void> } | null = null;
 
   return {
+    setMode(next) {
+      if (next === mode) return;
+      mode = next;
+      active?.schedule();
+    },
+    checkNow() {
+      void active?.check();
+    },
     subscribe(onVersion) {
       // Through window each call, so the request tracker's wrapper (installed later) sees it.
       const doFetch: typeof fetch = options.fetch ?? ((input, init) => window.fetch(input, init));
@@ -45,10 +65,15 @@ export function createPollingTransport(slug: string, options: PollingOptions = {
 
       const idle = () => Date.now() - lastInput >= idleAfterMs;
 
+      function delay() {
+        if (mode === 'safety') return safetyIntervalMs;
+        return idle() ? idleIntervalMs : intervalMs;
+      }
+
       function schedule() {
         clearTimeout(timer);
         if (stopped || doc.visibilityState !== 'visible') return;
-        timer = setTimeout(check, idle() ? idleIntervalMs : intervalMs);
+        timer = setTimeout(check, delay());
       }
 
       async function check() {
@@ -83,11 +108,15 @@ export function createPollingTransport(slug: string, options: PollingOptions = {
         const wasIdle = idle();
         lastInput = Date.now();
         // Back from idle: the 2-minute timer would be stale, so restart at 30 s.
-        if (wasIdle) schedule();
+        if (wasIdle && mode === 'fast') schedule();
       };
+
+      const self = { schedule, check };
+      active = self;
 
       function stop() {
         stopped = true;
+        if (active === self) active = null;
         clearTimeout(timer);
         doc.removeEventListener('visibilitychange', onVisibility);
         win.removeEventListener('focus', onFocus);
