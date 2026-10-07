@@ -43,7 +43,8 @@ describe('bellHref', () => {
     expect(bellHref('acme', { ...task({}), taskId: null })).toBe('/acme');
     expect(bellHref('acme', proj({}))).toBe('/acme/projects/p1');
     expect(bellHref('acme', proj({ changes: ['renamed', 'archived'] }))).toBe('/acme/settings/projects');
-    expect(bellHref('acme', proj({ changes: ['archived', 'unarchived'] }))).toBe('/acme/projects/p1');
+    expect(bellHref('acme', proj({ changes: ['unarchived'] }))).toBe('/acme/projects/p1');
+    expect(bellHref('acme', proj({ changes: ['archived', 'renamed'] }))).toBe('/acme/settings/projects');
     expect(bellHref('acme', proj({ changes: ['deleted'] }))).toBe('/acme');
     expect(bellHref('acme', proj({}, null))).toBe('/acme');
   });

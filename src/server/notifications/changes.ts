@@ -17,7 +17,9 @@ export function commentExcerpt(body: string): string {
 /**
  * Members of this workspace other than the actor who have change notifications
  * on, optionally narrowed to `candidates`. A stale assignee or creator who has
- * left the workspace drops out here.
+ * left the workspace drops out here. In id order: the upsert locks rows in
+ * VALUES order, and two concurrent upserts locking in different orders could
+ * deadlock.
  */
 async function recipients(ctx: WorkspaceContext, tx: Executor, candidates: string[] | null): Promise<string[]> {
   if (candidates && candidates.length === 0) return [];
@@ -30,7 +32,8 @@ async function recipients(ctx: WorkspaceContext, tx: Executor, candidates: strin
       ne(member.userId, ctx.userId),
       sql`coalesce(${userSettings.changeNotify}, true)`,
       candidates ? inArray(member.userId, candidates) : undefined,
-    ));
+    ))
+    .orderBy(member.userId);
   return rows.map((r) => r.id);
 }
 
@@ -39,16 +42,24 @@ async function actorName(ctx: WorkspaceContext, tx: Executor): Promise<string> {
   return row?.name ?? 'Someone';
 }
 
-/** The `changes` arrays of the stored and incoming rows: stored order first, then what incoming adds. */
-const mergedChanges = sql`(
+/**
+ * The `changes` arrays of the stored and incoming rows: stored order first,
+ * then what incoming adds. Stored kinds in `drop` go: the incoming change
+ * undoes them (unarchive after archive).
+ */
+const mergedChanges = (drop: string[] = []) => sql`(
   SELECT coalesce(jsonb_agg(c ORDER BY o), '[]'::jsonb) FROM (
     SELECT c, min(o) AS o FROM (
       SELECT x.c, x.o FROM jsonb_array_elements(n.data->'changes') WITH ORDINALITY AS x(c, o)
+      ${drop.length > 0 ? sql`WHERE x.c #>> '{}' NOT IN (${sql.join(drop.map((k) => sql`${k}`), sql`, `)})` : sql``}
       UNION ALL
       SELECT y.c, y.o + 1000 FROM jsonb_array_elements(EXCLUDED.data->'changes') WITH ORDINALITY AS y(c, o)
     ) u GROUP BY c
   ) m
 )`;
+
+/** Archive and unarchive cancel out: a merged item keeps only the latest, the project's state now. */
+const UNDOES: Partial<Record<ProjectChangeKind, ProjectChangeKind>> = { archived: 'unarchived', unarchived: 'archived' };
 
 /** Keeps the stored `key` when the incoming payload lacks it. */
 const keepStored = (key: string) =>
@@ -99,20 +110,24 @@ export async function notifyTaskChange(
     ...(input.comment ? { comment: input.comment } : {}),
   });
 
+  // assignedToYou: a later assignee change decides, so "assigned you" goes once
+  // the task is someone else's. created_at is the statement's clock, not the
+  // transaction's start: the bell's toast cutoff compares against it.
   await tx.execute(sql`
-    INSERT INTO notification AS n (id, user_id, workspace_id, kind, task_id, actor_id, dedupe_key, data)
+    INSERT INTO notification AS n (id, user_id, workspace_id, kind, task_id, actor_id, dedupe_key, data, created_at)
     VALUES ${values(ids.map((userId) => sql`(
       ${newId()}, ${userId}, ${ctx.workspaceId}, 'task_change', ${input.taskId}, ${ctx.userId},
-      ${`chg:${newId()}`}, ${JSON.stringify(dataFor(userId))}::jsonb
+      ${`chg:${newId()}`}, ${JSON.stringify(dataFor(userId))}::jsonb, clock_timestamp()
     )`))}
     ON CONFLICT (user_id, task_id, actor_id) WHERE kind = 'task_change' AND read_at IS NULL
     DO UPDATE SET
       data = EXCLUDED.data
-        || jsonb_build_object('changes', ${mergedChanges})
-        || CASE WHEN n.data ? 'assignedToYou' THEN '{"assignedToYou": true}'::jsonb ELSE '{}'::jsonb END
+        || jsonb_build_object('changes', ${mergedChanges()})
+        || CASE WHEN n.data ? 'assignedToYou' AND NOT (EXCLUDED.data->'changes' ? 'assignee')
+             THEN '{"assignedToYou": true}'::jsonb ELSE '{}'::jsonb END
         || ${keepStored('comment')}
         || ${keepStored('status')},
-      created_at = now()
+      created_at = clock_timestamp()
   `);
 }
 
@@ -137,18 +152,19 @@ export async function notifyProjectChange(
     changes: [input.change],
   };
   const json = JSON.stringify(data);
+  const undone = UNDOES[input.change];
 
   await tx.execute(sql`
-    INSERT INTO notification AS n (id, user_id, workspace_id, kind, project_id, actor_id, dedupe_key, data)
+    INSERT INTO notification AS n (id, user_id, workspace_id, kind, project_id, actor_id, dedupe_key, data, created_at)
     VALUES ${values(ids.map((userId) => sql`(
       ${newId()}, ${userId}, ${ctx.workspaceId}, 'project_change', ${input.projectId}, ${ctx.userId},
-      ${`chg:${newId()}`}, ${json}::jsonb
+      ${`chg:${newId()}`}, ${json}::jsonb, clock_timestamp()
     )`))}
     ON CONFLICT (user_id, project_id, actor_id) WHERE kind = 'project_change' AND read_at IS NULL
     DO UPDATE SET
       data = EXCLUDED.data
-        || jsonb_build_object('projectName', n.data->'projectName', 'changes', ${mergedChanges})
+        || jsonb_build_object('projectName', n.data->'projectName', 'changes', ${mergedChanges(undone ? [undone] : [])})
         || ${keepStored('newName')},
-      created_at = now()
+      created_at = clock_timestamp()
   `);
 }

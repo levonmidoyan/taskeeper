@@ -43,6 +43,9 @@ project, I get a bell item, and if I have the workspace open, a toast.
   - `notification_open_project_change_uq` on `(user_id, project_id, actor_id)`
     `where kind = 'project_change' and read_at is null`
 - `dedupe_key` stays `not null unique`; change rows use `chg:<newId>` (unique, never merged on).
+- `notification_unsent_idx` narrows to `email_sent_at is null and kind in ('reminder', 'digest')`:
+  change rows are never emailed and would otherwise stay in it forever. Push does not notice a
+  changed predicate, so `src/db/sql/notification-unsent-idx.sql` rebuilds it on existing DBs.
 - `task_id` keeps `on delete cascade`: deleting a task (or its project) removes its change
   rows, which is right — there is nothing left to open.
 
@@ -66,7 +69,7 @@ export type TaskChangeData = {
   projectName: string;
   actorName: string;
   changes: TaskChangeKind[];  // deduped, order of first occurrence
-  assignedToYou?: true;   // recipient became the assignee in one of the merged changes
+  assignedToYou?: true;   // the latest assignee change made the recipient the assignee
   status?: string;        // latest new status name, when 'status' is among changes
   comment?: string;       // latest comment excerpt (≤ 120 chars), when 'comment' is among changes
 };
@@ -97,7 +100,8 @@ contains the bell row.
 1. Reads the task (post-write) with its project name: `assignee_id`, `created_by`, `title`.
 2. Recipients = `{assignee_id, created_by, previousAssigneeId}` − `ctx.userId` − nulls,
    filtered to current members of `ctx.workspaceId` (`member` join) whose
-   `coalesce(user_settings.change_notify, true)` is true.
+   `coalesce(user_settings.change_notify, true)` is true, ordered by user id: the upsert locks
+   rows in VALUES order, and two concurrent upserts in different orders could deadlock.
 3. Actor name from `user.name` (one query).
 4. For each recipient: `INSERT … ON CONFLICT (user_id, task_id, actor_id) WHERE kind =
    'task_change' AND read_at IS NULL DO UPDATE` with the merge below. `assignedToYou` is set
@@ -105,17 +109,22 @@ contains the bell row.
 
 Merge (SQL, one fragment): `data` = incoming data, except
 - `changes` = ordered union (existing first, then new kinds not already present),
-- `assignedToYou` = existing OR incoming,
+- `assignedToYou` = incoming when the incoming change includes `'assignee'` (a reassignment
+  away from the recipient clears it), else existing,
 - `comment` / `status` = incoming when present, else existing;
 
-`created_at = now()` so the item rises to the top of the bell. A merge does not raise the unread
+`created_at = clock_timestamp()` (also on insert) so the item rises to the top of the bell. Not
+`now()`: that is the transaction's start, and a long transaction would stamp a time older than
+items that committed before it. A merge does not raise the unread
 count, so it does not toast again (a burst toasts once). Email columns are left alone.
 
 `notifyProjectChange(ctx, tx, { projectId, change, projectName, newName? })`
 
 1. Recipients = all members of `ctx.workspaceId` − `ctx.userId`, toggle on.
 2. Same upsert on `(user_id, project_id, actor_id)` for `kind = 'project_change'`. Merge keeps
-   the existing `projectName`, takes the incoming `newName`, ordered-unions `changes`.
+   the existing `projectName`, takes the incoming `newName`, ordered-unions `changes`. Archive
+   and unarchive cancel out: the incoming one drops the other from the stored list, so a
+   merged item holds at most one of them, the project's state now.
 
 The caller passes `projectName` (the name before the change) since rename and delete have
 already altered or removed the row by the time the helper runs.
@@ -172,15 +181,18 @@ comment.
 
 ### Toast (src/components/shell/NotificationBell.tsx)
 
-- A ref holds `lastToastAt`, initialised to mount time (no toasts for what was already there).
+- The cutoff is the database clock when the shell rendered (`serverNow`), fixed for the tab's
+  life (no toasts for what was already there). A ref holds the `id@createdAt` keys already
+  toasted; a merge restamps `createdAt`, so a merged item can toast again.
 - Whenever `unread` rises (a new server `initialUnread` after `router.refresh()`, or the focus
   re-count), the bell fetches the list and passes it to a pure
-  `pickToasts(items, lastToastAt)` (src/lib/notifications.ts): unread `task_change` /
-  `project_change` items with `createdAt > lastToastAt`, newest first.
+  `pickToasts(items, serverNow)` (src/lib/notifications.ts): unread `task_change` /
+  `project_change` items with `createdAt > serverNow`, newest first, minus keys already toasted.
 - Up to 3 are shown as toasts (`toast(title, { description: detail, action: Open })`); more than 3
   shows one toast "N new updates" whose action opens the bell. `Open` navigates to the href and
-  marks the item read.
-- `lastToastAt` moves to the newest `createdAt` shown. Reminders and digests never toast.
+  marks the item read, in the bell's list too; a ref of ids marked read here keeps a toast's
+  Open and a click in the list from counting one item twice.
+- Reminders and digests never toast.
 - The fetched list replaces `items`, so an open popover shows fresh items too.
 
 ### Settings (src/components/settings/ReminderPrefsForm.tsx)
@@ -211,7 +223,7 @@ Server (vitest, `tests/server/change-notifications.test.ts`):
   column → nothing; labels via `setTaskLabels` unchanged set → nothing.
 - Rolled-back update (unknown label) → no rows.
 - Project rename/archive/unarchive → a row for every other member; archive then unarchive
-  merges; delete → rows survive with `project_id` null.
+  merges into `['unarchived']`; delete → rows survive with `project_id` null.
 - `claimUnsentEmails` skips change rows (extend `reminder-run.test.ts`).
 
 Unit (`tests/unit/notifications.test.ts`): `notificationText` / `notificationHref` for each

@@ -52,7 +52,10 @@ export const notification = pgTable(
   },
   (t) => [
     index('notification_bell_idx').on(t.userId, t.workspaceId, t.createdAt),
-    index('notification_unsent_idx').on(t.createdAt).where(sql`${t.emailSentAt} is null`),
+    // Kinds that email; change kinds never do, and would otherwise sit here forever.
+    index('notification_unsent_idx')
+      .on(t.createdAt)
+      .where(sql`${t.emailSentAt} is null and ${t.kind} in ('reminder', 'digest')`),
     // Merge targets: one unread change item per recipient, subject and actor
     // (src/server/notifications/changes.ts upserts on these).
     uniqueIndex('notification_open_task_change_uq')

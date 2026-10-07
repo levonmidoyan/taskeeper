@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
@@ -47,6 +47,13 @@ describe('schema', () => {
     const key = { userId: ada.userId, workspaceId: ada.workspaceId, taskId, actorId: bob.userId };
     await db.insert(notification).values(changeRow(key));
     await expect(db.insert(notification).values(changeRow(key))).rejects.toThrow();
+  });
+
+  it('keeps change rows out of the unsent-email index', async () => {
+    const { rows: [idx] } = await db.execute<{ def: string }>(
+      sql`select indexdef as def from pg_indexes where indexname = 'notification_unsent_idx'`,
+    );
+    expect(idx.def).toMatch(/kind.*'reminder'.*'digest'/);
   });
 
   it('allows a new unread row once the old one is read', async () => {
@@ -98,6 +105,46 @@ describe('notifyTaskChange', () => {
     await db.transaction((tx) => notifyTaskChange(bob, tx, { taskId, changes: ['title'] }));
     const [row] = await rows();
     expect(row.data).toMatchObject({ assignedToYou: true, comment: 'Looks good', changes: ['assignee', 'comment', 'title'] });
+  });
+
+  it('drops "assigned you" once a later merge reassigns the task, and restores it on reassigning back', async () => {
+    const { ws, ada, bob, taskId } = await setup();
+    const cy = await createUser('cn-cy4@example.com', 'Cy');
+    await joinWorkspace(cy.id, ws.id, 'member');
+    await db.update(task).set({ assigneeId: cy.id }).where(eq(task.id, taskId));
+    await db.transaction((tx) => notifyTaskChange(bob, tx, { taskId, changes: ['assignee'] }));
+    const cyRow = async () => (await rows()).find((r) => r.userId === cy.id)!.data;
+    expect(await cyRow()).toMatchObject({ assignedToYou: true });
+
+    await db.update(task).set({ assigneeId: ada.userId }).where(eq(task.id, taskId));
+    await db.transaction((tx) => notifyTaskChange(bob, tx, { taskId, changes: ['assignee'], previousAssigneeId: cy.id }));
+    expect(await cyRow()).not.toHaveProperty('assignedToYou');
+
+    await db.update(task).set({ assigneeId: cy.id }).where(eq(task.id, taskId));
+    await db.transaction((tx) => notifyTaskChange(bob, tx, { taskId, changes: ['assignee'], previousAssigneeId: ada.userId }));
+    expect(await cyRow()).toMatchObject({ assignedToYou: true });
+  });
+
+  it('stamps created_at when the row is written, not when the transaction began', async () => {
+    const { bob, taskId } = await setup();
+    let began = 0;
+    await db.transaction(async (tx) => {
+      const { rows: [r] } = await tx.execute<{ now: string }>(sql`select now() as now`);
+      began = new Date(r.now).getTime();
+      await tx.execute(sql`select pg_sleep(0.2)`);
+      await notifyTaskChange(bob, tx, { taskId, changes: ['title'] });
+    });
+    const [first] = await rows();
+    expect(first.createdAt.getTime() - began).toBeGreaterThanOrEqual(190);
+
+    await db.transaction(async (tx) => {
+      const { rows: [r] } = await tx.execute<{ now: string }>(sql`select now() as now`);
+      began = new Date(r.now).getTime();
+      await tx.execute(sql`select pg_sleep(0.2)`);
+      await notifyTaskChange(bob, tx, { taskId, changes: ['priority'] });
+    });
+    const [merged] = await rows();
+    expect(merged.createdAt.getTime() - began).toBeGreaterThanOrEqual(190);
   });
 
   it('starts a new row once the old one is read', async () => {
@@ -166,7 +213,7 @@ describe('notifyTaskChange', () => {
 });
 
 describe('notifyProjectChange', () => {
-  it('notifies every other member and merges archive then unarchive', async () => {
+  it('notifies every other member; unarchive replaces an unread archive', async () => {
     const { ws, ada, bob, projectId } = await setup();
     const cy = await createUser('cn-cy3@example.com', 'Cy');
     await joinWorkspace(cy.id, ws.id, 'member');
@@ -176,7 +223,7 @@ describe('notifyProjectChange', () => {
     expect(all.map((r) => r.userId).sort()).toEqual([bob.userId, cy.id].sort());
     for (const r of all) {
       expect(r).toMatchObject({ kind: 'project_change', projectId, actorId: ada.userId, taskId: null });
-      expect(r.data).toEqual({ projectName: 'Website', actorName: 'Ada', changes: ['archived', 'unarchived'] });
+      expect(r.data).toEqual({ projectName: 'Website', actorName: 'Ada', changes: ['unarchived'] });
     }
   });
 
@@ -296,13 +343,24 @@ describe('project call sites', () => {
     ]);
   });
 
-  it('archive and unarchive merge into one unread row', async () => {
+  it('archive and unarchive merge into one unread row that says the latest', async () => {
     const { ada, projectId } = await setup();
     await archiveProject(ada, { projectId });
     await unarchiveProject(ada, { projectId });
     const all = await rows();
     expect(all).toHaveLength(1);
-    expect(all[0].data).toMatchObject({ changes: ['archived', 'unarchived'] });
+    expect(all[0].data).toMatchObject({ changes: ['unarchived'] });
+  });
+
+  it('a merged item ends on the project state now: renamed, archived, restored, archived', async () => {
+    const { ada, projectId } = await setup();
+    await renameProject(ada, { projectId, name: 'Site' });
+    await archiveProject(ada, { projectId });
+    await unarchiveProject(ada, { projectId });
+    await archiveProject(ada, { projectId });
+    const [row, ...rest] = await rows();
+    expect(rest).toHaveLength(0);
+    expect(row.data).toMatchObject({ changes: ['renamed', 'archived'], newName: 'Site' });
   });
 
   it('color changes notify no one', async () => {

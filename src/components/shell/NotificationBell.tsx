@@ -31,9 +31,14 @@ export function NotificationBell({ workspaceSlug, initialUnread, serverNow }: {
   const [items, setItems] = useState<NotificationItem[] | null>(null);
   const [open, setOpen] = useState(false);
   const router = useRouter();
-  // Only what arrives after this tab opened toasts; the count it opened with does not.
-  const lastToastAt = useRef(serverNow);
+  // Only what arrives after this tab opened toasts; the count it opened with
+  // does not. A fixed cutoff plus what already toasted, not the newest toast's
+  // time: a row from a transaction that committed late can be older than that.
+  const since = useRef(serverNow);
+  const toasted = useRef(new Set<string>());
   const seenUnread = useRef(initialUnread);
+  // Marked read here, so a toast's Open and the list cannot both count one item.
+  const markedRead = useRef(new Set<string>());
 
   // A fresh server count (navigation, revalidation) replaces the local one.
   const [serverUnread, setServerUnread] = useState(initialUnread);
@@ -60,9 +65,11 @@ export function NotificationBell({ workspaceSlug, initialUnread, serverNow }: {
       const result = await settle(listNotificationsAction(workspaceSlug));
       if (cancelled || !result.ok) return;
       setItems(result.data);
-      const fresh = pickToasts(result.data, lastToastAt.current);
+      // A merge restamps created_at, so an item toasts again for each new change.
+      const key = (item: NotificationItem) => `${item.id}@${new Date(item.createdAt).getTime()}`;
+      const fresh = pickToasts(result.data, since.current).filter((item) => !toasted.current.has(key(item)));
       if (fresh.length === 0) return;
-      lastToastAt.current = new Date(fresh[0].createdAt).getTime();
+      for (const item of fresh) toasted.current.add(key(item));
       if (fresh.length > MAX_TOASTS) {
         toast(`${fresh.length} new updates`, { action: { label: 'View', onClick: () => setOpen(true) } });
         return;
@@ -74,8 +81,7 @@ export function NotificationBell({ workspaceSlug, initialUnread, serverNow }: {
           action: {
             label: 'Open',
             onClick: () => {
-              setUnread((n) => Math.max(0, n - 1));
-              void settle(markNotificationReadAction(workspaceSlug, item.id));
+              markRead(item.id);
               router.push(bellHref(workspaceSlug, item));
             },
           },
@@ -83,6 +89,8 @@ export function NotificationBell({ workspaceSlug, initialUnread, serverNow }: {
       }
     })();
     return () => { cancelled = true; };
+    // markRead only touches refs and state setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unread, workspaceSlug, router]);
 
   async function onOpenChange(next: boolean) {
@@ -93,11 +101,17 @@ export function NotificationBell({ workspaceSlug, initialUnread, serverNow }: {
     else toast.error(result.error);
   }
 
+  function markRead(id: string) {
+    if (markedRead.current.has(id)) return;
+    markedRead.current.add(id);
+    setUnread((n) => Math.max(0, n - 1));
+    setItems((list) => list?.map((i) => (i.id === id ? { ...i, readAt: i.readAt ?? new Date() } : i)) ?? null);
+    void settle(markNotificationReadAction(workspaceSlug, id));
+  }
+
   function markOne(item: NotificationItem) {
     setOpen(false);
-    if (item.readAt) return;
-    setUnread((n) => Math.max(0, n - 1));
-    void settle(markNotificationReadAction(workspaceSlug, item.id));
+    if (!item.readAt) markRead(item.id);
   }
 
   async function markAll() {

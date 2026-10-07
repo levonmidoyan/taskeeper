@@ -20,7 +20,7 @@ export type TaskChangeData = {
   actorName: string;
   /** Deduped, in order of first occurrence. */
   changes: TaskChangeKind[];
-  /** The recipient became the assignee in one of the merged changes. */
+  /** The latest assignee change made the recipient the assignee. */
   assignedToYou?: true;
   /** Latest new status name, when 'status' is among changes. */
   status?: string;
@@ -37,6 +37,7 @@ export type ProjectChangeData = {
   /** Latest name, when 'renamed' is among changes. */
   newName?: string;
   actorName: string;
+  /** At most one of archived / unarchived: the latest, so the project's state now. */
   changes: ProjectChangeKind[];
 };
 
@@ -86,7 +87,7 @@ export function bellHref(slug: string, item: BellItem): string {
   if (item.kind === 'project_change') {
     const d = item.data as ProjectChangeData;
     if (!item.projectId || d.changes.includes('deleted')) return `/${slug}`;
-    if (d.changes.at(-1) === 'archived') return `/${slug}/settings/projects`;
+    if (d.changes.includes('archived')) return `/${slug}/settings/projects`;
     return `/${slug}/projects/${item.projectId}`;
   }
   return notificationHref(slug, { kind: item.kind, taskId: item.taskId });
