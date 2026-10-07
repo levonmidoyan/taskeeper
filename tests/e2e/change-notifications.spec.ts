@@ -84,3 +84,48 @@ test('renaming a project tells the other members', async ({ page, browser }) => 
   await refocus(bob);
   await expect(bob.getByText('Ada renamed to Marketing site')).toBeVisible();
 });
+
+/** Bob renames one of Ada's tasks from the board and waits for his save to land. */
+async function bobRenames(bob: Page, from: string, to: string) {
+  await bob.reload();
+  await bob.getByRole('button', { name: from, exact: true }).click();
+  const dialog = bob.getByRole('dialog', { name: 'Task details' });
+  await dialog.getByLabel('Title').fill(to);
+  await dialog.getByLabel('Title').blur();
+  await bob.keyboard.press('Escape');
+  await expect(bob.getByRole('button', { name: to, exact: true })).toBeVisible();
+}
+
+test('after I mark all read, the next change still toasts on the background poll', async ({ page, browser }) => {
+  // A fake clock, so the 30 s poll can be fast-forwarded without a focus event.
+  await page.clock.install();
+  const { bob } = await twoMembers(page, browser);
+  await createTask(page, 'Fix login');
+  await createTask(page, 'Write docs');
+
+  await bobRenames(bob, 'Fix login', 'Fix login on Safari');
+  await refocus(page);
+  await expect(page.getByRole('button', { name: 'Notifications, 1 unread' })).toBeVisible();
+  await page.getByRole('button', { name: 'Notifications, 1 unread' }).click();
+  // Mark all read stays on the page, so nothing re-renders the shell's count.
+  await page.getByRole('button', { name: 'Mark all read' }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Notifications', exact: true })).toBeVisible();
+
+  await bobRenames(bob, 'Write docs', 'Write the docs');
+  await page.clock.fastForward(31_000);
+  const toasts = page.getByRole('region', { name: /^Notifications alt/ });
+  await expect(toasts.getByText('Write the docs')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Notifications, 1 unread' })).toBeVisible();
+});
+
+test('a browser clock running ahead does not swallow toasts', async ({ page, browser }) => {
+  await page.clock.install({ time: Date.now() + 5 * 60_000 });
+  const { bob } = await twoMembers(page, browser);
+  await createTask(page, 'Fix login');
+
+  await bobRenames(bob, 'Fix login', 'Fix login on Safari');
+  await refocus(page);
+  await expect(page.getByRole('button', { name: 'Notifications, 1 unread' })).toBeVisible();
+  await expect(page.getByText('Bob changed title')).toBeVisible();
+});

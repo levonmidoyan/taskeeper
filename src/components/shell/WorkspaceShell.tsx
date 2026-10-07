@@ -2,7 +2,7 @@ import { AppHeader } from '@/components/shell/AppHeader';
 import { RememberWorkspace } from '@/components/shell/RememberWorkspace';
 import { Rail } from '@/components/shell/Rail';
 import type { WorkspaceContext } from '@/lib/session';
-import { unreadCount } from '@/server/notifications/queries';
+import { bellSnapshot } from '@/server/notifications/queries';
 import { listProjects } from '@/server/projects/queries';
 import { listViews } from '@/server/views/queries';
 import { listMyWorkspaces } from '@/server/workspaces/queries';
@@ -15,10 +15,10 @@ export async function WorkspaceShell({
   ctx: WorkspaceContext;
   children: React.ReactNode;
 }) {
-  const [projects, workspaces, unread, views] = await Promise.all([
+  const [projects, workspaces, bell, views] = await Promise.all([
     listProjects(ctx),
     listMyWorkspaces(ctx.userId),
-    unreadCount(ctx),
+    bellSnapshot(ctx),
     listViews(ctx, { workspace: true }),
   ]);
 
@@ -31,7 +31,7 @@ export async function WorkspaceShell({
       <RememberWorkspace slug={ctx.slug} />
       <Rail {...railProps} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppHeader {...railProps} unread={unread} />
+        <AppHeader {...railProps} unread={bell.unread} serverNow={bell.now} />
         {children}
       </div>
     </div>

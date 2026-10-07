@@ -1,10 +1,11 @@
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
 import { notification } from '@/db';
 import { newId } from '@/lib/ids';
 import type { WorkspaceContext } from '@/lib/session';
-import { listNotifications, unreadCount } from '@/server/notifications/queries';
+import { bellSnapshot, listNotifications, unreadCount } from '@/server/notifications/queries';
 import { markAllRead, markRead } from '@/server/notifications/service';
 
 beforeEach(resetDb);
@@ -85,5 +86,16 @@ describe('change items', () => {
     const [item] = await listNotifications(ada);
     expect(item).toMatchObject({ kind: 'project_change', projectId: null, taskId: null });
     expect(await unreadCount(ada)).toBe(1);
+  });
+});
+
+describe('bellSnapshot', () => {
+  it('returns the unread count and the database clock', async () => {
+    const { ada } = await setup();
+    await seed(ada.userId, ada.workspaceId, 'a1');
+    const [{ now }] = (await db.execute<{ now: string }>(sql`select now()::text as now`)).rows;
+    const snap = await bellSnapshot(ada);
+    expect(snap.unread).toBe(1);
+    expect(Math.abs(snap.now - new Date(now).getTime())).toBeLessThan(5_000);
   });
 });

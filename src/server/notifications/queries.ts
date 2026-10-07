@@ -36,3 +36,16 @@ export async function unreadCount(ctx: WorkspaceContext): Promise<number> {
     .where(and(mine(ctx), isNull(notification.readAt)));
   return row?.n ?? 0;
 }
+
+/**
+ * The shell's bell: the unread count, plus the database's clock. The bell
+ * toasts only items created after `now`, and created_at comes from this same
+ * clock, so a browser clock running fast or slow cannot hide or replay toasts.
+ */
+export async function bellSnapshot(ctx: WorkspaceContext): Promise<{ unread: number; now: number }> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int`, now: sql<string>`now()` })
+    .from(notification)
+    .where(and(mine(ctx), isNull(notification.readAt)));
+  return { unread: row?.n ?? 0, now: new Date(row?.now ?? Date.now()).getTime() };
+}

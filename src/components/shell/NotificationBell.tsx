@@ -21,17 +21,19 @@ import { cn } from '@/utils/cn';
  * When the count rises (a live refresh or the focus re-count), new change items
  * also pop up as toasts.
  */
-export function NotificationBell({ workspaceSlug, initialUnread }: { workspaceSlug: string; initialUnread: number }) {
+export function NotificationBell({ workspaceSlug, initialUnread, serverNow }: {
+  workspaceSlug: string;
+  initialUnread: number;
+  /** The database clock when the shell rendered: the toast cutoff starts here, not at the browser's clock. */
+  serverNow: number;
+}) {
   const [unread, setUnread] = useState(initialUnread);
   const [items, setItems] = useState<NotificationItem[] | null>(null);
   const [open, setOpen] = useState(false);
   const router = useRouter();
   // Only what arrives after this tab opened toasts; the count it opened with does not.
-  const lastToastAt = useRef(0);
+  const lastToastAt = useRef(serverNow);
   const seenUnread = useRef(initialUnread);
-  useEffect(() => {
-    lastToastAt.current = Date.now();
-  }, []);
 
   // A fresh server count (navigation, revalidation) replaces the local one.
   const [serverUnread, setServerUnread] = useState(initialUnread);
