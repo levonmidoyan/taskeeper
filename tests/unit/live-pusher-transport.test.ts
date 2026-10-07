@@ -8,7 +8,9 @@ function fakePusher() {
   const channel = new Map<string, Handler>();
   const client = {
     connection: { bind: (event: string, cb: Handler) => void connection.set(event, cb) },
-    subscribe: vi.fn((_name: string) => ({ bind: (event: string, cb: Handler) => void channel.set(event, cb) })),
+    subscribe: vi.fn<(name: string) => { bind: (event: string, cb: Handler) => void }>(() => ({
+      bind: (event: string, cb: Handler) => void channel.set(event, cb),
+    })),
     disconnect: vi.fn(),
   };
   return {

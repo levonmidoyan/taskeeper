@@ -3,16 +3,29 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { endSettle, isBusy, subscribeBusy } from '@/lib/live/busy';
+import type { PusherClientConfig } from '@/lib/live/channel';
+import { createLiveTransport } from '@/lib/live/live-transport';
 import { createRefresher, type Refresher } from '@/lib/live/refresher';
-import { createPollingTransport } from '@/lib/live/transport';
 
 /**
- * Keeps workspace pages current while teammates edit: when the workspace's
- * change counter passes `version` (what this render was built from), refresh
+ * Keeps workspace pages current while teammates edit, over Pusher when
+ * configured and polling otherwise (src/lib/live/live-transport.ts): when the
+ * workspace's change counter passes `version` (what this render was built from), refresh
  * the server components once the user is idle. Renders nothing. The private
  * Todo page opts out: only its owner edits it.
  */
-export function LiveRefresh({ slug, version }: { slug: string; version: number }) {
+export function LiveRefresh({
+  slug,
+  workspaceId,
+  version,
+  pusher,
+}: {
+  slug: string;
+  workspaceId: string;
+  version: number;
+  /** null = Pusher not configured: poll only. */
+  pusher: PusherClientConfig | null;
+}) {
   const router = useRouter();
   const paused = usePathname().endsWith('/todo');
   const seen = useRef(version);
@@ -25,18 +38,23 @@ export function LiveRefresh({ slug, version }: { slug: string; version: number }
     endSettle();
   }, [version]);
 
+  // Primitives, so a re-render with an equal config object does not resubscribe.
+  const pusherKey = pusher?.key;
+  const pusherCluster = pusher?.cluster;
+
   useEffect(() => {
     if (paused) return;
     const r = createRefresher({ seen: seen.current, isBusy, refresh: () => router.refresh() });
     refresher.current = r;
     const unsubscribeBusy = subscribeBusy(r.recheck);
-    const unsubscribeChanges = createPollingTransport(slug).subscribe(r.onVersion);
+    const config = pusherKey && pusherCluster ? { key: pusherKey, cluster: pusherCluster } : null;
+    const unsubscribeChanges = createLiveTransport({ slug, workspaceId, pusher: config }).subscribe(r.onVersion);
     return () => {
       unsubscribeChanges();
       unsubscribeBusy();
       refresher.current = null;
     };
-  }, [slug, paused, router]);
+  }, [slug, workspaceId, pusherKey, pusherCluster, paused, router]);
 
   return null;
 }
