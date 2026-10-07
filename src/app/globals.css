@@ -83,7 +83,98 @@
     from { opacity: 0; transform: translateY(12px); }
     to { opacity: 1; transform: translateY(0); }
   }
+  /* Motion (docs/superpowers/specs/2026-10-08-motion-design.md). JS copies: src/lib/motion.ts. */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: linear(0, 0.06 3%, 0.22 7%, 0.46 12%, 0.7 18%, 0.87 24%, 0.97 31%, 1.03 39%, 1.045 46%, 1.04 53%, 1.02 62%, 1.005 74%, 0.998 86%, 1);
+  --animate-kanban-lift: kanban-lift 180ms var(--ease-spring) both;
+  --animate-kanban-settle: kanban-settle 280ms var(--ease-spring) both;
+  --animate-todo-lift: todo-lift 180ms var(--ease-spring) both;
+  --animate-badge-pop: badge-pop 280ms var(--ease-spring) both;
+
+  @keyframes kanban-lift {
+    from { transform: none; }
+    to { transform: scale(1.03) rotate(2deg); }
+  }
+  @keyframes kanban-settle {
+    from { transform: scale(1.03) rotate(2deg); }
+    to { transform: none; }
+  }
+  @keyframes todo-lift {
+    from { scale: 1; }
+    to { scale: 1.01; }
+  }
+  @keyframes badge-pop {
+    from { transform: scale(0.6); }
+    to { transform: scale(1); }
+  }
 }
+
+:root {
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 280ms;
+}
+
+/* The DragOverlay while dnd-kit plays its drop animation (kibo-ui/kanban). */
+.kanban-settling .animate-kanban-lift {
+  animation: var(--animate-kanban-settle);
+}
+
+/*
+ * View transitions (React <ViewTransition>). The page itself swaps instantly;
+ * only named parts animate, each through a class from src/lib/motion.ts. Clicks
+ * pass through to the live page while an animation runs.
+ */
+::view-transition { pointer-events: none; }
+::view-transition-old(root) { display: none; }
+::view-transition-new(root) { animation: none; }
+
+@keyframes vt-fade-in { from { opacity: 0; } }
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-pop-in { from { opacity: 0; transform: scale(0.96); } }
+@keyframes vt-pop-out { to { opacity: 0; transform: scale(0.96); } }
+@keyframes vt-slide-in { from { opacity: 0; transform: translateY(-4px); } }
+
+/* Card or list row ↔ task modal. */
+::view-transition-group(.task-morph) {
+  animation-duration: var(--duration-slow);
+  animation-timing-function: var(--ease-spring);
+}
+::view-transition-old(.task-morph) { animation: var(--duration-base) var(--ease-out-soft) both vt-fade-out; }
+::view-transition-new(.task-morph) { animation: var(--duration-slow) var(--ease-out-soft) 60ms both vt-fade-in; }
+
+/* Task modal with no card to grow from. */
+::view-transition-new(.task-pop) { animation: var(--duration-base) var(--ease-out-soft) both vt-pop-in; }
+::view-transition-old(.task-pop) { animation: var(--duration-fast) var(--ease-out-soft) both vt-pop-out; }
+
+/* A teammate's change (live refresh). */
+::view-transition-group(.card-move) {
+  animation-duration: var(--duration-slow);
+  animation-timing-function: var(--ease-out-soft);
+}
+::view-transition-new(.card-enter) { animation: var(--duration-base) var(--ease-out-soft) both vt-pop-in; }
+::view-transition-old(.card-exit) { animation: var(--duration-base) var(--ease-out-soft) both vt-pop-out; }
+
+/* To-dos. */
+::view-transition-new(.todo-enter) { animation: var(--duration-base) var(--ease-out-soft) both vt-slide-in; }
+::view-transition-old(.todo-exit) { animation: var(--duration-base) var(--ease-out-soft) both vt-fade-out; }
+::view-transition-group(.todo-move),
+::view-transition-group(.todo-shift) {
+  animation-duration: var(--duration-base);
+  animation-timing-function: var(--ease-out-soft);
+}
+
+/* Notification bell. */
+::view-transition-old(.bell-exit) { animation: var(--duration-base) var(--ease-out-soft) both vt-fade-out; }
+::view-transition-group(.bell-shift) {
+  animation-duration: var(--duration-base);
+  animation-timing-function: var(--ease-out-soft);
+}
+::view-transition-new(.vt-fade-in) { animation: var(--duration-base) var(--ease-out-soft) both vt-fade-in; }
+
+/* Project view tabs: same place, different content. */
+::view-transition-old(.view-fade) { animation: var(--duration-base) var(--ease-out-soft) both vt-fade-out; }
+::view-transition-new(.view-fade) { animation: var(--duration-base) var(--ease-out-soft) both vt-fade-in; }
 
 /* Dark mode lifts the primary for contrast on slate-950, as Align does for its blue. */
 .dark {
@@ -152,6 +243,16 @@
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+  /* Fill-mode "both" would otherwise leave these at their tilted / scaled end state. */
+  .animate-kanban-lift, .animate-todo-lift, .animate-badge-pop {
+    animation: none !important;
   }
 }
 
