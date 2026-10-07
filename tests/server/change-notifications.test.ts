@@ -6,7 +6,9 @@ import { notification, task, taskStatus, userSettings } from '@/db';
 import { newId } from '@/lib/ids';
 import type { WorkspaceContext } from '@/lib/session';
 import { commentExcerpt, notifyProjectChange, notifyTaskChange } from '@/server/notifications/changes';
-import { createProject } from '@/server/projects/service';
+import {
+  archiveProject, createProject, deleteProject, renameProject, setProjectColor, unarchiveProject,
+} from '@/server/projects/service';
 import { createComment } from '@/server/comments/service';
 import { createLabel, setTaskLabels } from '@/server/labels/service';
 import { bulkUpdateTasks, createTask, moveTask, updateTask, updateTaskAndLabels } from '@/server/tasks/service';
@@ -280,5 +282,44 @@ describe('task call sites', () => {
     const { ada, bob, taskId } = await setup();
     await createComment(bob, { taskId, body: 'Looks\n\ngood' });
     expect(await rows()).toMatchObject([{ userId: ada.userId, data: { changes: ['comment'], comment: 'Looks good' } }]);
+  });
+});
+
+describe('project call sites', () => {
+  it('rename notifies other members with old and new names; same name does not', async () => {
+    const { ada, bob, projectId } = await setup();
+    await renameProject(ada, { projectId, name: 'Website' });
+    expect(await rows()).toHaveLength(0);
+    await renameProject(ada, { projectId, name: 'Site' });
+    expect(await rows()).toMatchObject([
+      { userId: bob.userId, projectId, data: { projectName: 'Website', newName: 'Site', changes: ['renamed'] } },
+    ]);
+  });
+
+  it('archive and unarchive merge into one unread row', async () => {
+    const { ada, projectId } = await setup();
+    await archiveProject(ada, { projectId });
+    await unarchiveProject(ada, { projectId });
+    const all = await rows();
+    expect(all).toHaveLength(1);
+    expect(all[0].data).toMatchObject({ changes: ['archived', 'unarchived'] });
+  });
+
+  it('color changes notify no one', async () => {
+    const { ada, projectId } = await setup();
+    expect((await setProjectColor(ada, { projectId, color: 'emerald' })).ok).toBe(true);
+    expect(await rows()).toHaveLength(0);
+  });
+
+  it('delete keeps the project row for members; task rows go with the tasks', async () => {
+    const { ada, bob, projectId, taskId } = await setup();
+    await updateTask(bob, { taskId, title: 'Ship 2' }); // a task_change row for Ada
+    await deleteProject(ada, { projectId });
+    const all = await rows();
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({
+      userId: bob.userId, kind: 'project_change', projectId: null,
+      data: { projectName: 'Website', changes: ['deleted'] },
+    });
   });
 });
