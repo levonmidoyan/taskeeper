@@ -175,4 +175,45 @@ describe('createPollingTransport', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('checkNow during a poll in flight runs one more check when it lands', async () => {
+    let answer!: (res: Response) => void;
+    fetchMock.mockImplementationOnce(() => new Promise((resolve) => { answer = resolve; }));
+    const { onVersion, stop, transport } = start();
+    win.dispatchEvent(new Event('focus'));
+    await vi.advanceTimersByTimeAsync(0);
+    transport.checkNow();
+    transport.checkNow();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    answer(json(2));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(onVersion.mock.calls).toEqual([[2], [3]]);
+    stop();
+  });
+
+  it('focus during a poll in flight does not queue another', async () => {
+    let answer!: (res: Response) => void;
+    fetchMock.mockImplementationOnce(() => new Promise((resolve) => { answer = resolve; }));
+    const { stop } = start();
+    win.dispatchEvent(new Event('focus'));
+    await vi.advanceTimersByTimeAsync(0);
+    win.dispatchEvent(new Event('focus'));
+    answer(json(2));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it.each([401, 404])('calls onEnd once when %i stops it', async (status) => {
+    fetchMock.mockResolvedValue(new Response('', { status }));
+    const onEnd = vi.fn();
+    const stop = createPollingTransport('acme', {
+      fetch: fetchMock as never, doc: doc as never, win: win as never,
+    }).subscribe(vi.fn(), onEnd);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    stop();
+    expect(onEnd).toHaveBeenCalledTimes(1);
+  });
 });

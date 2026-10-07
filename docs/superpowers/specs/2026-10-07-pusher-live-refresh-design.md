@@ -72,17 +72,18 @@ nothing is inlined at build time. Added to `.env.example`. No DB migration.
 
 ### `emitChange` / `emitChangeFor` (`src/server/changes/service.ts`)
 
-After the existing upsert, call `schedulePublish(workspaceId)`:
+After the existing upsert (which now returns the bumped version), call
+`schedulePublish(workspaceId, version)`:
 
 - No-op when `pusherConfigured()` is false.
-- Dedupes per workspace per request where a request-scoped store exists (a `Set` from React
-  `cache`), so a bulk update sends one event and account deletion one per workspace. Never a
-  module-level set: two concurrent requests sharing one pending publish could send before the
-  second one commits. Where no request scope dedupes, duplicates are sent; they carry the same
-  committed version and clients ignore them, so dedupe only saves messages.
 - Calls `after(() => publishWorkspaceVersion(id))`. Outside a request scope (vitest, scripts)
-  `after` throws; then it falls back to `void publishWorkspaceVersion(id)` after a microtask.
-  Tests run with Pusher unconfigured, so this path matters only for scripts.
+  `after` throws; then it polls the committed counter (100 ms → 1.5 s, five tries) until it
+  reaches the bumped version and publishes then. A rolled-back write never gets there and
+  publishes nothing. Tests run with Pusher unconfigured, so this path matters only for scripts.
+- Coalescing lives in `publishWorkspaceVersion`, not per request (React `cache` is a no-op in
+  server actions and route handlers): calls for a workspace that arrive before the queued
+  publish reads the counter share it. Safe because every caller has already committed, and the
+  read comes after them all. A bulk update sends one event; concurrent requests may share one.
 
 All callers keep their signatures. Server actions, the REST API routes, the reminders cron
 route and account deletion all run inside a request, so `after` works there.
@@ -114,7 +115,9 @@ the channel uses the id so a slug rename does not break it.
 - Focus and becoming visible still check at once in both modes; 401/404 still stops it.
 - `setMode` reschedules the pending timer; switching to `fast` from `safety` does not fire an
   immediate check by itself.
-- `checkNow()` triggers a check (used after a Pusher reconnect).
+- `checkNow()` triggers a check (used after a Pusher reconnect). If a poll is in flight, one
+  more runs when it lands: the in-flight answer may predate the reconnect.
+- `subscribe(onVersion, onEnd)`: `onEnd` fires when 401/404 stops polling for good.
 
 ### Pusher transport (`src/lib/live/pusher-transport.ts`, new)
 
@@ -126,7 +129,9 @@ the channel uses the id so a slug rename does not break it.
   `unhealthy` on connection states `unavailable`, `failed`, `disconnected`, on `error`
   (e.g. code 4001 invalid key) and on `pusher:subscription_error`.
 - `subscription_error` with status 401 or 403 (signed out, removed from workspace) → stop
-  Pusher for good; polling's own 401/404 handling stops the rest.
+  Pusher for good; polling's own 401/404 handling stops the rest. Any other status (a 5xx from
+  the auth route) → `unhealthy`, and the subscription is retried after 5 s, doubling to 60 s,
+  reset on success.
 - Unsubscribe disconnects the socket.
 
 ### Combined transport (`createLiveTransport`, `src/lib/live/live-transport.ts`, new)
@@ -141,6 +146,10 @@ The single `ChangeTransport` `LiveRefresh` uses.
 - Pusher `change` events are coalesced for 500 ms after the first one (a steady stream still lands every 500 ms), keeping the highest version before
   reaching `onVersion`. Poll answers are not debounced.
 - Hidden tabs keep the socket open; refresh decisions are unchanged.
+- Polling's `onEnd` (401/404: signed out, removed) disconnects Pusher too, so the socket stops
+  hearing the workspace's events.
+- Not `healthy` 15 s after subscribing (bad key from the start, blocked websocket) → one
+  `console.warn`; the fall-back warning above only fires after a healthy spell.
 
 `LiveRefresh` swaps `createPollingTransport(slug)` for
 `createLiveTransport({ slug, workspaceId })`. The refresher, busy detection, echo hold and the
@@ -173,8 +182,9 @@ Vitest:
 - Polling `setMode` / `checkNow` timing with fake timers.
 - `publishWorkspaceVersion`: reads the committed value, swallows SDK errors, no-op when
   unconfigured.
-- `schedulePublish`: one publish per workspace per request; a rolled-back transaction
-  publishes the unchanged version.
+- `schedulePublish`: a rolled-back transaction publishes the unchanged version; outside a
+  request it waits for the commit and skips a rollback.
+- `publishWorkspaceVersion`: calls before the counter is read share one publish.
 - Auth route: 404 unconfigured, 401 no session, 403 bad channel name, 403 non-member,
   200 member (signature from the SDK).
 

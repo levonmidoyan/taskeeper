@@ -32,6 +32,16 @@ async function start(fake = fakePusher(), connect = vi.fn(async () => fake.clien
   return { fake, connect, health, onVersion, stop };
 }
 
+// start() for fake timers: flush the connect promise with microtasks only.
+async function startFake(fake = fakePusher()) {
+  const health: PusherHealth[] = [];
+  const stop = createPusherTransport({
+    workspaceId: 'w1', key: 'key', cluster: 'eu', onHealth: (h) => health.push(h), connect: async () => fake.client,
+  }).subscribe(vi.fn());
+  await vi.advanceTimersByTimeAsync(0);
+  return { fake, health, stop };
+}
+
 describe('createPusherTransport', () => {
   it('connects with the key and cluster and subscribes the workspace channel', async () => {
     const { fake, connect, stop } = await start();
@@ -79,6 +89,46 @@ describe('createPusherTransport', () => {
     expect(health.at(-1)).toBe('unhealthy');
     expect(fake.client.disconnect).not.toHaveBeenCalled();
     stop();
+  });
+
+  it('retries a subscription that failed with another status, 5 s doubling to 60 s', async () => {
+    vi.useFakeTimers();
+    try {
+      const { fake, health, stop } = await startFake();
+      fake.state('connected');
+      expect(fake.client.subscribe).toHaveBeenCalledTimes(1);
+      for (const [wait, calls] of [[5_000, 2], [10_000, 3], [20_000, 4], [40_000, 5], [60_000, 6], [60_000, 7]]) {
+        fake.emit('pusher:subscription_error', { type: 'AuthError', status: 503 });
+        await vi.advanceTimersByTimeAsync(wait - 1);
+        expect(fake.client.subscribe).toHaveBeenCalledTimes(calls - 1);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(fake.client.subscribe).toHaveBeenLastCalledWith('private-workspace-w1');
+        expect(fake.client.subscribe).toHaveBeenCalledTimes(calls);
+      }
+      fake.emit('pusher:subscription_succeeded');
+      expect(health.at(-1)).toBe('healthy');
+      // Success resets the backoff.
+      fake.emit('pusher:subscription_error', { type: 'AuthError', status: 503 });
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(fake.client.subscribe).toHaveBeenCalledTimes(8);
+      stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('unsubscribe cancels a pending subscription retry', async () => {
+    vi.useFakeTimers();
+    try {
+      const { fake, stop } = await startFake();
+      fake.state('connected');
+      fake.emit('pusher:subscription_error', { type: 'AuthError', status: 500 });
+      stop();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(fake.client.subscribe).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it.each([401, 403])('subscription_error %i stops for good (signed out or removed)', async (status) => {

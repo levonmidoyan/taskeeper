@@ -9,9 +9,15 @@ export type ChangeTransport = {
 /** fast: today's cadence. safety: slow net while Pusher carries changes. */
 export type PollMode = 'fast' | 'safety';
 
-export type PollingTransport = ChangeTransport & {
+export type PollingTransport = {
+  /** onEnd: the server said 401/404 (signed out, removed) and polling stopped for good. */
+  subscribe(onVersion: (version: number) => void, onEnd?: () => void): () => void;
   setMode(mode: PollMode): void;
-  /** Checks at once (after Pusher reconnects). No-op while not subscribed. */
+  /**
+   * Checks at once (after Pusher reconnects). A poll already in flight may
+   * predate what this asks about, so one more runs when it lands. No-op while
+   * not subscribed.
+   */
   checkNow(): void;
 };
 
@@ -40,7 +46,7 @@ export function createPollingTransport(slug: string, options: PollingOptions = {
     intervalMs = 30_000, idleAfterMs = 300_000, idleIntervalMs = 120_000, safetyIntervalMs = 300_000,
   } = options;
   let mode: PollMode = 'fast';
-  let active: { schedule(): void; check(): Promise<void> } | null = null;
+  let active: { schedule(): void; checkNow(): void } | null = null;
 
   return {
     setMode(next) {
@@ -49,9 +55,9 @@ export function createPollingTransport(slug: string, options: PollingOptions = {
       active?.schedule();
     },
     checkNow() {
-      void active?.check();
+      active?.checkNow();
     },
-    subscribe(onVersion) {
+    subscribe(onVersion, onEnd?) {
       // Through window each call, so the request tracker's wrapper (installed later) sees it.
       const doFetch: typeof fetch = options.fetch ?? ((input, init) => window.fetch(input, init));
       const doc = options.doc ?? document;
@@ -61,6 +67,7 @@ export function createPollingTransport(slug: string, options: PollingOptions = {
       let timer: ReturnType<typeof setTimeout> | undefined;
       let stopped = false;
       let inFlight = false;
+      let again = false;
       let lastInput = Date.now();
 
       const idle = () => Date.now() - lastInput >= idleAfterMs;
@@ -85,6 +92,7 @@ export function createPollingTransport(slug: string, options: PollingOptions = {
           if (stopped) return;
           if (res.status === 401 || res.status === 404) {
             stop();
+            onEnd?.();
             return;
           }
           if (res.ok) {
@@ -95,8 +103,18 @@ export function createPollingTransport(slug: string, options: PollingOptions = {
           // Offline or mid-deploy: the next tick tries again.
         } finally {
           inFlight = false;
-          schedule();
+          if (again && !stopped) {
+            again = false;
+            void check();
+          } else {
+            schedule();
+          }
         }
+      }
+
+      function checkNow() {
+        if (inFlight) again = true;
+        else void check();
       }
 
       const onVisibility = () => {
@@ -111,11 +129,12 @@ export function createPollingTransport(slug: string, options: PollingOptions = {
         if (wasIdle && mode === 'fast') schedule();
       };
 
-      const self = { schedule, check };
+      const self = { schedule, checkNow };
       active = self;
 
       function stop() {
         stopped = true;
+        again = false;
         if (active === self) active = null;
         clearTimeout(timer);
         doc.removeEventListener('visibilitychange', onVisibility);

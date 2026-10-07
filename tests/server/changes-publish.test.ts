@@ -21,13 +21,14 @@ vi.mock('next/server', async (importOriginal) => ({
 const { closeDb, db, resetDb } = await import('../setup/db');
 const { createUser, createWorkspace } = await import('../setup/factories');
 const { emitChangeFor } = await import('@/server/changes/service');
-const { publishWorkspaceVersion, schedulePublish } = await import('@/server/changes/publish');
+const { publishWorkspaceVersion } = await import('@/server/changes/publish');
 const { after } = await import('next/server');
 
 const PUSHER_ENV = { PUSHER_APP_ID: '1', PUSHER_KEY: 'key', PUSHER_SECRET: 'secret', PUSHER_CLUSTER: 'eu' };
 
+// Next starts a request's after() callbacks together (an unbounded queue).
 async function runAfter() {
-  for (const callback of afterCallbacks.splice(0)) await callback();
+  await Promise.all(afterCallbacks.splice(0).map((callback) => callback()));
 }
 
 async function workspace() {
@@ -81,21 +82,45 @@ describe('schedulePublish via emitChangeFor', () => {
     expect(trigger).not.toHaveBeenCalled();
   });
 
-  it('outside a request scope it publishes straight away instead of throwing', async () => {
+  it('a request with several emits sends one message', async () => {
     const ws = await workspace();
-    outsideRequest = true;
-    schedulePublish(ws.id);
-    await vi.waitFor(() => expect(trigger).toHaveBeenCalledTimes(1));
+    await db.transaction(async (tx) => {
+      await emitChangeFor(ws.id, tx);
+      await emitChangeFor(ws.id, tx);
+    });
+    await emitChangeFor(ws.id, db);
+    expect(after).toHaveBeenCalledTimes(3);
+    await runAfter();
+    expect(trigger).toHaveBeenCalledTimes(1);
+    expect(trigger).toHaveBeenCalledWith(`private-workspace-${ws.id}`, 'change', { version: 3 });
   });
 
-  it('does not dedupe outside a request: each call schedules its own publish', async () => {
-    // React cache only dedupes inside a request; vitest has none, so this pins
-    // that the dedupe store is never module-wide.
+  it('outside a request scope it waits for the commit, then publishes the committed version', async () => {
     const ws = await workspace();
-    schedulePublish(ws.id);
-    schedulePublish(ws.id);
-    expect(after).toHaveBeenCalledTimes(2);
+    outsideRequest = true;
+    await db.transaction(async (tx) => {
+      await emitChangeFor(ws.id, tx);
+      // Longer than the first commit check: an early publish would carry 0.
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      expect(trigger).not.toHaveBeenCalled();
+    });
+    await vi.waitFor(() => expect(trigger).toHaveBeenCalledTimes(1), { timeout: 3_000 });
+    expect(trigger).toHaveBeenCalledWith(`private-workspace-${ws.id}`, 'change', { version: 1 });
   });
+
+  it('outside a request scope a rolled-back write publishes nothing', async () => {
+    const ws = await workspace();
+    outsideRequest = true;
+    await expect(
+      db.transaction(async (tx) => {
+        await emitChangeFor(ws.id, tx);
+        throw new Error('refused');
+      }),
+    ).rejects.toThrow('refused');
+    await new Promise((resolve) => setTimeout(resolve, 3_200));
+    expect(trigger).not.toHaveBeenCalled();
+  }, 10_000);
+
 });
 
 describe('publishWorkspaceVersion', () => {
@@ -103,6 +128,17 @@ describe('publishWorkspaceVersion', () => {
     const ws = await workspace();
     await publishWorkspaceVersion(ws.id);
     expect(trigger).toHaveBeenCalledWith(`private-workspace-${ws.id}`, 'change', { version: 0 });
+  });
+
+  it('calls before the counter is read share one publish; later calls send again', async () => {
+    const ws = await workspace();
+    await Promise.all([publishWorkspaceVersion(ws.id), publishWorkspaceVersion(ws.id)]);
+    expect(trigger).toHaveBeenCalledTimes(1);
+    await emitChangeFor(ws.id, db);
+    afterCallbacks.length = 0;
+    await publishWorkspaceVersion(ws.id);
+    expect(trigger).toHaveBeenCalledTimes(2);
+    expect(trigger).toHaveBeenLastCalledWith(`private-workspace-${ws.id}`, 'change', { version: 1 });
   });
 
   it('logs and swallows a Pusher failure', async () => {

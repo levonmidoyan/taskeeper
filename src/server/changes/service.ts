@@ -16,14 +16,15 @@ export type ChangeScope = { projectId?: string | null };
 
 /** Bumps the workspace counter for callers that have no WorkspaceContext. */
 export async function emitChangeFor(workspaceId: string, tx: Executor): Promise<void> {
-  await tx
+  const [row] = await tx
     .insert(workspaceChange)
     .values({ workspaceId, version: 1 })
     .onConflictDoUpdate({
       target: workspaceChange.workspaceId,
       set: { version: sql`${workspaceChange.version} + 1`, changedAt: sql`now()` },
-    });
-  schedulePublish(workspaceId);
+    })
+    .returning({ version: workspaceChange.version });
+  schedulePublish(workspaceId, row.version);
 }
 
 /**

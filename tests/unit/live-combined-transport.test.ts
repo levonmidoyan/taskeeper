@@ -9,14 +9,16 @@ let stopPusher: ReturnType<typeof vi.fn>;
 let health: (h: PusherHealth) => void;
 let pusherVersion: (v: number) => void;
 let pollVersion: (v: number) => void;
+let pollEnd: () => void;
 let pusherTransport: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.useFakeTimers();
   stopPolling = vi.fn();
   polling = {
-    subscribe: vi.fn((onVersion: (v: number) => void) => {
+    subscribe: vi.fn((onVersion: (v: number) => void, onEnd?: () => void) => {
       pollVersion = onVersion;
+      pollEnd = onEnd!;
       return stopPolling;
     }),
     setMode: vi.fn(),
@@ -49,7 +51,7 @@ function start(pusher: { key: string; cluster: string } | null = { key: 'key', c
 describe('createLiveTransport', () => {
   it('without Pusher config it is polling alone', () => {
     const { onVersion, stop } = start(null);
-    expect(polling.subscribe).toHaveBeenCalledWith(onVersion);
+    expect(polling.subscribe.mock.calls[0][0]).toBe(onVersion);
     expect(pusherTransport).not.toHaveBeenCalled();
     stop();
     expect(stopPolling).toHaveBeenCalledTimes(1);
@@ -189,5 +191,39 @@ describe('createLiveTransport', () => {
     polling.setMode.mockClear();
     await vi.advanceTimersByTimeAsync(10_000);
     expect(polling.setMode).not.toHaveBeenCalled();
+  });
+
+  it('polling ending (signed out, removed) disconnects Pusher too and drops a pending event', async () => {
+    const { onVersion, stop } = start();
+    health('healthy');
+    pusherVersion(4);
+    pollEnd();
+    expect(stopPusher).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(onVersion).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it('warns once when Pusher is not healthy 15 s after starting', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { stop } = start();
+    health('unhealthy');
+    await vi.advanceTimersByTimeAsync(14_999);
+    expect(warn).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toMatch(/has not connected/);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(warn).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it('no startup warning once Pusher was healthy', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { stop } = start();
+    health('healthy');
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(warn).not.toHaveBeenCalled();
+    stop();
   });
 });

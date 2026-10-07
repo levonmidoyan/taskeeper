@@ -26,10 +26,15 @@ const connectPusher: PusherConnect = async (key, cluster) => {
   });
 };
 
+const RETRY_FIRST_MS = 5_000;
+const RETRY_MAX_MS = 60_000;
+
 /**
  * Change notices from the workspace's private Pusher channel. Reports its
  * health so live-transport.ts can poll faster while it is down; pusher-js
- * reconnects on its own. Auth refused (401/403: signed out, removed) stops it.
+ * reconnects on its own. Auth refused (401/403: signed out, removed) stops it;
+ * any other failed subscription (a 5xx from the auth route) is retried, 5 s
+ * doubling to 60 s.
  */
 export function createPusherTransport({
   workspaceId,
@@ -37,12 +42,16 @@ export function createPusherTransport({
   cluster,
   onHealth,
   connect = connectPusher,
+  retryFirstMs = RETRY_FIRST_MS,
+  retryMaxMs = RETRY_MAX_MS,
 }: {
   workspaceId: string;
   key: string;
   cluster: string;
   onHealth(health: PusherHealth): void;
   connect?: PusherConnect;
+  retryFirstMs?: number;
+  retryMaxMs?: number;
 }): ChangeTransport {
   return {
     subscribe(onVersion) {
@@ -51,6 +60,8 @@ export function createPusherTransport({
       let connected = false;
       let subscribed = false;
       let last: PusherHealth | null = null;
+      let retry: ReturnType<typeof setTimeout> | undefined;
+      let retryMs = retryFirstMs;
 
       function report(health: PusherHealth) {
         if (stopped || health === last) return;
@@ -61,6 +72,7 @@ export function createPusherTransport({
 
       function stop() {
         stopped = true;
+        clearTimeout(retry);
         client?.disconnect();
         client = null;
       }
@@ -78,9 +90,11 @@ export function createPusherTransport({
             if (!connected) subscribed = false;
             update();
           });
-          const channel = c.subscribe(workspaceChannel(workspaceId));
+          const name = workspaceChannel(workspaceId);
+          const channel = c.subscribe(name);
           channel.bind('pusher:subscription_succeeded', () => {
             subscribed = true;
+            retryMs = retryFirstMs;
             update();
           });
           channel.bind('pusher:subscription_error', (data) => {
@@ -92,6 +106,13 @@ export function createPusherTransport({
               return;
             }
             update();
+            // Same channel object, so the bindings here stay. pusher-js also
+            // subscribes again by itself after a reconnect.
+            clearTimeout(retry);
+            retry = setTimeout(() => {
+              if (!stopped) c.subscribe(name);
+            }, retryMs);
+            retryMs = Math.min(retryMs * 2, retryMaxMs);
           });
           channel.bind(CHANGE_EVENT, (data) => {
             const version = (data as { version?: unknown } | null | undefined)?.version;

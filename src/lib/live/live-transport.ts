@@ -11,6 +11,9 @@ import { createPollingTransport, type ChangeTransport, type PollingTransport } f
  * A healthy socket does not prove publishes work (wrong app id, REST API down,
  * quota spent). So when a poll finds a version Pusher has not announced within
  * graceMs, polling goes back to 30 s until Pusher next reconnects.
+ *
+ * A poll answered 401/404 (signed out, removed) ends everything, the socket
+ * too: it would otherwise keep hearing the workspace's events.
  */
 export function createLiveTransport({
   slug,
@@ -18,6 +21,7 @@ export function createLiveTransport({
   pusher,
   debounceMs = 500,
   graceMs = 5_000,
+  startupMs = 15_000,
   polling = createPollingTransport(slug),
   pusherTransport,
 }: {
@@ -27,6 +31,8 @@ export function createLiveTransport({
   debounceMs?: number;
   /** How long Pusher gets to announce a version a poll already found. */
   graceMs?: number;
+  /** Not healthy this long after subscribing: say so in the console once. */
+  startupMs?: number;
   polling?: PollingTransport;
   /** Tests hand in a fake; by default the pusher-js one. */
   pusherTransport?: (onHealth: (health: PusherHealth) => void) => ChangeTransport;
@@ -36,6 +42,11 @@ export function createLiveTransport({
       if (!pusher) return polling.subscribe(onVersion);
 
       let healthy = false;
+      let everHealthy = false;
+      // A bad key or a blocked websocket never reaches healthy, so no fall-back warning fires.
+      const startup = setTimeout(() => {
+        if (!everHealthy) console.warn('Live refresh: Pusher has not connected; polling every 30 s.');
+      }, startupMs);
       // Highest version Pusher announced (or the first poll after a reconnect).
       let heard = 0;
       let needBaseline = true;
@@ -74,6 +85,7 @@ export function createLiveTransport({
         clearGrace();
         if (health === 'healthy') {
           healthy = true;
+          everHealthy = true;
           lossy = false;
           needBaseline = true;
           polling.setMode('safety');
@@ -93,8 +105,16 @@ export function createLiveTransport({
         pusherTransport ??
         ((h: (health: PusherHealth) => void) =>
           createPusherTransport({ workspaceId, key: pusher.key, cluster: pusher.cluster, onHealth: h }));
-      const stopPolling = polling.subscribe(onPoll);
-      const stopPusher = make(onHealth).subscribe((version) => {
+      let stopPusher = () => {};
+      function stopAll() {
+        clearTimeout(startup);
+        clearTimeout(timer);
+        clearGrace();
+        stopPusher();
+        stopPolling();
+      }
+      const stopPolling = polling.subscribe(onPoll, stopAll);
+      stopPusher = make(onHealth).subscribe((version) => {
         heard = Math.max(heard, version);
         if (grace !== undefined && heard >= graceTarget) clearGrace();
         pending = Math.max(pending, version);
@@ -107,12 +127,7 @@ export function createLiveTransport({
         }, debounceMs);
       });
 
-      return () => {
-        clearTimeout(timer);
-        clearGrace();
-        stopPusher();
-        stopPolling();
-      };
+      return stopAll;
     },
   };
 }
