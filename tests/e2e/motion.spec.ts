@@ -183,6 +183,30 @@ test.describe('teammate changes', () => {
     await viewTransitionsDone(page);
     expect((await seenViewTransitions(page)).filter((p) => p.includes('(card-'))).toEqual([]);
   });
+
+  test('clearing a notification fades it out', async ({ page, browser }) => {
+    await signUpWithProject(page, 'motion-bell');
+    const bob = await addBob(page, browser);
+    // Bob renames Ada's task: Ada gets one notification (change-notifications.spec.ts).
+    await createTask(page, 'Fix login');
+    await bob.reload();
+    await bob.getByRole('button', { name: 'Fix login', exact: true }).click();
+    const theirs = bob.getByRole('dialog', { name: 'Task details' });
+    await theirs.getByLabel('Title').fill('Fix login on Safari');
+    await theirs.getByLabel('Title').blur();
+    await bob.keyboard.press('Escape');
+    await expect(bob.getByRole('button', { name: 'Fix login on Safari', exact: true })).toBeVisible();
+
+    await refocus(page);
+    await page.getByRole('button', { name: 'Notifications, 1 unread' }).click();
+    const list = page.getByRole('list', { name: 'Notifications' });
+    await expect(list.getByText('Fix login on Safari')).toBeVisible();
+    await recordViewTransitions(page);
+    await list.getByRole('button', { name: 'Clear notification: Fix login on Safari' }).click();
+    await expect(list.getByText('Nothing yet.')).toBeVisible();
+    await viewTransitionsDone(page);
+    expect((await seenViewTransitions(page)).some((p) => p.startsWith('::view-transition-old(bell-'))).toBe(true);
+  });
 });
 
 test.describe('to-dos', () => {
