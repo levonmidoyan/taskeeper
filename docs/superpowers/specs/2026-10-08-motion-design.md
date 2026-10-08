@@ -210,16 +210,19 @@ a view transition whenever it mounts in a transition, animated or not.
   time it mounts, even when all its classes resolve to `none`. React then holds every
   commit until the snapshot is taken, 100–250 ms, so typing during it is lost (it broke
   "Create another"). So no card or row boundary sits above its `<li>` / `<tr>`:
-  - A teammate's move still slides: the named card boundary sits inside the button and
-    pairs across columns, gated by the `remote-refresh` type.
-  - A teammate's new card grows in with a CSS keyframe. The card reads a module flag
-    (`src/lib/live/remote-refresh.ts`, set by LiveRefresh around the refresh) when it
-    mounts.
+  - A teammate's move still slides: the named card boundary wraps the whole button inside
+    the `<li>` and pairs across columns, gated by the `remote-refresh` type.
+  - A teammate's new card grows in with a CSS keyframe. At mount, the card checks a module
+    flag (`src/lib/live/remote-refresh.ts`, set by LiveRefresh around the refresh) and
+    that the board has never shown its id (a moved card remounts too).
   - A teammate's delete is instant, and list rows do not animate remote changes.
   - `::view-transition-group(root)` gets `animation: none`, so the transitions that are
     meant to run (modal, to-dos, bell, view switch) hold commits for one frame instead
     of 250 ms.
-- **To-dos (§4):** the very first to-do swaps the empty state for a new list, so it
+- **To-dos (§4):** `useOptimistic` commits urgently, outside any view transition, so the
+  list keeps its pending changes in plain state set inside the `todo-change` transition.
+  The server action starts a task later, so it does not share (and hold) that transition's
+  lane. The very first to-do swaps the empty state for a new list, so it
   appears without the grow-in; later adds animate. Quick-add needed no fallback: the type
   survives the action's revalidation.
 - **View switch (§4):** one boundary in `projects/[projectId]/layout.tsx` around the page,
