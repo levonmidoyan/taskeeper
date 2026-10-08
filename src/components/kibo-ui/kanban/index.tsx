@@ -37,7 +37,7 @@ import {
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
-  createContext, type HTMLAttributes, type ReactNode, useContext, useMemo, useState,
+  createContext, type HTMLAttributes, type ReactNode, useContext, useEffect, useMemo, useState,
   useSyncExternalStore, ViewTransition,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -81,9 +81,11 @@ type KanbanContextValue = {
   columns: KanbanColumnProps[];
   data: KanbanItemProps[];
   activeCardId: string | null;
+  /** Every card id this board has shown, so a teammate's move is not taken for an add. */
+  seen: Set<string>;
 };
 
-const KanbanContext = createContext<KanbanContextValue>({ columns: [], data: [], activeCardId: null });
+const KanbanContext = createContext<KanbanContextValue>({ columns: [], data: [], activeCardId: null, seen: new Set() });
 
 export type KanbanBoardProps = { id: string; children: ReactNode; className?: string } &
   Omit<HTMLAttributes<HTMLElement>, 'id' | 'children'>;
@@ -129,12 +131,42 @@ export function KanbanCard({ id, name, children, className, onClick, transitionN
     id,
     transition: { duration: DURATION.base, easing: EASE_OUT_SOFT },
   });
-  const { activeCardId } = useContext(KanbanContext);
+  const { activeCardId, seen } = useContext(KanbanContext);
   const body = children ?? <p className="m-0 text-paragraph-sm text-text-strong-950">{name}</p>;
-  // A card a teammate added grows in. A keyframe, not a <ViewTransition> enter: a
-  // boundary that can enter starts a view transition for my own adds too, and React
-  // holds every commit (typing included) until its snapshot is taken.
-  const [grow] = useState(isRemoteRefresh);
+  // A card a teammate added grows in: one this board never showed (a moved card remounts
+  // too). A keyframe, not a <ViewTransition> enter: a boundary that can enter starts a
+  // view transition for my own adds too, and React holds every commit (typing
+  // included) until its snapshot is taken.
+  const [grow] = useState(() => isRemoteRefresh() && !seen.has(id));
+
+  // dnd-kit puts the keyboard sensor on this button: Space lifts, arrows move, Space
+  // drops, Escape cancels (v1 spec §6.4).
+  const button = (
+    <button
+      type="button"
+      {...attributes}
+      {...listeners}
+      onClick={onClick}
+      className={cn(
+        'w-full cursor-grab rounded-10 bg-bg-white-0 p-3 text-left shadow-regular-xs ring-1 ring-inset ring-stroke-soft-200 transition-shadow duration-150 hover:shadow-regular-sm active:cursor-grabbing',
+        // The slot the card will land in: same size, content hidden but still named
+        // for assistive tech.
+        isDragging && 'pointer-events-none bg-primary-lighter shadow-none ring-0 outline-1 -outline-offset-1 outline-dashed outline-primary-base',
+        className,
+      )}
+    >
+      {transitionName ? (
+        // Keyed by name: giving the name up remounts this boundary, which is what
+        // pairs it with the modal's (React shares a name only between an unmount and
+        // a mount). Only the body remounts; the button keeps focus and listeners.
+        <ViewTransition key={morphName ?? 'open'} name={morphName} share={TASK_MORPH_SHARE} default="none">
+          <span data-card-body className={cn('block', isDragging && 'opacity-0')}>{body}</span>
+        </ViewTransition>
+      ) : (
+        <span data-card-body className={cn('block', isDragging && 'opacity-0')}>{body}</span>
+      )}
+    </button>
+  );
 
   return (
     <li
@@ -142,37 +174,12 @@ export function KanbanCard({ id, name, children, className, onClick, transitionN
       style={{ transition, transform: CSS.Translate.toString(transform) }}
       className={cn(grow && 'animate-[vt-pop-in_180ms_cubic-bezier(0.22,1,0.36,1)_both]')}
     >
-      {/* dnd-kit puts the keyboard sensor on this button: Space lifts, arrows move, Space
-          drops, Escape cancels (v1 spec §6.4). */}
-      <button
-        type="button"
-        {...attributes}
-        {...listeners}
-        onClick={onClick}
-        className={cn(
-          'w-full cursor-grab rounded-10 bg-bg-white-0 p-3 text-left shadow-regular-xs ring-1 ring-inset ring-stroke-soft-200 transition-shadow duration-150 hover:shadow-regular-sm active:cursor-grabbing',
-          // The slot the card will land in: same size, content hidden but still named
-          // for assistive tech.
-          isDragging && 'pointer-events-none bg-primary-lighter shadow-none ring-0 outline-1 -outline-offset-1 outline-dashed outline-primary-base',
-          className,
-        )}
-      >
-        {transitionName ? (
-          // A teammate's move slides the card; only live refreshes are tagged, so my own
-          // drops stay with dnd-kit. Inside the button, so it never starts a transition
-          // of its own when a card mounts.
-          <ViewTransition name={transitionName} {...REMOTE_CHANGE}>
-            {/* Keyed by name: giving the name up remounts this boundary, which is what
-                pairs it with the modal's (React shares a name only between an unmount and
-                a mount). Only the body remounts; the button keeps focus and listeners. */}
-            <ViewTransition key={morphName ?? 'open'} name={morphName} share={TASK_MORPH_SHARE} default="none">
-              <span data-card-body className={cn('block', isDragging && 'opacity-0')}>{body}</span>
-            </ViewTransition>
-          </ViewTransition>
-        ) : (
-          <span data-card-body className={cn('block', isDragging && 'opacity-0')}>{body}</span>
-        )}
-      </button>
+      {transitionName ? (
+        // A teammate's move slides the whole card; only live refreshes are tagged, so my
+        // own drops stay with dnd-kit. Inside the <li>, so it never starts a transition
+        // of its own when a card mounts.
+        <ViewTransition name={transitionName} {...REMOTE_CHANGE}>{button}</ViewTransition>
+      ) : button}
       {activeCardId === id && (
         <overlay.In>
           <div
@@ -248,6 +255,10 @@ export function KanbanProvider<T extends KanbanItemProps, C extends KanbanColumn
   onDragCancel, ...props
 }: KanbanProviderProps<T, C>) {
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [seen] = useState(() => new Set(data.map((item) => item.id)));
+  useEffect(() => {
+    for (const item of data) seen.add(item.id);
+  }, [data, seen]);
   const mounted = useSyncExternalStore(
     () => () => {},
     () => true,
@@ -327,7 +338,7 @@ export function KanbanProvider<T extends KanbanItemProps, C extends KanbanColumn
   }
 
   return (
-    <KanbanContext.Provider value={{ columns, data, activeCardId }}>
+    <KanbanContext.Provider value={{ columns, data, activeCardId, seen }}>
       <DndContext
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}

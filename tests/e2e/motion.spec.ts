@@ -188,6 +188,7 @@ test.describe('teammate changes', () => {
     await createTask(page, 'Move me');
     const bob = await addBob(page, browser);
     await recordViewTransitions(page);
+    await recordGrowIns(page);
 
     await lift(bob, card(bob, 'Todo', 'Move me'));
     await dropOn(bob, column(bob, 'In Progress'));
@@ -197,6 +198,8 @@ test.describe('teammate changes', () => {
     await expect(card(page, 'In Progress', 'Move me')).toBeVisible();
     await viewTransitionsDone(page);
     expect((await seenViewTransitions(page)).some((p) => p.startsWith('::view-transition-group(card-'))).toBe(true);
+    // The whole card slides; nothing pops in at the destination.
+    expect(await seenGrowIns(page)).toBe(0);
   });
 
   test('my own move does not run a card view transition', async ({ page }) => {
@@ -255,6 +258,27 @@ test.describe('to-dos', () => {
     await expect(page.getByRole('list', { name: 'Open to-dos' }).getByText('Buy milk')).toBeVisible();
     await viewTransitionsDone(page);
     expect((await seenViewTransitions(page)).some((p) => p.startsWith('::view-transition-new(todo-'))).toBe(true);
+  });
+
+  test('deleting fades the item out', async ({ page }) => {
+    await signUpWithProject(page, 'motion-todo-delete');
+    await page.getByRole('link', { name: 'To-do' }).first().click();
+    const open = page.getByRole('list', { name: 'Open to-dos' });
+    for (const title of ['Keep me', 'Drop me']) {
+      await page.getByLabel('Add a to-do').fill(title);
+      await page.keyboard.press('Enter');
+      await expect(open.getByText(title)).toBeVisible();
+    }
+    await viewTransitionsDone(page);
+    await recordViewTransitions(page);
+
+    await page.getByRole('button', { name: 'More actions for "Drop me"' }).click();
+    await page.getByRole('menuitem', { name: 'Delete' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(page.getByRole('alertdialog')).toBeHidden();
+    await expect(open.getByText('Drop me')).toHaveCount(0);
+    await viewTransitionsDone(page);
+    expect((await seenViewTransitions(page)).some((p) => p.startsWith('::view-transition-old(todo-'))).toBe(true);
   });
 
   test('checking strikes the title through', async ({ page }) => {

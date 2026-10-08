@@ -7,7 +7,7 @@ import {
   SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { IconChecklist, IconChevronRight } from '@tabler/icons-react';
-import { addTransitionType, useOptimistic, useState, useTransition, ViewTransition } from 'react';
+import { addTransitionType, startTransition, useState, ViewTransition } from 'react';
 import { toast } from 'sonner';
 import { SortableTodoItem, TodoItem, type TodoItemHandlers } from '@/components/todo/TodoItem';
 import { TodoQuickAdd } from '@/components/todo/TodoQuickAdd';
@@ -31,8 +31,11 @@ export function TodoList({
   timezone: string;
   lists: TodoLists;
 }) {
-  const [view, apply] = useOptimistic(lists, applyTodoOp);
-  const [, startTransition] = useTransition();
+  // My pending changes, layered on the lists they were made against. Fresh server lists
+  // (the action's revalidation) replace the layer. Plain state set in a transition, not
+  // useOptimistic: an optimistic update commits urgently, outside any view transition.
+  const [local, setLocal] = useState<{ base: TodoLists; view: TodoLists } | null>(null);
+  const view = local?.base === lists ? local.view : lists;
   const [showDone, setShowDone] = useState(false);
   const confirm = useConfirm();
 
@@ -42,16 +45,24 @@ export function TodoList({
   );
 
   /**
-   * Optimistic first, server second. On success the action's revalidatePath
-   * delivers fresh props in the same transition; on failure the props are
-   * unchanged, so dropping the optimistic layer is the rollback.
+   * Local first, server second. On success the action's revalidatePath delivers
+   * fresh lists, which replace the layer; on failure the lists are unchanged, so
+   * dropping the layer is the rollback.
    */
   function run(op: TodoOp, call: () => Promise<Result<unknown>>) {
-    startTransition(async () => {
+    startTransition(() => {
       addTransitionType(TODO_CHANGE);
-      apply(op);
-      const result = await call();
-      if (!result.ok) toast.error(result.error);
+      setLocal({ base: lists, view: applyTodoOp(view, op) });
+    });
+    // Next task: a server action starts a transition of its own, and React gives every
+    // transition started in one tick the same lane, so the local change would wait for
+    // the server round-trip.
+    setTimeout(() => {
+      void call().then((result) => {
+        if (result.ok) return;
+        toast.error(result.error);
+        startTransition(() => setLocal(null));
+      });
     });
   }
 
