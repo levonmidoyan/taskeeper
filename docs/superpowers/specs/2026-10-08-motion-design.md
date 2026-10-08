@@ -194,3 +194,35 @@ directional slide: tabs are peers.
 - **Name collisions:** a task visible twice on one page (e.g. board plus another surface)
   would duplicate `task-${id}`. Only board cards and list rows get names, and these never
   render together.
+
+## What shipped differently (2026-10-08)
+
+Two React rules shaped most of these. A `<ViewTransition>` plays `enter` / `exit` only
+when it sits above every DOM node in the subtree React inserts or removes; a boundary
+nested inside a newly inserted element does nothing. And such a top-level boundary starts
+a view transition whenever it mounts in a transition, animated or not.
+
+- **Radix portal (§3 morph):** Radix `Portal` mounts its content one commit late, outside
+  the opening transition, so no pair formed. `Modal.Content` takes an optional portal
+  `container`; `TaskDetailDialog` passes `document.body` once hydrated. The morph works in
+  both directions; the fade + scale fallback was not needed.
+- **Remote changes (§3):** a boundary that can `enter` starts a view transition every
+  time it mounts, even when all its classes resolve to `none`. React then holds every
+  commit until the snapshot is taken, 100–250 ms, so typing during it is lost (it broke
+  "Create another"). So no card or row boundary sits above its `<li>` / `<tr>`:
+  - A teammate's move still slides: the named card boundary sits inside the button and
+    pairs across columns, gated by the `remote-refresh` type.
+  - A teammate's new card grows in with a CSS keyframe. The card reads a module flag
+    (`src/lib/live/remote-refresh.ts`, set by LiveRefresh around the refresh) when it
+    mounts.
+  - A teammate's delete is instant, and list rows do not animate remote changes.
+  - `::view-transition-group(root)` gets `animation: none`, so the transitions that are
+    meant to run (modal, to-dos, bell, view switch) hold commits for one frame instead
+    of 250 ms.
+- **To-dos (§4):** the very first to-do swaps the empty state for a new list, so it
+  appears without the grow-in; later adds animate. Quick-add needed no fallback: the type
+  survives the action's revalidation.
+- **View switch (§4):** one boundary in `projects/[projectId]/layout.tsx` around the page,
+  not one per page (each page's content sits inside its own newly inserted `<main>`).
+  It then became a directional slide with the header held still as a named anchor and a
+  gliding tab pill (3ec9e4f).
