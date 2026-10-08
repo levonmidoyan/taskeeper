@@ -4,6 +4,7 @@ import { IconCalendar, IconChartPie, IconChevronDown, IconLayoutKanban, IconList
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import * as Dropdown from '@/components/ui/dropdown';
+import { VIEW_SWITCH } from '@/lib/motion';
 import { MAX_VIEW_TABS, viewHref, type ViewLayout } from '@/lib/views';
 import type { SavedView } from '@/server/views/queries';
 import { cn } from '@/utils/cn';
@@ -42,7 +43,7 @@ export function ViewTabs({
   return (
     <div role="tablist" aria-label="Project views" className="flex max-w-full items-center gap-1 overflow-x-auto rounded-10 bg-bg-weak-50 p-1">
       {fixed.map(({ href, label, icon: Icon, active }) => (
-        <Link key={label} href={href} role="tab" aria-selected={active} className={cn(tab, active ? tabActive : tabIdle)}>
+        <Link key={label} href={href} transitionTypes={[VIEW_SWITCH]} role="tab" aria-selected={active} className={cn(tab, active ? tabActive : tabIdle)}>
           <Icon className="size-4" aria-hidden="true" />
           {label}
         </Link>
@@ -52,6 +53,7 @@ export function ViewTabs({
         const active = openView === view.id;
         return (
           <Link
+            transitionTypes={[VIEW_SWITCH]}
             key={view.id}
             href={viewHref(workspaceSlug, view)}
             role="tab"
@@ -75,7 +77,7 @@ export function ViewTabs({
           <Dropdown.Content align="end">
             {overflow.map((view) => (
               <Dropdown.Item key={view.id} asChild>
-                <Link href={viewHref(workspaceSlug, view)}>
+                <Link href={viewHref(workspaceSlug, view)} transitionTypes={[VIEW_SWITCH]}>
                   <Dropdown.ItemIcon as={LAYOUT_ICON[view.layout]} />
                   {view.name}
                   {!view.shared && <IconLock className="ml-auto size-3.5 text-text-soft-400" aria-label="Private" />}

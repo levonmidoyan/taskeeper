@@ -241,4 +241,17 @@ test.describe('to-dos', () => {
   });
 });
 
+test.describe('view tabs', () => {
+  test('switching views crossfades the content, not the header', async ({ page }) => {
+    await signUpWithProject(page, 'motion-tabs');
+    await recordViewTransitions(page);
+    await page.getByRole('tab', { name: 'List' }).click();
+    await expect(page).toHaveURL(/\/list$/);
+    await viewTransitionsDone(page);
+    const seen = await seenViewTransitions(page);
+    expect(seen.some((p) => p.startsWith('::view-transition-new('))).toBe(true);
+    expect(seen.some((p) => p.includes('(task-') || p.includes('(card-'))).toBe(false);
+  });
+});
+
 export { card, column, recordViewTransitions, seenViewTransitions, signUpWithProject, viewTransitionsDone };
