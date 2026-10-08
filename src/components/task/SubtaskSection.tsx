@@ -1,9 +1,10 @@
 'use client';
 
-import { IconCircle, IconCircleCheckFilled, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { DoneIcon, StrikeText } from '@/components/task/DoneMark';
 import { settle } from '@/lib/settle';
 import { doneToggleTarget } from '@/lib/task-done';
 import type { StatusRow } from '@/server/projects/queries';
@@ -163,20 +164,18 @@ function SubtaskRow({
         aria-label={done ? `Mark "${subtask.title}" as not done` : `Mark "${subtask.title}" as done`}
         className="inline-flex size-11 shrink-0 items-center justify-center text-text-soft-400 transition-colors duration-150 hover:text-text-strong-950 disabled:opacity-50"
       >
-        {done
-          ? <IconCircleCheckFilled className="size-4 text-success-base" aria-hidden="true" />
-          : <IconCircle className="size-4" aria-hidden="true" />}
+        <DoneIcon done={done} className="size-4" />
       </button>
 
       <button
         type="button"
         onClick={open}
         className={cn(
-          'min-w-0 flex-1 truncate py-3 text-left text-paragraph-sm',
-          done ? 'text-text-soft-400 line-through' : 'text-text-strong-950',
+          'min-w-0 flex-1 truncate py-3 text-left text-paragraph-sm transition-colors duration-220',
+          done ? 'text-text-soft-400' : 'text-text-strong-950',
         )}
       >
-        {subtask.title}
+        <StrikeText done={done}>{subtask.title}</StrikeText>
       </button>
 
       <button

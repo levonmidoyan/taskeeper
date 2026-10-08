@@ -7,13 +7,14 @@ import {
   SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { IconChecklist, IconChevronRight } from '@tabler/icons-react';
-import { useOptimistic, useState, useTransition } from 'react';
+import { addTransitionType, useOptimistic, useState, useTransition, ViewTransition } from 'react';
 import { toast } from 'sonner';
 import { SortableTodoItem, TodoItem, type TodoItemHandlers } from '@/components/todo/TodoItem';
 import { TodoQuickAdd } from '@/components/todo/TodoQuickAdd';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import type { Result } from '@/lib/result';
 import { settle } from '@/lib/settle';
+import { TODO_CHANGE, TODO_CHANGE_CLASSES, todoTransitionName } from '@/lib/motion';
 import { applyTodoOp, dropTarget, type TodoOp } from '@/lib/todo-list';
 import {
   deleteTodoAction, moveTodoAction, updateTodoAction,
@@ -47,6 +48,7 @@ export function TodoList({
    */
   function run(op: TodoOp, call: () => Promise<Result<unknown>>) {
     startTransition(async () => {
+      addTransitionType(TODO_CHANGE);
       apply(op);
       const result = await call();
       if (!result.ok) toast.error(result.error);
@@ -108,7 +110,9 @@ export function TodoList({
                 className="overflow-hidden rounded-xl bg-bg-white-0 shadow-regular-xs ring-1 ring-inset ring-stroke-soft-200"
               >
                 {view.open.map((item) => (
-                  <SortableTodoItem key={item.id} item={item} timezone={timezone} {...handlers} />
+                  <ViewTransition key={item.id} name={todoTransitionName(item.id)} {...TODO_CHANGE_CLASSES}>
+                    <SortableTodoItem item={item} timezone={timezone} {...handlers} />
+                  </ViewTransition>
                 ))}
               </ul>
             </SortableContext>
@@ -122,7 +126,10 @@ export function TodoList({
             type="button"
             aria-expanded={showDone}
             aria-controls="todo-completed"
-            onClick={() => setShowDone((v) => !v)}
+            onClick={() => startTransition(() => {
+              addTransitionType(TODO_CHANGE);
+              setShowDone((v) => !v);
+            })}
             className="flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-label-sm text-text-sub-600 transition-colors duration-150 hover:bg-bg-weak-50 hover:text-text-strong-950"
           >
             <IconChevronRight
@@ -138,14 +145,15 @@ export function TodoList({
               className="mt-2 overflow-hidden rounded-xl bg-bg-white-0 shadow-regular-xs ring-1 ring-inset ring-stroke-soft-200"
             >
               {view.done.map((item) => (
-                <TodoItem
-                  key={item.id}
-                  item={item}
-                  timezone={timezone}
-                  // Keeps the title column aligned with the open list's handle.
-                  handle={<span className="size-9 shrink-0" aria-hidden="true" />}
-                  {...handlers}
-                />
+                <ViewTransition key={item.id} name={todoTransitionName(item.id)} {...TODO_CHANGE_CLASSES}>
+                  <TodoItem
+                    item={item}
+                    timezone={timezone}
+                    // Keeps the title column aligned with the open list's handle.
+                    handle={<span className="size-9 shrink-0" aria-hidden="true" />}
+                    {...handlers}
+                  />
+                </ViewTransition>
               ))}
             </ul>
           )}

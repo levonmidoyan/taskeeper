@@ -185,4 +185,36 @@ test.describe('teammate changes', () => {
   });
 });
 
+test.describe('to-dos', () => {
+  test('adding animates the new item; opening the page animates nothing', async ({ page }) => {
+    await signUpWithProject(page, 'motion-todo');
+    await recordViewTransitions(page);
+    await page.getByRole('link', { name: 'To-do' }).first().click();
+    await expect(page.getByLabel('Add a to-do')).toBeVisible();
+    await viewTransitionsDone(page);
+    expect((await seenViewTransitions(page)).filter((p) => p.includes('(todo-'))).toEqual([]);
+
+    // The first item swaps the empty state for the list; the second is the one that grows in.
+    await page.getByLabel('Add a to-do').fill('Buy bread');
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('list', { name: 'Open to-dos' }).getByText('Buy bread')).toBeVisible();
+    await page.getByLabel('Add a to-do').fill('Buy milk');
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('list', { name: 'Open to-dos' }).getByText('Buy milk')).toBeVisible();
+    await viewTransitionsDone(page);
+    expect((await seenViewTransitions(page)).some((p) => p.startsWith('::view-transition-new(todo-'))).toBe(true);
+  });
+
+  test('checking strikes the title through', async ({ page }) => {
+    await signUpWithProject(page, 'motion-check');
+    await page.getByRole('link', { name: 'To-do' }).first().click();
+    await page.getByLabel('Add a to-do').fill('Water plants');
+    await page.keyboard.press('Enter');
+    await page.getByRole('button', { name: 'Mark "Water plants" as done' }).click();
+    await page.getByRole('button', { name: /Completed/ }).click();
+    const strike = page.getByRole('list', { name: 'Completed to-dos' }).locator('[data-strike]');
+    await expect(strike).toHaveCSS('background-size', '100% 1px');
+  });
+});
+
 export { card, column, recordViewTransitions, seenViewTransitions, signUpWithProject, viewTransitionsDone };
