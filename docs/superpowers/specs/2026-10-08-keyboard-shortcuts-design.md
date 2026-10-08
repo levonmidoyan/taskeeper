@@ -83,36 +83,47 @@ Evaluated per keystroke:
    shortcuts.
 4. Otherwise → `nav` and `global` shortcuts.
 
-`global` = `?`, `c`, `/`, `Mod+K`, go-to chords. `c` and `/` stay blocked in
-detail (rule 3 permits only `?`, `Mod+K` and go-to from `global` there —
-encoded as an `inDetail: false` flag on `c` and `/`).
+`global` = `?`, `Mod+K`, go-to chords. `c`, `/` and `f` are `nav` scope, so
+they stay off while a task is open.
+
+A keyboard drag on the board (a card with `aria-pressed="true"`) also blocks
+everything, so dnd-kit keeps the arrows.
 
 `ignoreShortcut` and `OVERLAY_SELECTOR` move into `src/lib/shortcuts/` and
-the existing `c`, `f`, `/`, `Mod+K`, `Escape` listeners migrate onto
-`useShortcut`. `shortcuts.ts` in shell is removed once nothing imports it.
+the existing `c`, `f`, `/`, `Escape` listeners migrate onto `useShortcut`.
+`Mod+K` keeps the palette's own listener (it must also close the palette,
+which is itself an overlay); the registry still lists it for the help
+overlay. `shortcuts.ts` in shell is removed once nothing imports it.
 
 ## 2. Navigation (scope `nav`)
 
 DOM-based cursor, uniform across views, no per-view state:
 
-- Every board `TaskCard` and every `TaskTable` row's open button gets
-  `data-task-nav="<taskId>"`; board cards also get `data-nav-col="<index>"`.
+- The element that opens a task gets `data-task-nav="<taskId>"`: the board
+  card button, the project List title button (`TaskTable`), the title link
+  in the workspace Tasks list (`WorkspaceTaskTable`) and the row link on
+  Recent. Board cards also get `data-nav-col="<statusId>"`.
 - `j` / `ArrowDown`: focus next `[data-task-nav]` (board: next in same
   column). `k` / `ArrowUp`: previous.
 - `h` / `ArrowLeft`, `l` / `ArrowRight` (board only): focus the card in the
   adjacent non-empty column whose vertical centre is closest to the current
   card's.
-- Nothing focused yet → `j` / `k` focus the first task.
+- Nothing focused yet → `j` / `k` (and `h` / `l`) focus the first task.
+  Arrow keys act only when a task is already focused, so they still scroll
+  the page otherwise.
 - List view stops at page edges; no page change.
-- `Enter` / `o`: open the focused task exactly as a click does
-  (`?task=` push with the existing `TASK_OPEN` transition type).
-- `x` (list only): toggle the focused row's selection checkbox.
+- `o`: open the focused task by clicking it, so each view opens it its own
+  way (`?task=` dialog in project views, full page from workspace Tasks and
+  Recent). `Enter` already does this natively on the focused button/link;
+  help lists it next to `o`.
+- `x` (project List only): toggle the focused row's selection checkbox.
 - `Escape`: clear list selection (existing behaviour, migrated).
 - Focus moves with `element.focus()` + `scrollIntoView({ block: 'nearest' })`;
   the visible ring comes from existing `:focus-visible` styles.
 
-Views covered: project Board, project List, workspace Tasks, Starred, Recent
-(every `TaskTable`). To-do and calendar views are out of scope.
+Views covered: project Board, project List, workspace Tasks (list layout),
+Recent. Starred lists projects, not tasks, so it is not covered. To-do and
+calendar views are out of scope.
 
 ## 3. Task detail (scope `detail`)
 
@@ -131,15 +142,19 @@ Applies to the detail dialog and the full task page.
 | `m` | focus comment composer (switches feed to Comments tab) |
 | `Delete` / `#` | delete (existing confirm dialog) |
 
-- `j` / `k` read the ordered `[data-task-nav]` ids still rendered behind the
+- `j` / `k` read the `[data-task-nav]` items still rendered behind the
   dialog, find the current `?task=` id, and `router.replace` to the
-  neighbour. At either end nothing happens. Disabled on the full page route.
+  neighbour (same column on the board). At either end, or when the task is
+  not in the view (a subtask, filtered out), nothing happens. Only the
+  dialog binds them, so they are off on the full page route; the dialog only
+  exists in project views (Board, List, Calendar — Calendar has no nav items
+  so it is a no-op there).
 - Closing the dialog (Escape or close) moves focus to the
   `[data-task-nav]` element of the task that was last shown, if present.
-- Field triggers are reached through refs / controlled `open` props added to
-  the existing controls in `TaskDetailView`; no new UI. Each binding is off
-  when the user lacks permission for that field (same condition the control
-  already uses to disable itself).
+- Field triggers: Status and Priority `Select`s become controlled (`open`
+  state); Assignee and Due date popover triggers are clicked by id; title,
+  label input and comment composer are focused. No new UI. Every member can
+  edit every field today, so there is no permission gate.
 
 ## 4. Go-to chords (scope `global`)
 
@@ -157,8 +172,9 @@ Applies to the detail dialog and the full task page.
 - `?` opens a dialog listing shortcuts grouped by `group`, keys formatted
   per platform. Only registry data; no hand-written list.
 - Command palette gets a "Keyboard shortcuts" command that opens it.
-- Where a control already has a tooltip (create task, filter, search),
-  append its key hint from the registry. No new tooltips.
+- The create button's title ("Create task (C)") and the search button's
+  `⌘K` hint already show their keys. The "+ Filter" button gains
+  `aria-keyshortcuts="f"` and a "(F)" title. No other new tooltips.
 
 ## 6. Testing
 
