@@ -101,7 +101,7 @@ test('the newest comment shows first, under the composer', async ({ page }) => {
 
   for (const body of ['Older one', 'Newer one']) {
     await dialog.getByRole('textbox', { name: 'Comment' }).fill(body);
-    await dialog.getByRole('button', { name: 'Comment', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(dialog.getByRole('listitem').getByText(body)).toBeVisible();
   }
 

@@ -15,6 +15,7 @@ import * as SegmentedControl from '@/components/ui/segmented-control';
 import { describeActivity } from '@/lib/activity-text';
 import { formatInZone } from '@/lib/dates';
 import { settle } from '@/lib/settle';
+import { cn } from '@/utils/cn';
 import type { FeedEntry } from '@/server/activity/queries';
 import {
   createCommentAction, deleteCommentAction, updateCommentAction,
@@ -27,6 +28,8 @@ const TABS: { value: ActivityTab; label: string; empty: string }[] = [
   { value: 'comments', label: 'Comments', empty: 'No comments yet.' },
   { value: 'history', label: 'History', empty: 'No changes yet.' },
 ];
+
+const QUICK_REPLIES = ['Looks good!', 'Need help?', 'This is blocked…', 'Can you clarify…?'];
 
 export function ActivityFeed({
   taskId,
@@ -47,8 +50,11 @@ export function ActivityFeed({
   const [pending, startTransition] = useTransition();
   const confirm = useConfirm();
   const [draft, setDraft] = useState('');
-  // Bumped after a successful post: remounting the editor is how it is cleared.
+  // What the composer opens with: empty, or a quick reply to carry on from.
+  const [seed, setSeed] = useState('');
+  // Bumped to clear or reseed the composer: remounting the editor is how it is reset.
   const [composerKey, setComposerKey] = useState(0);
+  const [focused, setFocused] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [tab, setTab] = useState<ActivityTab>('comments');
@@ -59,6 +65,23 @@ export function ActivityFeed({
     ? feed
     : feed.filter((entry) => entry.type === (tab === 'comments' ? 'comment' : 'activity'))
   ).toReversed();
+
+  // Jira's composer: a one-line prompt until focused, then the editor with Save
+  // and Cancel. A half-written comment keeps it open after focus leaves.
+  const expanded = focused || draft.trim() !== '';
+
+  function resetComposer() {
+    setDraft('');
+    setSeed('');
+    setFocused(false);
+    setComposerKey((k) => k + 1);
+  }
+
+  function startWith(text: string) {
+    setSeed(text);
+    setDraft(text);
+    setComposerKey((k) => k + 1);
+  }
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -71,8 +94,7 @@ export function ActivityFeed({
         toast.error(result.error);
         return;
       }
-      setDraft('');
-      setComposerKey((k) => k + 1);
+      resetComposer();
       router.refresh();
     });
   }
@@ -129,19 +151,64 @@ export function ActivityFeed({
       <form
         onSubmit={onSubmit}
         hidden={tab === 'history'}
-        className="sticky -top-5 z-10 -mt-2 flex flex-col gap-2 bg-bg-white-0 pt-5 pb-3"
+        onFocus={(event) => {
+          // Only the editor opens it: a focused quick reply would swap itself out
+          // for Save and Cancel on mousedown, before its click lands.
+          if ((event.target as Element).closest('[role="textbox"]')) setFocused(true);
+        }}
+        onBlur={(event) => {
+          // Moving between the editor and its own buttons is not leaving the composer.
+          if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+        }}
+        onKeyDownCapture={(event) => {
+          // Ahead of the editor, whose own Mod-Enter would add a line break first.
+          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.currentTarget.requestSubmit();
+          }
+        }}
+        className="sticky -top-5 z-10 -mt-2 flex gap-3 bg-bg-white-0 pt-5 pb-3"
       >
-        <RichTextField
-          key={composerKey}
-          value=""
-          label="Comment"
-          placeholder="Write a comment… Markdown and / commands work."
-          onChange={setDraft}
-        />
-        <div>
-          <Button.Root type="submit" size="small" disabled={pending}>
-            Comment
-          </Button.Root>
+        <UserAvatar aria-hidden="true" className="size-8 shrink-0" />
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          {/* The whole box takes the click, not just the line of text inside its padding;
+              the textbox itself is the keyboard's way in. */}
+          <div onClick={(event) => event.currentTarget.querySelector<HTMLElement>('[role="textbox"]')?.focus()}>
+            <RichTextField
+              key={composerKey}
+              value={seed}
+              label="Comment"
+              placeholder="Add a comment… Markdown and / commands work."
+              autoFocus={seed !== ''}
+              onChange={setDraft}
+              // A one-line box until it is used; room to write once it is.
+              className={cn(!expanded && 'cursor-text hover:bg-bg-weak-50 [&_.md-content]:min-h-5')}
+            />
+          </div>
+          {expanded ? (
+            <div className="flex items-center gap-2">
+              <Button.Root type="submit" size="xxsmall" disabled={pending || !draft.trim()}>
+                Save
+              </Button.Root>
+              <Button.Root type="button" variant="neutral" mode="ghost" size="xxsmall" onClick={resetComposer}>
+                Cancel
+              </Button.Root>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {QUICK_REPLIES.map((text) => (
+                <button
+                  key={text}
+                  type="button"
+                  onClick={() => startWith(text)}
+                  className="rounded-full px-2.5 py-0.5 text-paragraph-xs text-text-sub-600 ring-1 ring-inset ring-stroke-soft-200 transition-colors duration-150 hover:bg-bg-weak-50 hover:text-text-strong-950"
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </form>
 
