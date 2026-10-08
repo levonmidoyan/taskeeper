@@ -40,7 +40,7 @@ import * as Divider from '@/components/ui/divider';
 import * as StatusBadge from '@/components/ui/status-badge';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useTableSettings } from '@/hooks/use-table-settings';
-import { REMOTE_CHANGE, rowTransitionName, TASK_MORPH_SHARE, TASK_OPEN, taskMorphName } from '@/lib/motion';
+import { TASK_MORPH_SHARE, TASK_OPEN, taskMorphName } from '@/lib/motion';
 import { settle } from '@/lib/settle';
 import type { TableSettings } from '@/lib/task-table-settings';
 import {
@@ -542,84 +542,82 @@ export function TaskTable({
                       </td>
                     </tr>
                   )}
-                  <ViewTransition name={rowTransitionName(row.original.id)} {...REMOTE_CHANGE}>
-                    <tr
-                      // The mouse can hit anywhere on the row; keyboard and screen
-                      // readers use the title button, so the row needs no tab stop.
-                      onClick={() => openTask(row.original.id)}
-                      aria-selected={selected}
-                      className="group cursor-pointer"
+                  <tr
+                    // The mouse can hit anywhere on the row; keyboard and screen
+                    // readers use the title button, so the row needs no tab stop.
+                    onClick={() => openTask(row.original.id)}
+                    aria-selected={selected}
+                    className="group cursor-pointer"
+                  >
+                    <td
+                      className={cn(cellBase, cellBg, 'sticky left-0 z-10 w-10 min-w-10 rounded-l-xl pl-3 pr-0')}
+                      // A near-miss on the checkbox must not open the task.
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleRow(row.id, e.shiftKey);
+                      }}
                     >
+                      <span className="flex items-center">
+                        <SelectBox
+                          label={`Select ${row.original.title}`}
+                          checked={selected}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleRow(row.id, e.shiftKey);
+                          }}
+                        />
+                      </span>
+                    </td>
+                    {row.getVisibleCells().map((cell) => (
                       <td
-                        className={cn(cellBase, cellBg, 'sticky left-0 z-10 w-10 min-w-10 rounded-l-xl pl-3 pr-0')}
-                        // A near-miss on the checkbox must not open the task.
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleRow(row.id, e.shiftKey);
-                        }}
+                        key={cell.id}
+                        className={cn(
+                          cellBase,
+                          cellBg,
+                          'px-3',
+                          COLUMN_WIDTH[cell.column.id],
+                          cell.column.id === 'title' && 'sticky left-10 z-10 max-w-md',
+                        )}
                       >
-                        <span className="flex items-center">
-                          <SelectBox
-                            label={`Select ${row.original.title}`}
-                            checked={selected}
+                        {cell.column.id === 'title' ? (
+                          <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              toggleRow(row.id, e.shiftKey);
+                              openTask(row.original.id);
                             }}
-                          />
-                        </span>
+                            aria-label={row.original.title}
+                            className="flex w-full min-w-0 text-left"
+                          >
+                            {(() => {
+                              const morph = taskMorphName(row.original.id, openTaskId);
+                              return (
+                                // Keyed by name so the morph pairs with the modal (see KanbanCard).
+                                <ViewTransition key={morph ?? 'open'} name={morph} share={TASK_MORPH_SHARE} default="none">
+                                  <span className="flex min-w-0 flex-1">
+                                    <table.FlexRender cell={cell} />
+                                  </span>
+                                </ViewTransition>
+                              );
+                            })()}
+                          </button>
+                        ) : (
+                          <table.FlexRender cell={cell} />
+                        )}
                       </td>
-                      {row.getVisibleCells().map((cell) => (
-                        <td
-                          key={cell.id}
-                          className={cn(
-                            cellBase,
-                            cellBg,
-                            'px-3',
-                            COLUMN_WIDTH[cell.column.id],
-                            cell.column.id === 'title' && 'sticky left-10 z-10 max-w-md',
-                          )}
-                        >
-                          {cell.column.id === 'title' ? (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openTask(row.original.id);
-                              }}
-                              aria-label={row.original.title}
-                              className="flex w-full min-w-0 text-left"
-                            >
-                              {(() => {
-                                const morph = taskMorphName(row.original.id, openTaskId);
-                                return (
-                                  // Keyed by name so the morph pairs with the modal (see KanbanCard).
-                                  <ViewTransition key={morph ?? 'open'} name={morph} share={TASK_MORPH_SHARE} default="none">
-                                    <span className="flex min-w-0 flex-1">
-                                      <table.FlexRender cell={cell} />
-                                    </span>
-                                  </ViewTransition>
-                                );
-                              })()}
-                            </button>
-                          ) : (
-                            <table.FlexRender cell={cell} />
-                          )}
-                        </td>
-                      ))}
-                      <td className={cn(cellBase, cellBg, 'w-12 rounded-r-xl px-2')}>
-                        <TaskRowActions
-                          task={row.original}
-                          statuses={statuses}
-                          timezone={timezone}
-                          disabled={pending}
-                          onOpen={() => openTask(row.original.id)}
-                          onPatch={(patch) => applyPatch([row.original.id], patch)}
-                          onDelete={() => deleteTasks([row.original.id])}
-                        />
-                      </td>
-                    </tr>
-                  </ViewTransition>
+                    ))}
+                    <td className={cn(cellBase, cellBg, 'w-12 rounded-r-xl px-2')}>
+                      <TaskRowActions
+                        task={row.original}
+                        statuses={statuses}
+                        timezone={timezone}
+                        disabled={pending}
+                        onOpen={() => openTask(row.original.id)}
+                        onPatch={(patch) => applyPatch([row.original.id], patch)}
+                        onDelete={() => deleteTasks([row.original.id])}
+                      />
+                    </td>
+                  </tr>
                   </Fragment>
                   );
                 })}

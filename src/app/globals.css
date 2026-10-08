@@ -129,6 +129,7 @@
  */
 ::view-transition { pointer-events: none; }
 ::view-transition-old(root) { display: none; }
+::view-transition-group(root) { animation: none; }
 ::view-transition-new(root) { animation: none; }
 
 @keyframes vt-fade-in { from { opacity: 0; } }

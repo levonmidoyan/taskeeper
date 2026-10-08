@@ -6,6 +6,7 @@ import { endSettle, isBusy, subscribeBusy } from '@/lib/live/busy';
 import type { PusherClientConfig } from '@/lib/live/channel';
 import { createLiveTransport } from '@/lib/live/live-transport';
 import { createRefresher, type Refresher } from '@/lib/live/refresher';
+import { clearRemoteRefresh, markRemoteRefresh } from '@/lib/live/remote-refresh';
 import { REMOTE_REFRESH, startTypedTransition } from '@/lib/motion';
 
 /**
@@ -37,6 +38,7 @@ export function LiveRefresh({
     refresher.current?.setSeen(version);
     // A new version on screen is the page my own request carried (or newer).
     endSettle();
+    clearRemoteRefresh();
   }, [version]);
 
   // Primitives, so a re-render with an equal config object does not resubscribe.
@@ -45,11 +47,14 @@ export function LiveRefresh({
 
   useEffect(() => {
     if (paused) return;
-    // Tagged, so cards and rows animate a teammate's change but never my own.
+    // Tagged and flagged, so cards animate a teammate's change but never my own.
     const r = createRefresher({
       seen: seen.current,
       isBusy,
-      refresh: () => startTypedTransition(REMOTE_REFRESH, () => router.refresh()),
+      refresh: () => {
+        markRemoteRefresh();
+        startTypedTransition(REMOTE_REFRESH, () => router.refresh());
+      },
     });
     refresher.current = r;
     const unsubscribeBusy = subscribeBusy(r.recheck);

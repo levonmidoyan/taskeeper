@@ -13,6 +13,9 @@ describe('globals.css motion', () => {
   it('swaps the page instantly so only named parts animate', () => {
     expect(css).toMatch(/::view-transition-old\(root\)\s*\{\s*display:\s*none;/);
     expect(css).toMatch(/::view-transition-new\(root\)\s*\{\s*animation:\s*none;/);
+    // Without this the root group keeps the UA's 250 ms morph, and React holds every
+    // later commit until it ends — even for a transition whose classes are all 'none'.
+    expect(css).toMatch(/::view-transition-group\(root\)\s*\{\s*animation:\s*none;/);
     expect(css).toMatch(/::view-transition\s*\{\s*pointer-events:\s*none;/);
   });
 

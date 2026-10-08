@@ -158,17 +158,45 @@ async function addBob(page: Page, browser: Browser) {
 /** What the browser does when Ada comes back to the tab; skips the 30 s poll. */
 const refocus = (page: Page) => page.evaluate(() => window.dispatchEvent(new Event('focus')));
 
+/** Counts cards that ran the grow-in keyframe (a teammate's add). */
+async function recordGrowIns(page: Page) {
+  await page.evaluate(() => {
+    const w = window as unknown as { __grow: number };
+    w.__grow = 0;
+    document.addEventListener('animationstart', (e) => {
+      if (e.animationName === 'vt-pop-in' && (e.target as Element).closest('li')) w.__grow++;
+    });
+  });
+}
+
+const seenGrowIns = (page: Page) => page.evaluate(() => (window as unknown as { __grow: number }).__grow);
+
 test.describe('teammate changes', () => {
   test("a teammate's new card grows in on live refresh", async ({ page, browser }) => {
     await signUpWithProject(page, 'motion-remote');
     const bob = await addBob(page, browser);
-    await recordViewTransitions(page);
+    await recordGrowIns(page);
 
     await createTask(bob, 'From Bob');
     await refocus(page);
     await expect(card(page, 'Todo', 'From Bob')).toBeVisible();
+    expect(await seenGrowIns(page)).toBeGreaterThan(0);
+  });
+
+  test("a teammate's move slides the card", async ({ page, browser }) => {
+    await signUpWithProject(page, 'motion-remote-move');
+    await createTask(page, 'Move me');
+    const bob = await addBob(page, browser);
+    await recordViewTransitions(page);
+
+    await lift(bob, card(bob, 'Todo', 'Move me'));
+    await dropOn(bob, column(bob, 'In Progress'));
+    await expect(card(bob, 'In Progress', 'Move me')).toBeVisible();
+    await bob.waitForLoadState('networkidle');
+    await refocus(page);
+    await expect(card(page, 'In Progress', 'Move me')).toBeVisible();
     await viewTransitionsDone(page);
-    expect((await seenViewTransitions(page)).some((p) => p.startsWith('::view-transition-new(card-'))).toBe(true);
+    expect((await seenViewTransitions(page)).some((p) => p.startsWith('::view-transition-group(card-'))).toBe(true);
   });
 
   test('my own move does not run a card view transition', async ({ page }) => {
