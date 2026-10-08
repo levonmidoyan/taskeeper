@@ -6,6 +6,7 @@ import { endSettle, isBusy, subscribeBusy } from '@/lib/live/busy';
 import type { PusherClientConfig } from '@/lib/live/channel';
 import { createLiveTransport } from '@/lib/live/live-transport';
 import { createRefresher, type Refresher } from '@/lib/live/refresher';
+import { REMOTE_REFRESH, startTypedTransition } from '@/lib/motion';
 
 /**
  * Keeps workspace pages current while teammates edit, over Pusher when
@@ -44,7 +45,12 @@ export function LiveRefresh({
 
   useEffect(() => {
     if (paused) return;
-    const r = createRefresher({ seen: seen.current, isBusy, refresh: () => router.refresh() });
+    // Tagged, so cards and rows animate a teammate's change but never my own.
+    const r = createRefresher({
+      seen: seen.current,
+      isBusy,
+      refresh: () => startTypedTransition(REMOTE_REFRESH, () => router.refresh()),
+    });
     refresher.current = r;
     const unsubscribeBusy = subscribeBusy(r.recheck);
     const config = pusherKey && pusherCluster ? { key: pusherKey, cluster: pusherCluster } : null;

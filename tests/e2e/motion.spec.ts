@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { type Browser, expect, test, type Locator, type Page } from '@playwright/test';
+import { Client } from 'pg';
 import { createTask } from './tasks';
 
 /** Motion (docs/superpowers/specs/2026-10-08-motion-design.md). */
@@ -124,6 +125,63 @@ test.describe('task modal', () => {
     await expect(page.getByRole('dialog', { name: 'Task details' })).toBeVisible();
     await viewTransitionsDone(page);
     expect((await seenViewTransitions(page)).some((p) => p.startsWith('::view-transition-group(task-'))).toBe(true);
+  });
+});
+
+/** Bob joins Ada's workspace directly (live-refresh.spec.ts does the same). */
+async function addBob(page: Page, browser: Browser) {
+  const slug = new URL(page.url()).pathname.split('/')[1];
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `bob-${stamp}@example.com`;
+  const bob = await (await browser.newContext()).newPage();
+  await bob.goto('/auth/sign-up');
+  await bob.getByLabel('Name', { exact: true }).fill('Bob');
+  await bob.getByLabel('Email', { exact: true }).fill(email);
+  await bob.getByLabel('Password', { exact: true }).fill('correct-horse-battery');
+  await bob.getByRole('button', { name: 'Sign Up' }).click();
+  await expect(bob).toHaveURL(/\/new-workspace/);
+  const client = new Client({ connectionString: process.env.DATABASE_URL_TEST });
+  await client.connect();
+  try {
+    await client.query(
+      `INSERT INTO member (id, organization_id, user_id, role)
+       SELECT $3, o.id, u.id, 'member' FROM organization o, "user" u WHERE o.slug = $1 AND u.email = $2`,
+      [slug, email, `m-${stamp}`],
+    );
+  } finally {
+    await client.end();
+  }
+  await bob.goto(page.url());
+  return bob;
+}
+
+/** What the browser does when Ada comes back to the tab; skips the 30 s poll. */
+const refocus = (page: Page) => page.evaluate(() => window.dispatchEvent(new Event('focus')));
+
+test.describe('teammate changes', () => {
+  test("a teammate's new card grows in on live refresh", async ({ page, browser }) => {
+    await signUpWithProject(page, 'motion-remote');
+    const bob = await addBob(page, browser);
+    await recordViewTransitions(page);
+
+    await createTask(bob, 'From Bob');
+    await refocus(page);
+    await expect(card(page, 'Todo', 'From Bob')).toBeVisible();
+    await viewTransitionsDone(page);
+    expect((await seenViewTransitions(page)).some((p) => p.startsWith('::view-transition-new(card-'))).toBe(true);
+  });
+
+  test('my own move does not run a card view transition', async ({ page }) => {
+    await signUpWithProject(page, 'motion-local');
+    await createTask(page, 'Mine');
+    await recordViewTransitions(page);
+
+    await lift(page, card(page, 'Todo', 'Mine'));
+    await dropOn(page, column(page, 'In Progress'));
+    await expect(card(page, 'In Progress', 'Mine')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await viewTransitionsDone(page);
+    expect((await seenViewTransitions(page)).filter((p) => p.includes('(card-'))).toEqual([]);
   });
 });
 

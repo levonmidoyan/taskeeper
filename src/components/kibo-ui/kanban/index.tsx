@@ -42,7 +42,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import tunnel from 'tunnel-rat';
-import { DURATION, EASE_OUT_SOFT, EASE_SPRING, TASK_MORPH_SHARE } from '@/lib/motion';
+import { DURATION, EASE_OUT_SOFT, EASE_SPRING, REMOTE_CHANGE, TASK_MORPH_SHARE } from '@/lib/motion';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 import { cn } from '@/utils/cn';
 
@@ -131,7 +131,7 @@ export function KanbanCard({ id, name, children, className, onClick, transitionN
   const { activeCardId } = useContext(KanbanContext);
   const body = children ?? <p className="m-0 text-paragraph-sm text-text-strong-950">{name}</p>;
 
-  return (
+  const card = (
     <li ref={setNodeRef} style={{ transition, transform: CSS.Translate.toString(transform) }}>
       {/* dnd-kit puts the keyboard sensor on this button: Space lifts, arrows move, Space
           drops, Escape cancels (v1 spec §6.4). */}
@@ -174,6 +174,13 @@ export function KanbanCard({ id, name, children, className, onClick, transitionN
       )}
     </li>
   );
+
+  // A teammate's move slides the card; their add / delete grows / shrinks it. Only
+  // live refreshes are tagged, so my own drops stay with dnd-kit. Outside the
+  // <li>: React plays enter / exit only for a boundary above every DOM node it inserts.
+  return transitionName ? (
+    <ViewTransition name={transitionName} {...REMOTE_CHANGE}>{card}</ViewTransition>
+  ) : card;
 }
 
 export type KanbanCardsProps<T extends KanbanItemProps = KanbanItemProps> =
