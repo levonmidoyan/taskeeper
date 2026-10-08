@@ -137,10 +137,10 @@
 @keyframes vt-pop-in { from { opacity: 0; transform: scale(0.96); } }
 @keyframes vt-pop-out { to { opacity: 0; transform: scale(0.96); } }
 @keyframes vt-slide-in { from { opacity: 0; transform: translateY(-4px); } }
-@keyframes vt-slide-in-right { from { opacity: 0; transform: translateX(48px); } }
-@keyframes vt-slide-in-left { from { opacity: 0; transform: translateX(-48px); } }
-@keyframes vt-slide-out-left { to { opacity: 0; transform: translateX(-48px); } }
-@keyframes vt-slide-out-right { to { opacity: 0; transform: translateX(48px); } }
+@keyframes vt-slide-in-right { from { opacity: 0; transform: translateX(192px); } }
+@keyframes vt-slide-in-left { from { opacity: 0; transform: translateX(-192px); } }
+@keyframes vt-slide-out-left { to { opacity: 0; transform: translateX(-192px); } }
+@keyframes vt-slide-out-right { to { opacity: 0; transform: translateX(192px); } }
 
 /* Card or list row ↔ task modal. */
 ::view-transition-group(.task-morph) {
