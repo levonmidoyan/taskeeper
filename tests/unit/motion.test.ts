@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   BELL_CHANGE_CLASSES, MOTION_CLASSES, onlyOn, REMOTE_CHANGE, REMOTE_REFRESH, startTypedTransition,
   TASK_CLOSE, TASK_MODAL_CLASSES, TASK_MORPH_SHARE, TASK_OPEN, taskMorphName, taskTransitionName,
-  TODO_CHANGE_CLASSES, VIEW_SWITCH_CLASSES, viewSwitchKey,
+  TODO_CHANGE_CLASSES, VIEW_BACK, VIEW_FORWARD, VIEW_SWITCH_CLASSES, viewSwitchKey, viewSwitchType,
 } from '@/lib/motion';
 
 describe('onlyOn', () => {
@@ -46,7 +46,8 @@ describe('class maps', () => {
   it('lists every class the maps use', () => {
     expect([...MOTION_CLASSES].sort()).toEqual([
       'bell-exit', 'bell-shift', 'card-enter', 'card-exit', 'card-move', 'task-morph', 'task-pop',
-      'todo-enter', 'todo-exit', 'todo-move', 'todo-shift', 'view-fade', 'vt-fade-in',
+      'todo-enter', 'todo-exit', 'todo-move', 'todo-shift', 'view-anchor', 'view-slide-back', 'view-slide-forward',
+      'vt-fade-in',
     ]);
   });
 });
@@ -65,5 +66,16 @@ describe('startTypedTransition', () => {
     const addTransitionType = vi.fn((type: string) => { calls.push(`tag:${type}`); });
     startTypedTransition('remote-refresh', () => calls.push('scope'), { startTransition, addTransitionType });
     expect(calls).toEqual(['start', 'tag:remote-refresh', 'scope', 'end']);
+  });
+});
+
+describe('viewSwitchType', () => {
+  it('slides toward the side of the picked tab', () => {
+    expect(viewSwitchType(1, 2)).toBe(VIEW_FORWARD);
+    expect(viewSwitchType(2, 0)).toBe(VIEW_BACK);
+  });
+
+  it('slides forward from an unknown tab', () => {
+    expect(viewSwitchType(-1, 0)).toBe(VIEW_FORWARD);
   });
 });

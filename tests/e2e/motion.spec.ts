@@ -242,7 +242,7 @@ test.describe('to-dos', () => {
 });
 
 test.describe('view tabs', () => {
-  test('switching views crossfades the content, not the header', async ({ page }) => {
+  test('switching views slides the content, not the header', async ({ page }) => {
     await signUpWithProject(page, 'motion-tabs');
     await recordViewTransitions(page);
     await page.getByRole('tab', { name: 'List' }).click();

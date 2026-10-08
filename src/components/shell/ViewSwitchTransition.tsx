@@ -5,7 +5,7 @@ import { type ReactNode, ViewTransition } from 'react';
 import { VIEW_SWITCH_CLASSES, viewSwitchKey } from '@/lib/motion';
 
 /**
- * A project view, crossfaded when a view tab is picked (the project layout).
+ * A project view, slid sideways when a view tab is picked (the project layout).
  * Keyed by route and saved view, so a filter or ?task change updates in place,
  * and only view-switch navigations (ViewTabs) animate.
  */

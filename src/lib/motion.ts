@@ -13,8 +13,9 @@ export const REMOTE_REFRESH = 'remote-refresh';
 /** ?task= added / removed by opening or closing the task modal. */
 export const TASK_OPEN = 'task-open';
 export const TASK_CLOSE = 'task-close';
-/** Summary / Board / List / Calendar and saved-view tabs. */
-export const VIEW_SWITCH = 'view-switch';
+/** Summary / Board / List / Calendar and saved-view tabs: to a tab right / left of the open one. */
+export const VIEW_FORWARD = 'view-forward';
+export const VIEW_BACK = 'view-back';
 /** A to-do added, edited, moved, checked or deleted. */
 export const TODO_CHANGE = 'todo-change';
 /** A notification cleared from the bell. */
@@ -80,19 +81,32 @@ export const BELL_CHANGE_CLASSES = {
 /** The bell's empty state fading in after a clear. */
 export const BELL_EMPTY_CLASSES = { enter: onlyOn(BELL_CHANGE, 'vt-fade-in'), default: 'none' } as const;
 
-export const VIEW_SWITCH_CLASSES = {
-  enter: onlyOn(VIEW_SWITCH, 'view-fade'),
-  exit: onlyOn(VIEW_SWITCH, 'view-fade'),
+const VIEW_SLIDE: ViewTransitionClassPerType = {
+  [VIEW_FORWARD]: 'view-slide-forward', [VIEW_BACK]: 'view-slide-back', default: 'none',
+};
+
+/** The old view slides out and the new one in, toward the picked tab's side. */
+export const VIEW_SWITCH_CLASSES = { enter: VIEW_SLIDE, exit: VIEW_SLIDE, default: 'none' } as const;
+
+/** The project header: held still above the sliding view, the new one shown at once. */
+export const PROJECT_HEADER_NAME = 'project-header';
+export const PROJECT_HEADER_CLASSES = {
+  share: { [VIEW_FORWARD]: 'view-anchor', [VIEW_BACK]: 'view-anchor', default: 'none' },
   default: 'none',
 } as const;
+
+/** The transition type for going from tab `from` to tab `to` (indexes in tab order). */
+export function viewSwitchType(from: number, to: number): string {
+  return to < from ? VIEW_BACK : VIEW_FORWARD;
+}
 
 /** Every class above: globals.css must style each (tests/unit/motion-css.test.ts). */
 export const MOTION_CLASSES: readonly string[] = [
   'task-morph', 'task-pop', 'card-move', 'card-enter', 'card-exit',
-  'todo-enter', 'todo-exit', 'todo-move', 'todo-shift', 'bell-exit', 'bell-shift', 'vt-fade-in', 'view-fade',
+  'todo-enter', 'todo-exit', 'todo-move', 'todo-shift', 'bell-exit', 'bell-shift', 'vt-fade-in', 'view-slide-forward', 'view-slide-back', 'view-anchor',
 ];
 
-/** The crossfade key: a new route or saved view, never a filter or ?task change. */
+/** The view-switch key: a new route or saved view, never a filter or ?task change. */
 export function viewSwitchKey(pathname: string, view: string | null): string {
   return view ? `${pathname}?view=${view}` : pathname;
 }

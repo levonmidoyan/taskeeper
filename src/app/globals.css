@@ -113,6 +113,8 @@
   --duration-fast: 120ms;
   --duration-base: 180ms;
   --duration-slow: 280ms;
+  /* View tab slides: longer than the scale, so the direction reads. */
+  --duration-view-slide: 450ms;
 }
 
 /* The DragOverlay while dnd-kit plays its drop animation (kibo-ui/kanban). */
@@ -134,6 +136,10 @@
 @keyframes vt-pop-in { from { opacity: 0; transform: scale(0.96); } }
 @keyframes vt-pop-out { to { opacity: 0; transform: scale(0.96); } }
 @keyframes vt-slide-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes vt-slide-in-right { from { opacity: 0; transform: translateX(48px); } }
+@keyframes vt-slide-in-left { from { opacity: 0; transform: translateX(-48px); } }
+@keyframes vt-slide-out-left { to { opacity: 0; transform: translateX(-48px); } }
+@keyframes vt-slide-out-right { to { opacity: 0; transform: translateX(48px); } }
 
 /* Card or list row ↔ task modal. */
 ::view-transition-group(.task-morph) {
@@ -172,9 +178,19 @@
 }
 ::view-transition-new(.vt-fade-in) { animation: var(--duration-base) var(--ease-out-soft) both vt-fade-in; }
 
-/* Project view tabs: same place, different content. */
-::view-transition-old(.view-fade) { animation: var(--duration-base) var(--ease-out-soft) both vt-fade-out; }
-::view-transition-new(.view-fade) { animation: var(--duration-base) var(--ease-out-soft) both vt-fade-in; }
+/*
+ * Project view tabs: content slides toward the picked tab's side. A short
+ * offset, not a full width: snapshots are not clipped by <main>, so a longer
+ * slide would sweep across the sidebar.
+ */
+::view-transition-old(.view-slide-forward) { animation: var(--duration-slow) var(--ease-out-soft) both vt-slide-out-left; }
+::view-transition-new(.view-slide-forward) { animation: var(--duration-view-slide) var(--ease-out-soft) both vt-slide-in-right; }
+::view-transition-old(.view-slide-back) { animation: var(--duration-slow) var(--ease-out-soft) both vt-slide-out-right; }
+::view-transition-new(.view-slide-back) { animation: var(--duration-view-slide) var(--ease-out-soft) both vt-slide-in-left; }
+/* The header (title, tabs) is the anchor: it swaps in place, above the slide. */
+::view-transition-group(.view-anchor) { animation: none; z-index: 1; }
+::view-transition-old(.view-anchor) { display: none; }
+::view-transition-new(.view-anchor) { animation: none; }
 
 /* Dark mode lifts the primary for contrast on slate-950, as Align does for its blue. */
 .dark {
