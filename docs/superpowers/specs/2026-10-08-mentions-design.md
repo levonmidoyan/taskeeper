@@ -96,6 +96,19 @@ who is both assignee and mentioned gets one item (the mention) for that write, n
 | `createTask` (`src/server/tasks/service.ts`) | all in `description` | `description` |
 | `updateTask` / `updateTaskAndLabels`, description changed | in new, not in old `description` | `description` |
 
+**Edit rule (`updateComment`, description updates):** compare who is mentioned before and
+after, and notify only the difference.
+
+- `updateComment`: `loadOwnedComment` stays as is (author check). Inside the existing transaction,
+  before the update, read the current body with a row lock —
+  `select body from comment where id = $1 for update` — so two quick edits cannot both notify
+  the same person. Then `added = extractMentionIds(new) − extractMentionIds(old)` →
+  `notifyMentions(…, { userIds: added, where: ['comment'] })`.
+- `updateTask` / `updateTaskAndLabels`: the old description is already loaded (`owned.description`);
+  same set difference, `where: ['description']`.
+- Consequence: removing a mention in one edit and adding it back in a later one notifies again.
+  Accepted.
+
 `updateComment` does not call `notifyTaskChange` today; it gains only `notifyMentions`.
 Bulk updates and the REST API's writes go through the same service functions, so mentions
 written via the API notify too.
@@ -118,10 +131,22 @@ No change. Bodies are returned as stored Markdown; a mention reads as `[@Ana](me
 ### Editor — `src/components/kibo-ui/editor/mention.tsx` (new)
 
 - Dependency `@tiptap/extension-mention@3.31.3`, pinned like the other Tiptap packages.
-- Mention node configured with `renderMarkdown` → `[@label](mention:id)` and a Markdown
-  parse rule turning `mention:` links back into the node. First plan step verifies the
-  extension's Markdown hooks accept the link form; if not, a small custom inline atom Node
-  (`id`, `label` attrs) with the same hooks replaces it.
+- Out of the box the extension writes a shortcode, `[@ id="…" label="…"]`. `Mention.extend`
+  replaces its three Markdown hooks (verified 2026-10-08 with a throwaway round-trip test
+  against `markdownExtensions()`):
+  - `markdownTokenizer` (inline; `name: 'mention'`): `start` finds `[@…](mention:`; `tokenize`
+    matches `^\[@((?:\\.|[^\]\\])*)\]\(mention:([A-Za-z0-9_-]+)\)` and returns
+    `{ type: 'mention', raw, attributes: { label: unescape(m[1]), id: m[2] } }`. Custom marked
+    tokenizers run before marked's own link rule, so this wins over the plain link.
+  - `parseMarkdown`: `h.createNode('mention', token.attributes)`.
+  - `renderMarkdown`: `[@${label with \ [ ] escaped}](mention:${id})`.
+- Verified: plain text, several mentions per line, list items, next to a normal link and a
+  label containing `]` all round-trip byte-for-byte; inside a code span it stays text; a normal
+  `https:` link stays a link; a node inserted by the picker saves as `[@Zed](mention:u9)`.
+- Known loss: a mention inside bold/italic loses the mark on save
+  (`**bold [@Ana](mention:a)**` → `**bold** [@Ana](mention:a)`). It stays a mention and the
+  output is stable on later saves. Accepted.
+- The regex lives in `src/lib/mentions.ts` so the editor and `extractMentionIds` share it.
 - Suggestion on `@`, own `PluginKey`, popup built like `SlashMenu`: cmdk list (avatar + name),
   filtered by name or email (case-insensitive), max 8; arrow/enter forwarded via a
   `forwardToMenu` equivalent targeting `#mention-menu`; popup mounted inside the surrounding
