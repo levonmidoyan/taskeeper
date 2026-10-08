@@ -81,10 +81,12 @@ Runs inside the caller's transaction, after the write.
    `actorName` = incoming, `created_at = clock_timestamp()`.
 5. Returns the recipient ids it wrote.
 
-### `notifyTaskChange` gains `skip?: string[]`
+### `notifyTaskChange` gains `mentioned?: { ids: string[]; covers: TaskChangeKind }`
 
-Recipients in `skip` are dropped. Callers pass the ids `notifyMentions` returned, so a member
-who is both assignee and mentioned gets one item (the mention) for that write, not two.
+For a recipient in `ids`, `covers` (`comment` or `description`) is removed from their `changes`;
+a recipient left with no changes gets no item. Callers pass the ids `notifyMentions` returned, so
+a member who is both assignee and mentioned in a comment gets one item (the mention), while a
+mentioned creator still hears about a status change made in the same update.
 `notifyMentions` therefore runs first.
 
 ### Call sites
