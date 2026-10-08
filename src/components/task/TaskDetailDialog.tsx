@@ -5,6 +5,7 @@ import { useSyncExternalStore, ViewTransition } from 'react';
 import { handleEditorEscape } from '@/components/task/RichTextField';
 import { TaskDetailView, type TaskDetailViewProps } from '@/components/task/TaskDetailView';
 import * as Modal from '@/components/ui/modal';
+import { handOffEscape } from '@/lib/local-escape';
 import { TASK_CLOSE, TASK_MODAL_CLASSES, taskTransitionName } from '@/lib/motion';
 
 export function TaskDetailDialog(props: TaskDetailViewProps) {
@@ -39,8 +40,11 @@ export function TaskDetailDialog(props: TaskDetailViewProps) {
           event.preventDefault();
           (event.currentTarget as HTMLElement).focus();
         }}
-        // Escape that closes an editor's slash menu or link field stops there.
-        onEscapeKeyDown={(event) => { if (handleEditorEscape(event)) event.preventDefault(); }}
+        // Escape that closes an editor's slash menu or link field, or ends an edit
+        // in progress (the description's), stops there.
+        onEscapeKeyDown={(event) => {
+          if (handleEditorEscape(event) || handOffEscape(event)) event.preventDefault();
+        }}
       >
         <Modal.Title className="sr-only">Task details</Modal.Title>
         <ViewTransition name={taskTransitionName(props.task.id)} {...TASK_MODAL_CLASSES}>

@@ -95,8 +95,10 @@ test("a teammate's edit to the task I have open replaces what I see, and my blur
   const theirs = bob.getByRole('dialog', { name: 'Task details' });
   await theirs.getByLabel('Title').fill('Fix login on Safari');
   await theirs.getByLabel('Title').blur();
-  await theirs.getByRole('textbox', { name: 'Description' }).click();
+  await theirs.getByRole('button', { name: 'Add a description…' }).click();
+  await expect(theirs.getByRole('textbox', { name: 'Description' })).toBeFocused();
   await bob.keyboard.type('Repro on iOS 18');
+  await theirs.getByRole('button', { name: 'Save' }).click();
   await theirs.getByLabel('Title').focus();
   await bob.keyboard.press('Escape');
   await expect(theirs).toBeHidden();
@@ -104,7 +106,7 @@ test("a teammate's edit to the task I have open replaces what I see, and my blur
 
   await refocus(page);
   await expect(mine.getByLabel('Title')).toHaveValue('Fix login on Safari');
-  await expect(mine.getByRole('textbox', { name: 'Description' })).toContainText('Repro on iOS 18');
+  await expect(mine.getByTestId('description-preview')).toContainText('Repro on iOS 18');
 
   // Into the title and out again without typing: nothing is saved over Bob's rename.
   await mine.getByLabel('Title').focus();

@@ -21,10 +21,12 @@ type RichTextFieldProps = {
   /** On blur, only when the Markdown differs from what was loaded or last committed. */
   onCommit?: (markdown: string) => void;
   className?: string;
+  /** Puts the caret at the end once the editor mounts. */
+  autoFocus?: boolean;
 };
 
 export function RichTextField({
-  value, label, labelledBy, placeholder, onChange, onCommit, className,
+  value, label, labelledBy, placeholder, onChange, onCommit, className, autoFocus,
 }: RichTextFieldProps) {
   // Loading normalises Markdown (a single newline becomes a hard break), so "changed" is
   // judged against what the editor produced on load, never against the stored string —
@@ -50,6 +52,8 @@ export function RichTextField({
       onCreate={({ editor }) => {
         loadMarkdown(editor, value);
         baseline.current = readMarkdown(editor);
+        // Here rather than Tiptap's autofocus option, which runs before the content loads.
+        if (autoFocus) editor.commands.focus('end');
       }}
       onUpdate={({ editor }) => onChange?.(readMarkdown(editor))}
       onBlur={({ editor }) => {

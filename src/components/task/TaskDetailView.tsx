@@ -5,17 +5,17 @@ import {
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { toast } from 'sonner';
 import { TextField } from '@/components/forms/TextField';
 import { ActivityFeed } from '@/components/task/ActivityFeed';
 import { AssigneePicker } from '@/components/task/AssigneePicker';
 import { AttachmentSection } from '@/components/task/AttachmentSection';
+import { DescriptionField } from '@/components/task/DescriptionField';
 import { DueDateField } from '@/components/task/DueDateField';
 import { ReminderField } from '@/components/task/ReminderField';
 import { LabelPicker } from '@/components/task/LabelPicker';
 import { PRIORITY_LABEL, PriorityIcon } from '@/components/task/Priority';
-import { RichTextField } from '@/components/task/RichTextField';
 import { StatusIcon } from '@/components/task/StatusIcon';
 import { homeCrumb } from '@/components/shell/crumbs';
 import { PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
@@ -25,6 +25,7 @@ import * as CompactButton from '@/components/ui/compact-button';
 import * as Label from '@/components/ui/label';
 import * as Modal from '@/components/ui/modal';
 import * as Select from '@/components/ui/select';
+import { useServerValue } from '@/hooks/use-server-value';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatInZone } from '@/lib/dates';
 import { settle } from '@/lib/settle';
@@ -45,21 +46,6 @@ function Field({ id, label, children }: { id: string; label: string; children: R
       {children}
     </div>
   );
-}
-
-/**
- * Local state for a field the server also holds. When a refresh brings a new
- * server value (a teammate's edit, via live refresh), it replaces the local one,
- * unless the local one has an edit of its own not yet saved.
- */
-function useServerValue<T>(server: T) {
-  const [value, setValue] = useState(server);
-  const [synced, setSynced] = useState(server);
-  if (server !== synced) {
-    setSynced(server);
-    if (value === synced) setValue(server);
-  }
-  return [value, setValue] as const;
 }
 
 export type TaskDetailViewProps = {
@@ -349,20 +335,10 @@ export function TaskDetailView({
         </aside>
 
         <div className="flex flex-col gap-5 p-5 lg:col-start-1 lg:row-start-2 lg:overflow-y-auto">
-          <div className="flex flex-col gap-1">
-            <span id="task-description-label" className="text-label-sm text-text-strong-950">
-              Description
-            </span>
-            {/* Reloads when the stored description changes (a teammate's edit). Never while
-                I am in it: a focused editor holds live refresh back, and mine saves on blur. */}
-            <RichTextField
-              key={task.description}
-              value={task.description}
-              labelledBy="task-description-label"
-              placeholder="Add details… Type / for headings, lists and more."
-              onCommit={(description) => patch({ taskId: task.id, description })}
-            />
-          </div>
+          <DescriptionField
+            value={task.description}
+            onSave={(description, revert) => patch({ taskId: task.id, description }, revert)}
+          />
 
           {/* Depth is capped at one level: a subtask offers the way back to
               its parent instead of a nested list. */}

@@ -4,6 +4,7 @@ import { IconTrash } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { CollapsibleSection } from '@/components/task/CollapsibleSection';
 import { Markdown } from '@/components/task/Markdown';
 import { RichTextField } from '@/components/task/RichTextField';
 import { UserAvatar } from '@/components/auth/user/user-avatar';
@@ -53,9 +54,11 @@ export function ActivityFeed({
   const [tab, setTab] = useState<ActivityTab>('comments');
 
   // Jira-style filter over the one merged feed: comments, field history, or both.
-  const visible = tab === 'all'
+  // Newest first, so what I just posted lands right under the composer.
+  const visible = (tab === 'all'
     ? feed
-    : feed.filter((entry) => entry.type === (tab === 'comments' ? 'comment' : 'activity'));
+    : feed.filter((entry) => entry.type === (tab === 'comments' ? 'comment' : 'activity'))
+  ).toReversed();
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -104,9 +107,10 @@ export function ActivityFeed({
   }
 
   return (
-    <section className="flex flex-col gap-3 border-t border-stroke-soft-200 pt-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-label-sm text-text-strong-950">Activity</h3>
+    <CollapsibleSection
+      sectionId="activity"
+      title="Activity"
+      actions={(
         <SegmentedControl.Root value={tab} onValueChange={(value) => setTab(value as ActivityTab)}>
           <SegmentedControl.List aria-label="Show activity" className="w-auto">
             {TABS.map(({ value, label }) => (
@@ -116,7 +120,30 @@ export function ActivityFeed({
             ))}
           </SegmentedControl.List>
         </SegmentedControl.Root>
-      </div>
+      )}
+    >
+      {/* On top and pinned while the feed scrolls under it, Jira-style. It sticks
+          above the edge by the column's padding and fills that band with its own
+          background, so the feed never peeks out over it. Hidden, not unmounted, on
+          History so a half-written comment survives a tab switch. */}
+      <form
+        onSubmit={onSubmit}
+        hidden={tab === 'history'}
+        className="sticky -top-5 z-10 -mt-2 flex flex-col gap-2 bg-bg-white-0 pt-5 pb-3"
+      >
+        <RichTextField
+          key={composerKey}
+          value=""
+          label="Comment"
+          placeholder="Write a comment… Markdown and / commands work."
+          onChange={setDraft}
+        />
+        <div>
+          <Button.Root type="submit" size="small" disabled={pending}>
+            Comment
+          </Button.Root>
+        </div>
+      </form>
 
       {visible.length === 0 && (
         <p className="text-paragraph-sm text-text-soft-400">
@@ -190,22 +217,6 @@ export function ActivityFeed({
           ),
         )}
       </ol>
-
-      {/* Hidden, not unmounted, on History so a half-written comment survives a tab switch. */}
-      <form onSubmit={onSubmit} hidden={tab === 'history'} className="flex flex-col gap-2">
-        <RichTextField
-          key={composerKey}
-          value=""
-          label="Comment"
-          placeholder="Write a comment… Markdown and / commands work."
-          onChange={setDraft}
-        />
-        <div>
-          <Button.Root type="submit" size="small" disabled={pending}>
-            Comment
-          </Button.Root>
-        </div>
-      </form>
-    </section>
+    </CollapsibleSection>
   );
 }

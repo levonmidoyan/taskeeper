@@ -2,9 +2,12 @@
 
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { CollapsibleSection } from '@/components/task/CollapsibleSection';
 import { DoneIcon, StrikeText } from '@/components/task/DoneMark';
+import * as Button from '@/components/ui/button';
+import { LOCAL_ESCAPE_EVENT } from '@/lib/local-escape';
 import { settle } from '@/lib/settle';
 import { doneToggleTarget } from '@/lib/task-done';
 import type { StatusRow } from '@/server/projects/queries';
@@ -30,7 +33,32 @@ export function SubtaskSection({
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const addButtonRef = useRef<HTMLButtonElement>(null);
   const [pending, setPending] = useState(false);
+  // The input only shows once asked for, Jira-style, and stays for the next one.
+  const [adding, setAdding] = useState(false);
+  const returnFocus = useRef(false);
+
+  function stopAdding() {
+    returnFocus.current = true;
+    setAdding(false);
+  }
+
+  // Inside a dialog, Escape reaches the dialog first; it hands it over by this event.
+  useEffect(() => {
+    const form = formRef.current;
+    if (!adding || !form) return;
+    const close = () => stopAdding();
+    form.addEventListener(LOCAL_ESCAPE_EVENT, close);
+    return () => form.removeEventListener(LOCAL_ESCAPE_EVENT, close);
+  }, [adding]);
+
+  useEffect(() => {
+    if (adding || !returnFocus.current) return;
+    returnFocus.current = false;
+    addButtonRef.current?.focus();
+  }, [adding]);
 
   const doneCount = subtasks.filter((s) => s.completedAt !== null).length;
 
@@ -64,14 +92,24 @@ export function SubtaskSection({
   }
 
   return (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <h2 className="text-label-sm text-text-strong-950">Subtasks</h2>
-        <span className="tabular text-paragraph-xs text-text-sub-600">
-          {doneCount}/{subtasks.length}
-        </span>
-      </div>
-
+    <CollapsibleSection
+      sectionId="subtasks"
+      title="Subtasks"
+      meta={`${doneCount}/${subtasks.length}`}
+      actions={!adding && (
+        <Button.Root
+          ref={addButtonRef}
+          type="button"
+          variant="neutral"
+          mode="ghost"
+          size="xxsmall"
+          onClick={() => setAdding(true)}
+        >
+          <Button.Icon as={IconPlus} />
+          Add subtask
+        </Button.Root>
+      )}
+    >
       {subtasks.length > 0 && (
         <ul className="overflow-hidden rounded-10 ring-1 ring-inset ring-stroke-soft-200">
           {subtasks.map((subtask) => (
@@ -86,22 +124,39 @@ export function SubtaskSection({
         </ul>
       )}
 
-      <form onSubmit={onSubmit} className="relative flex items-center gap-2 px-1">
-        <IconPlus className="size-4 shrink-0 text-text-soft-400" aria-hidden="true" />
-        <label htmlFor={`add-subtask-${parent.id}`} className="sr-only">
-          Add a subtask
-        </label>
-        <input
-          id={`add-subtask-${parent.id}`}
-          ref={inputRef}
-          name="title"
-          maxLength={200}
-          aria-busy={pending}
-          placeholder="Add a subtask…"
-          className="h-11 w-full bg-transparent text-paragraph-md text-text-strong-950 placeholder:text-text-soft-400 lg:text-paragraph-sm"
-        />
-      </form>
-    </section>
+      {adding && (
+        <form
+          ref={formRef}
+          onSubmit={onSubmit}
+          data-local-escape=""
+          className="relative flex items-center gap-2 rounded-10 px-3 ring-1 ring-inset ring-stroke-strong-950"
+        >
+          <IconPlus className="size-4 shrink-0 text-text-soft-400" aria-hidden="true" />
+          <label htmlFor={`add-subtask-${parent.id}`} className="sr-only">
+            Add a subtask
+          </label>
+          <input
+            id={`add-subtask-${parent.id}`}
+            ref={inputRef}
+            name="title"
+            maxLength={200}
+            aria-busy={pending}
+            autoFocus
+            placeholder="Add a subtask…"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && !event.defaultPrevented) {
+                event.preventDefault();
+                stopAdding();
+              }
+            }}
+            // Clicking away from an empty field puts the button back; a typed
+            // title stays until submitted or escaped.
+            onBlur={(event) => { if (!event.currentTarget.value.trim()) setAdding(false); }}
+            className="h-11 w-full bg-transparent text-paragraph-md text-text-strong-950 placeholder:text-text-soft-400 lg:text-paragraph-sm"
+          />
+        </form>
+      )}
+    </CollapsibleSection>
   );
 }
 

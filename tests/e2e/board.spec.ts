@@ -148,6 +148,9 @@ test('a subtask can be added from the task dialog and opened in place', async ({
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText('0/0')).toBeVisible();
 
+  // The input only appears once asked for.
+  await expect(dialog.getByPlaceholder('Add a subtask…')).toBeHidden();
+  await dialog.getByRole('button', { name: 'Add subtask' }).click();
   await dialog.getByPlaceholder('Add a subtask…').fill('Write the copy');
   await dialog.getByPlaceholder('Add a subtask…').press('Enter');
 
@@ -160,7 +163,7 @@ test('a subtask can be added from the task dialog and opened in place', async ({
   await dialog.getByRole('button', { name: 'Write the copy', exact: true }).click();
   await expect(page.getByLabel('Title')).toHaveValue('Write the copy');
   await expect(dialog.getByRole('button', { name: 'Drag me', exact: true })).toBeVisible();
-  await expect(dialog.getByPlaceholder('Add a subtask…')).toBeHidden();
+  await expect(dialog.getByRole('button', { name: 'Add subtask' })).toBeHidden();
 
   await dialog.getByRole('button', { name: 'Drag me', exact: true }).click();
   await expect(page.getByLabel('Title')).toHaveValue('Drag me');
