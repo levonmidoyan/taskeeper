@@ -7,6 +7,8 @@ import { TaskDetailView, type TaskDetailViewProps } from '@/components/task/Task
 import * as Modal from '@/components/ui/modal';
 import { handOffEscape } from '@/lib/local-escape';
 import { TASK_CLOSE, TASK_MODAL_CLASSES, taskTransitionName } from '@/lib/motion';
+import { collectNavItems, focusNavItem, navTarget } from '@/lib/shortcuts/nav';
+import { useShortcut } from '@/lib/shortcuts/provider';
 
 export function TaskDetailDialog(props: TaskDetailViewProps) {
   const router = useRouter();
@@ -22,10 +24,23 @@ export function TaskDetailDialog(props: TaskDetailViewProps) {
     router.push(query ? `?${query}` : '?', { scroll: false, transitionTypes: [TASK_CLOSE] });
   }
 
+  // j/k step through the tasks of the view behind, in its order (same column
+  // on the board). A task that is not there (a subtask, filtered out) stays put.
+  function step(dir: 'next' | 'prev') {
+    const target = navTarget(collectNavItems(), props.task.id, dir);
+    if (!target) return;
+    const next = new URLSearchParams(searchParams);
+    next.set('task', target);
+    router.replace(`?${next.toString()}`, { scroll: false });
+  }
+  useShortcut('detail.next', () => step('next'));
+  useShortcut('detail.prev', () => step('prev'));
+
   return (
     <Modal.Root open onOpenChange={(open) => { if (!open) close(); }}>
       <Modal.Content
         aria-describedby={undefined}
+        data-shortcut-scope="detail"
         showClose={false}
         container={hydrated ? document.body : undefined}
         // Fixed-size shell: the header stays put and each column scrolls on
@@ -44,6 +59,11 @@ export function TaskDetailDialog(props: TaskDetailViewProps) {
         // in progress (the description's), stops there.
         onEscapeKeyDown={(event) => {
           if (handleEditorEscape(event) || handOffEscape(event)) event.preventDefault();
+        }}
+        // Back to the card or row of the task shown last, which after j/k is
+        // not the one that opened the dialog.
+        onCloseAutoFocus={(event) => {
+          if (focusNavItem(props.task.id)) event.preventDefault();
         }}
       >
         <Modal.Title className="sr-only">Task details</Modal.Title>

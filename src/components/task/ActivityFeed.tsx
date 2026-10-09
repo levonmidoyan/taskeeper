@@ -2,7 +2,7 @@
 
 import { IconTrash } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { CollapsibleSection } from '@/components/task/CollapsibleSection';
 import { Markdown } from '@/components/task/Markdown';
@@ -12,9 +12,11 @@ import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import * as SegmentedControl from '@/components/ui/segmented-control';
+import { useTaskSectionOpen } from '@/hooks/use-task-sections';
 import { describeActivity } from '@/lib/activity-text';
 import { formatInZone } from '@/lib/dates';
 import { settle } from '@/lib/settle';
+import { useShortcut } from '@/lib/shortcuts/provider';
 import { cn } from '@/utils/cn';
 import type { FeedEntry } from '@/server/activity/queries';
 import {
@@ -58,6 +60,15 @@ export function ActivityFeed({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [tab, setTab] = useState<ActivityTab>('comments');
+  const composerRef = useRef<HTMLFormElement>(null);
+  const [, setSectionOpen] = useTaskSectionOpen('activity');
+  // m: open the section if collapsed, leave History, and put the caret in the composer.
+  useShortcut('detail.comment', () => {
+    setSectionOpen(true);
+    setTab((t) => (t === 'history' ? 'comments' : t));
+    requestAnimationFrame(() =>
+      composerRef.current?.querySelector<HTMLElement>('[role="textbox"]')?.focus());
+  });
 
   // Jira-style filter over the one merged feed: comments, field history, or both.
   // Newest first, so what I just posted lands right under the composer.
@@ -149,6 +160,7 @@ export function ActivityFeed({
           background, so the feed never peeks out over it. Hidden, not unmounted, on
           History so a half-written comment survives a tab switch. */}
       <form
+        ref={composerRef}
         onSubmit={onSubmit}
         hidden={tab === 'history'}
         onFocus={(event) => {

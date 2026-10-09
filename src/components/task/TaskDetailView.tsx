@@ -5,7 +5,7 @@ import {
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { TextField } from '@/components/forms/TextField';
 import { ActivityFeed } from '@/components/task/ActivityFeed';
@@ -29,6 +29,7 @@ import { useServerValue } from '@/hooks/use-server-value';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatInZone } from '@/lib/dates';
 import { settle } from '@/lib/settle';
+import { useShortcut } from '@/lib/shortcuts/provider';
 import type { FeedEntry } from '@/server/activity/queries';
 import type { AttachmentView } from '@/server/attachments/queries';
 import type { MemberRow } from '@/server/labels/queries';
@@ -97,6 +98,9 @@ export function TaskDetailView({
   const [statusId, setStatusId] = useServerValue(task.statusId);
   const [priority, setPriority] = useServerValue<Priority>(task.priority);
   const [dueDate, setDueDate] = useServerValue(task.dueDate);
+  // Controlled so s / p can open them from the keyboard.
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [priorityOpen, setPriorityOpen] = useState(false);
 
   const tasksBase = `/${workspaceSlug}/tasks`;
   const projectHref = `/${workspaceSlug}/projects/${projectId}`;
@@ -133,6 +137,12 @@ export function TaskDetailView({
     });
   }
 
+  function assign(next: string | null) {
+    const previous = assigneeId;
+    setAssigneeId(next);
+    patch({ taskId: task.id, assigneeId: next }, () => setAssigneeId(previous));
+  }
+
   async function onDelete() {
     const ok = await confirm({
       title: `Delete "${task.title}"?`,
@@ -154,6 +164,23 @@ export function TaskDetailView({
       }
     });
   }
+
+  // The fields' own controls, reached from the keyboard; no new UI.
+  useShortcut('detail.title', () => {
+    const input = document.getElementById('task-title') as HTMLInputElement | null;
+    input?.focus();
+    input?.select();
+  });
+  useShortcut('detail.status', () => setStatusOpen(true));
+  useShortcut('detail.priority', () => setPriorityOpen(true));
+  useShortcut('detail.assignee', () => document.getElementById('task-assignee')?.click());
+  useShortcut('detail.assignMe', () => {
+    if (assigneeId !== currentUserId) assign(currentUserId);
+  });
+  useShortcut('detail.labels', () =>
+    document.querySelector<HTMLElement>('[data-shortcut-target="labels"]')?.focus());
+  useShortcut('detail.due', () => document.getElementById('task-due')?.click());
+  useShortcut('detail.delete', () => { void onDelete(); });
 
   const deleteButton = (
     <Button.Root type="button" variant="error" mode="ghost" size="xsmall" onClick={onDelete}>
@@ -237,6 +264,8 @@ export function TaskDetailView({
         <aside className="flex flex-col gap-4 border-b border-stroke-soft-200 p-5 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:overflow-y-auto lg:border-b-0 lg:border-l">
           <Field id="task-status" label="Status">
             <Select.Root
+              open={statusOpen}
+              onOpenChange={setStatusOpen}
               value={statusId}
               onValueChange={(next) => {
                 const previous = statusId;
@@ -258,6 +287,8 @@ export function TaskDetailView({
 
           <Field id="task-priority" label="Priority">
             <Select.Root
+              open={priorityOpen}
+              onOpenChange={setPriorityOpen}
               value={priority}
               onValueChange={(value) => {
                 const previous = priority;
@@ -283,11 +314,7 @@ export function TaskDetailView({
               id="task-assignee"
               members={members}
               value={assigneeId}
-              onChange={(next) => {
-                const previous = assigneeId;
-                setAssigneeId(next);
-                patch({ taskId: task.id, assigneeId: next }, () => setAssigneeId(previous));
-              }}
+              onChange={assign}
             />
           </Field>
 

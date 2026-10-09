@@ -56,8 +56,11 @@ test('the description is a preview until clicked; Save keeps, Cancel and Escape 
   await preview.click();
   await expect(editor).toBeFocused();
   await page.keyboard.type(', final');
+  // The preview shows the text before the save lands; reloading earlier drops it.
+  const saved = page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('/projects/'));
   await page.keyboard.press('Control+Enter');
   await expect(preview).toHaveText('First draft, final');
+  await saved;
   await page.reload();
   await expect(dialog.getByTestId('description-preview')).toHaveText('First draft, final');
 });
