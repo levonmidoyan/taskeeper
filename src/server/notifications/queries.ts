@@ -5,7 +5,7 @@ import type { WorkspaceContext } from '@/lib/session';
 
 export type NotificationItem = {
   id: string;
-  kind: 'reminder' | 'digest' | 'task_change' | 'project_change';
+  kind: 'reminder' | 'digest' | 'task_change' | 'project_change' | 'mention';
   taskId: string | null;
   projectId: string | null;
   data: NotificationData;

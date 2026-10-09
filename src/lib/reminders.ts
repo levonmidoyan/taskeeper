@@ -3,7 +3,7 @@
  * the emails, the bell and the task dialog all read the same values.
  */
 
-import type { ProjectChangeData, TaskChangeData } from './notifications';
+import type { MentionData, ProjectChangeData, TaskChangeData } from './notifications';
 
 export const REMINDER_OFFSETS = [0, 1, 2, 7] as const;
 export type ReminderOffset = (typeof REMINDER_OFFSETS)[number];
@@ -39,7 +39,7 @@ export type DigestData = {
   overdue: number;
   tasks: { id: string; title: string; dueDate: string }[];
 };
-export type NotificationData = ReminderData | DigestData | TaskChangeData | ProjectChangeData;
+export type NotificationData = ReminderData | DigestData | TaskChangeData | ProjectChangeData | MentionData;
 
 export function isReminderOffset(n: unknown): n is ReminderOffset {
   return typeof n === 'number' && (REMINDER_OFFSETS as readonly number[]).includes(n);

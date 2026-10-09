@@ -63,6 +63,17 @@ describe('schema', () => {
     await db.insert(notification).values(changeRow(key));
     expect(await db.select().from(notification)).toHaveLength(2);
   });
+
+  it('allows one unread mention row per recipient, task and actor', async () => {
+    const { ada, bob, taskId } = await setup();
+    const row = () => ({
+      id: newId(), kind: 'mention' as const, dedupeKey: `mtn:${newId()}`,
+      userId: ada.userId, workspaceId: ada.workspaceId, taskId, actorId: bob.userId,
+      data: { title: 'Ship', projectName: 'Website', actorName: 'Bob', where: ['comment' as const] },
+    });
+    await db.insert(notification).values(row());
+    await expect(db.insert(notification).values(row())).rejects.toThrow();
+  });
 });
 
 const rows = () => db.select().from(notification).orderBy(notification.createdAt);

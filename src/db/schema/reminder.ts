@@ -24,7 +24,7 @@ export const reminder = pgTable(
   ],
 );
 
-export const notificationKind = pgEnum('notification_kind', ['digest', 'reminder', 'task_change', 'project_change']);
+export const notificationKind = pgEnum('notification_kind', ['digest', 'reminder', 'task_change', 'project_change', 'mention']);
 
 // One bell item, and the cron's idempotency claim: dedupe_key is unique, so a
 // second run inserting the same key does nothing.
@@ -67,5 +67,8 @@ export const notification = pgTable(
     uniqueIndex('notification_open_project_change_uq')
       .on(t.userId, t.projectId, t.actorId)
       .where(sql`kind = 'project_change' and read_at is null`),
+    uniqueIndex('notification_open_mention_uq')
+      .on(t.userId, t.taskId, t.actorId)
+      .where(sql`kind = 'mention' and read_at is null`),
   ],
 );

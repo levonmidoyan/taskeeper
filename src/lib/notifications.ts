@@ -43,7 +43,20 @@ export type ProjectChangeData = {
   changes: ProjectChangeKind[];
 };
 
-export type BellKind = 'reminder' | 'digest' | 'task_change' | 'project_change';
+export type MentionWhere = 'comment' | 'description';
+
+export type MentionData = {
+  /** Task title at the latest merged mention. */
+  title: string;
+  projectName: string;
+  actorName: string;
+  /** Deduped, in order of first occurrence. */
+  where: MentionWhere[];
+  /** Latest comment excerpt, when 'comment' is in where. */
+  comment?: string;
+};
+
+export type BellKind = 'reminder' | 'digest' | 'task_change' | 'project_change' | 'mention';
 export type BellItem = { kind: BellKind; taskId: string | null; projectId: string | null; data: NotificationData };
 
 export const MAX_TOASTS = 3;
@@ -76,7 +89,17 @@ function projectDetail(d: ProjectChangeData): string {
   return `${d.actorName} ${PROJECT_VERBS[only]} this project`;
 }
 
+function mentionDetail(d: MentionData): string {
+  if (d.where.length > 1) return d.title;
+  if (d.where[0] === 'comment' && d.comment) return `${d.title}: “${d.comment}”`;
+  return `in the description of ${d.title}`;
+}
+
 export function bellText(item: BellItem): { title: string; detail: string } {
+  if (item.kind === 'mention') {
+    const d = item.data as MentionData;
+    return { title: `${d.actorName} mentioned you`, detail: mentionDetail(d) };
+  }
   if (item.kind === 'task_change') {
     const d = item.data as TaskChangeData;
     return { title: d.title, detail: taskDetail(d) };
@@ -89,7 +112,7 @@ export function bellText(item: BellItem): { title: string; detail: string } {
 }
 
 export function bellHref(slug: string, item: BellItem): string {
-  if (item.kind === 'task_change') return item.taskId ? `/${slug}/tasks/${item.taskId}` : `/${slug}`;
+  if (item.kind === 'task_change' || item.kind === 'mention') return item.taskId ? `/${slug}/tasks/${item.taskId}` : `/${slug}`;
   if (item.kind === 'project_change') {
     const d = item.data as ProjectChangeData;
     if (!item.projectId || d.changes.includes('deleted')) return `/${slug}`;
@@ -101,12 +124,12 @@ export function bellHref(slug: string, item: BellItem): string {
 
 const ms = (d: Date | string) => new Date(d).getTime();
 
-/** Unread change items created after `since` (epoch ms), newest first. Reminders and digests never toast. */
+/** Unread change and mention items created after `since` (epoch ms), newest first. Reminders and digests never toast. */
 export function pickToasts<T extends { kind: BellKind; readAt: Date | string | null; createdAt: Date | string }>(
   items: T[],
   since: number,
 ): T[] {
   return items
-    .filter((i) => (i.kind === 'task_change' || i.kind === 'project_change') && !i.readAt && ms(i.createdAt) > since)
+    .filter((i) => (i.kind === 'task_change' || i.kind === 'project_change' || i.kind === 'mention') && !i.readAt && ms(i.createdAt) > since)
     .sort((a, b) => ms(b.createdAt) - ms(a.createdAt));
 }

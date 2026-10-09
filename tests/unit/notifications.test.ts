@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bellHref, bellText, pickToasts, type BellItem } from '@/lib/notifications';
+import { bellHref, bellText, pickToasts, type BellItem, type MentionData } from '@/lib/notifications';
 
 const task = (data: object): BellItem => ({
   kind: 'task_change', taskId: 't1', projectId: null,
@@ -74,5 +74,29 @@ describe('pickToasts', () => {
 
   it('accepts serialized dates', () => {
     expect(pickToasts([{ kind: 'task_change', createdAt: '2026-10-07T10:00:01Z', readAt: null }], since)).toHaveLength(1);
+  });
+});
+
+describe('mention bell items', () => {
+  const base: MentionData = { title: 'Ship', projectName: 'Website', actorName: 'Bob', where: ['comment'], comment: 'ping @Ada' };
+  const item = (data: MentionData) => ({ kind: 'mention' as const, taskId: 't1', projectId: null, data });
+
+  it('quotes the comment', () => {
+    expect(bellText(item(base))).toEqual({ title: 'Bob mentioned you', detail: 'Ship: “ping @Ada”' });
+  });
+  it('names the description', () => {
+    expect(bellText(item({ ...base, where: ['description'], comment: undefined })))
+      .toEqual({ title: 'Bob mentioned you', detail: 'in the description of Ship' });
+  });
+  it('shows just the task when both', () => {
+    expect(bellText(item({ ...base, where: ['comment', 'description'] }))).toEqual({ title: 'Bob mentioned you', detail: 'Ship' });
+  });
+  it('links to the task', () => {
+    expect(bellHref('acme', item(base))).toBe('/acme/tasks/t1');
+  });
+  it('toasts', () => {
+    const now = Date.now();
+    const rows = [{ kind: 'mention' as const, readAt: null, createdAt: new Date(now + 10) }];
+    expect(pickToasts(rows, now)).toHaveLength(1);
   });
 });
