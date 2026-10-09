@@ -1,4 +1,4 @@
-import { createElement } from 'react';
+import { createElement, type ComponentProps } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { Markdown } from '@/components/task/Markdown';
@@ -45,5 +45,29 @@ describe('Markdown', () => {
 
   it('wraps output in the shared md-content class', () => {
     expect(render('hi')).toMatch(/^<div class="md-content/);
+  });
+});
+
+describe('mentions', () => {
+  const md = (body: string, props: Omit<ComponentProps<typeof Markdown>, 'children'> = {}) =>
+    renderToStaticMarkup(createElement(Markdown, { ...props, children: body }));
+  const members = [{ userId: 'u1', name: 'Ana Petrosyan', email: 'a@x.com', image: null }];
+
+  it('renders a mention as a chip, not a link', () => {
+    const html = md('hi [@Ana](mention:u1)');
+    expect(html).toContain('<span class="mention">@Ana</span>');
+    expect(html).not.toContain('href="mention:');
+  });
+  it('uses the current member name when known', () => {
+    expect(md('[@Ana](mention:u1)', { members })).toContain('>@Ana Petrosyan</span>');
+  });
+  it('falls back to the stored name for an ex-member', () => {
+    expect(md('[@Gone](mention:zz)', { members })).toContain('>@Gone</span>');
+  });
+  it('marks my own mention', () => {
+    expect(md('[@Ana](mention:u1)', { currentUserId: 'u1' })).toContain('data-self');
+  });
+  it('still neutralises javascript: links', () => {
+    expect(md('[x](javascript:alert(1))')).not.toContain('javascript:');
   });
 });
