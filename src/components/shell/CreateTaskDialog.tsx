@@ -17,8 +17,8 @@ import * as Label from '@/components/ui/label';
 import * as Modal from '@/components/ui/modal';
 import * as Select from '@/components/ui/select';
 import * as Switch from '@/components/ui/switch';
-import { ignoreShortcut } from '@/components/shell/shortcuts';
 import { settle } from '@/lib/settle';
+import { useShortcut } from '@/lib/shortcuts/provider';
 import type { ProjectSummary } from '@/server/projects/queries';
 import {
   createTaskAction, getCreateTaskOptionsAction, type CreateTaskOptions,
@@ -64,16 +64,7 @@ export function CreateTaskDialog({
   }
   const disabled = projects.length === 0;
 
-  useEffect(() => {
-    if (disabled) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'c' || ignoreShortcut(e)) return;
-      e.preventDefault();
-      onOpenChange(true);
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  });
+  useShortcut('general.create', () => onOpenChange(true), !disabled);
 
   const initialProjectId = (projects.find((p) => p.id === params.projectId) ?? projects[0])?.id;
 

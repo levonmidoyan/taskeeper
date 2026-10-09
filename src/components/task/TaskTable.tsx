@@ -23,9 +23,8 @@ import {
   type Updater,
 } from '@tanstack/react-table';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Fragment, useEffect, useMemo, useRef, useState, useTransition, ViewTransition, type MouseEvent } from 'react';
+import { Fragment, useMemo, useRef, useState, useTransition, ViewTransition, type MouseEvent } from 'react';
 import { toast } from 'sonner';
-import { ignoreShortcut } from '@/components/shell/shortcuts';
 import { UserView } from '@/components/auth/user/user-view';
 import { DueChip } from '@/components/task/DueChip';
 import { LabelChip } from '@/components/task/LabelChip';
@@ -42,6 +41,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useTableSettings } from '@/hooks/use-table-settings';
 import { TASK_MORPH_SHARE, TASK_OPEN, taskMorphName } from '@/lib/motion';
 import { settle } from '@/lib/settle';
+import { useShortcut } from '@/lib/shortcuts/provider';
 import type { TableSettings } from '@/lib/task-table-settings';
 import {
   PRIORITY_RANK,
@@ -386,14 +386,7 @@ export function TaskTable({
     setSelection(next);
   }
 
-  useEffect(() => {
-    if (selectedIds.length === 0) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !ignoreShortcut(e)) clearSelection();
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedIds.length]);
+  useShortcut('nav.clear', clearSelection, selectedIds.length > 0);
 
   function applyPatch(taskIds: string[], patch: TaskPatch) {
     startTransition(async () => {

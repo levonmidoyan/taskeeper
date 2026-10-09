@@ -4,19 +4,18 @@ import {
   IconArrowDown, IconArrowRight, IconArrowUp, IconCircleCheck, IconCornerDownLeft, IconPlus, IconSearch,
 } from '@tabler/icons-react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { projectDot } from '@/components/brand/tint';
 import { matchActions, PALETTE_GROUPS, paletteActions, type PaletteAction } from '@/components/shell/palette-actions';
-import { ignoreShortcut, OVERLAY_SELECTOR } from '@/components/shell/shortcuts';
 import * as CommandMenu from '@/components/ui/command-menu';
 import { splitHighlights } from '@/lib/highlights';
 import { settle } from '@/lib/settle';
+import { OVERLAY_SELECTOR } from '@/lib/shortcuts/guards';
+import { useIsMac, useShortcut } from '@/lib/shortcuts/provider';
 import type { ProjectSummary } from '@/server/projects/queries';
 import type { RecentTask, TaskSearchHit } from '@/server/tasks/queries';
 import { recentTasksAction, searchTasksAction } from '@/server/tasks/actions';
 import { cn } from '@/utils/cn';
-
-const noSubscribe = () => () => {};
 
 type TaskLike = Pick<TaskSearchHit, 'id' | 'title' | 'projectName' | 'completed'> & { snippet?: string | null };
 
@@ -46,8 +45,7 @@ export function CommandPalette({
   // Set when "New task" is picked; the create dialog opens once this one has
   // finished closing, so focus lands in it rather than on <body>.
   const pendingNewTask = useRef(false);
-  // The platform never changes; false on the server so the first paint matches.
-  const isMac = useSyncExternalStore(noSubscribe, () => /Mac|iPhone|iPad/.test(navigator.platform), () => false);
+  const isMac = useIsMac();
 
   const trimmed = term.trim();
   const searchable = trimmed.length >= 2;
@@ -58,21 +56,17 @@ export function CommandPalette({
     function onKey(e: KeyboardEvent) {
       // Autofill fires keydown events with no `key`.
       const modK = e.key?.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey;
-      if (modK) {
-        // Another dialog, menu or dropdown owns the screen; leave it alone.
-        if (!open && document.querySelector(OVERLAY_SELECTOR)) return;
-        e.preventDefault();
-        onOpenChange(!open);
-        return;
-      }
-      if (e.key === '/' && !open && !ignoreShortcut(e)) {
-        e.preventDefault();
-        setOpen(true);
-      }
+      if (!modK) return;
+      // Another dialog, menu or dropdown owns the screen; leave it alone.
+      if (!open && document.querySelector(OVERLAY_SELECTOR)) return;
+      e.preventDefault();
+      onOpenChange(!open);
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  useShortcut('general.search', () => setOpen(true), !open);
 
   useEffect(() => {
     if (!open) return;
