@@ -66,6 +66,11 @@ export const commentShape = z.object({
   body: z.string().describe('Markdown.'),
   createdAt: iso(),
   editedAt: iso().nullable(),
+  reactions: z.array(z.object({
+    emoji: z.string().describe('One of 👍 ❤️ 🎉 😄 👀 🚀.'),
+    count: z.number().int(),
+    userIds: z.array(z.string()).describe('Who reacted, oldest first.'),
+  })).describe('Read-only. In a fixed emoji order; empty when nobody has reacted.'),
 });
 
 export const listOf = <T extends z.ZodType>(item: T) => z.object({ data: z.array(item) });

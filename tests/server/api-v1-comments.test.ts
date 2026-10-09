@@ -6,6 +6,7 @@ import { createUser, joinWorkspace } from '../setup/factories';
 import { comment, user, workspaceChange } from '@/db';
 import { resolveWorkspace } from '@/lib/session';
 import { createComment } from '@/server/comments/service';
+import { toggleReaction } from '@/server/comments/reactions';
 import { archiveProject } from '@/server/projects/service';
 import { createTask } from '@/server/tasks/service';
 import * as comments from '@/app/api/v1/workspaces/[slug]/tasks/[taskId]/comments/route';
@@ -36,7 +37,7 @@ describe('POST comments', () => {
     expect(res.status).toBe(201);
     expect(res.json).toEqual({
       id: expect.any(String), author: { id: f.ada.id, name: 'Ada' }, body: 'Looks good',
-      createdAt: expect.stringMatching(/Z$/), editedAt: null,
+      createdAt: expect.stringMatching(/Z$/), editedAt: null, reactions: [],
     });
     const [row] = await db.select().from(comment);
     expect(row.authorId).toBe(f.ada.id);
@@ -53,6 +54,16 @@ describe('POST comments', () => {
 });
 
 describe('GET comments', () => {
+  it('lists reactions with counts and user ids', async () => {
+    const f = await withTask('m-rx');
+    const made = await post(f, { body: 'React' });
+    await toggleReaction(f.ctx, { commentId: made.json.id, emoji: '👍' });
+
+    const res = await get(f);
+
+    expect(res.json.data[0].reactions).toEqual([{ emoji: '👍', count: 1, userIds: [f.ada.id] }]);
+  });
+
   it('lists comments oldest first, and only comments', async () => {
     const f = await withTask('m3');
     await post(f, { body: 'First' });
