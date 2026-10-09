@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
-import { commentReaction, member, notification, userSettings, workspaceChange } from '@/db';
+import { commentReaction, member, notification, user, userSettings, workspaceChange } from '@/db';
 import type { WorkspaceContext } from '@/lib/session';
 import { createComment } from '@/server/comments/service';
 import { toggleReaction } from '@/server/comments/reactions';
@@ -127,6 +127,16 @@ describe('toggleReaction notifications', () => {
     await db.insert(userSettings).values({ userId: ada.userId, changeNotify: false })
       .onConflictDoUpdate({ target: userSettings.userId, set: { changeNotify: false } });
     await toggleReaction(bob, { commentId, emoji: '👍' });
+    expect(await notes()).toHaveLength(0);
+  });
+
+  it('reacts but notifies nobody once the author has deleted their account', async () => {
+    const { ada, bob, commentId } = await setup();
+    // A workspace must keep an owner (member_keep_owner), so Bob takes over first.
+    await db.update(member).set({ role: 'owner' }).where(eq(member.userId, bob.userId));
+    await db.delete(user).where(eq(user.id, ada.userId));
+    expect((await toggleReaction(bob, { commentId, emoji: '👍' })).ok).toBe(true);
+    expect(await reactions()).toHaveLength(1);
     expect(await notes()).toHaveLength(0);
   });
 
