@@ -41,6 +41,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useTableSettings } from '@/hooks/use-table-settings';
 import { TASK_MORPH_SHARE, TASK_OPEN, taskMorphName } from '@/lib/motion';
 import { settle } from '@/lib/settle';
+import { focusedNavId } from '@/lib/shortcuts/nav';
 import { useShortcut } from '@/lib/shortcuts/provider';
 import type { TableSettings } from '@/lib/task-table-settings';
 import {
@@ -387,6 +388,11 @@ export function TaskTable({
   }
 
   useShortcut('nav.clear', clearSelection, selectedIds.length > 0);
+  useShortcut('nav.select', () => {
+    const id = focusedNavId();
+    if (!id || !rows.some((r) => r.id === id)) return false;
+    toggleRow(id, false);
+  });
 
   function applyPatch(taskIds: string[], patch: TaskPatch) {
     startTransition(async () => {
@@ -580,6 +586,7 @@ export function TaskTable({
                               openTask(row.original.id);
                             }}
                             aria-label={row.original.title}
+                            data-task-nav={row.original.id}
                             className="flex w-full min-w-0 text-left"
                           >
                             {(() => {

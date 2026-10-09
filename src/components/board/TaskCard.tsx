@@ -26,6 +26,7 @@ export function TaskCard({
       onClick={() => onOpen(task.id)}
       transitionName={cardTransitionName(task.id)}
       morphName={taskMorphName(task.id, openTaskId)}
+      navColumn={task.statusId}
     >
       <p className="text-paragraph-sm text-text-strong-950">{task.title}</p>
 

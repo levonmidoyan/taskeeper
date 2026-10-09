@@ -124,9 +124,11 @@ export type KanbanCardProps = {
   transitionName?: string;
   /** The name shared with the task modal; undefined while this card's task is open. */
   morphName?: string;
+  /** Marks the card as a keyboard stop for task shortcuts (data-task-nav / data-nav-col). */
+  navColumn?: string;
 };
 
-export function KanbanCard({ id, name, children, className, onClick, transitionName, morphName }: KanbanCardProps) {
+export function KanbanCard({ id, name, children, className, onClick, transitionName, morphName, navColumn }: KanbanCardProps) {
   const { attributes, listeners, setNodeRef, transition, transform, isDragging } = useSortable({
     id,
     transition: { duration: DURATION.base, easing: EASE_OUT_SOFT },
@@ -147,6 +149,8 @@ export function KanbanCard({ id, name, children, className, onClick, transitionN
       {...attributes}
       {...listeners}
       onClick={onClick}
+      data-task-nav={navColumn !== undefined ? id : undefined}
+      data-nav-col={navColumn}
       className={cn(
         'w-full cursor-grab rounded-10 bg-bg-white-0 p-3 text-left shadow-regular-xs ring-1 ring-inset ring-stroke-soft-200 transition-shadow duration-150 hover:shadow-regular-sm active:cursor-grabbing',
         // The slot the card will land in: same size, content hidden but still named

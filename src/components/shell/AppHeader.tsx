@@ -5,6 +5,7 @@ import { CommandPalette } from '@/components/shell/CommandPalette';
 import { CreateTaskDialog } from '@/components/shell/CreateTaskDialog';
 import { NotificationBell } from '@/components/shell/NotificationBell';
 import { MobileNav, type RailProps } from '@/components/shell/Rail';
+import { TaskNavShortcuts } from '@/components/shell/TaskNavShortcuts';
 
 /**
  * Top bar of the content column, on every workspace and account page. It owns
@@ -37,6 +38,7 @@ export function AppHeader({ unread, serverNow, sound, ...props }: RailProps & {
         open={creating}
         onOpenChange={setCreating}
       />
+      <TaskNavShortcuts />
     </header>
   );
 }
