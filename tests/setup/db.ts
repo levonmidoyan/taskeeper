@@ -10,7 +10,7 @@ export async function resetDb(): Promise<void> {
     TRUNCATE TABLE
       api_rate_limit, api_token,
       workspace_change, notification, reminder, saved_view,
-      attachment, todo, project_star, comment, task_activity,
+      attachment, todo, project_star, comment_reaction, comment, task_activity,
       task_label, task, task_status, label, project,
       workspace_settings, user_settings, invitation, member, organization,
       session, account, verification, rate_limit, "user"

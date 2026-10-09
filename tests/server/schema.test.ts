@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
-import { comment, organization, project, task, taskActivity, taskStatus, user } from '@/db';
+import { comment, commentReaction, organization, project, task, taskActivity, taskStatus, user } from '@/db';
 import { newId } from '@/lib/ids';
 import { positionBetween } from '@/lib/position';
 
@@ -117,5 +117,39 @@ describe('comment and task_activity', () => {
     const [row] = await db.select().from(comment);
     expect(row.editedAt).toBeNull();
     expect(row.createdAt).toBeInstanceOf(Date);
+  });
+});
+
+describe('comment_reaction', () => {
+  async function seedComment() {
+    const { userId, workspaceId, projectId, statusId } = await seedProject();
+    const taskId = newId();
+    await db.insert(task).values({
+      id: taskId, workspaceId, projectId, title: 'T', statusId,
+      position: positionBetween(null, null), createdBy: userId,
+    });
+    const commentId = newId();
+    await db.insert(comment).values({ id: commentId, workspaceId, taskId, authorId: userId, body: 'Hi' });
+    return { userId, workspaceId, commentId };
+  }
+
+  it('allows one row per comment, user and emoji', async () => {
+    const { userId, workspaceId, commentId } = await seedComment();
+    const row = { commentId, workspaceId, userId, emoji: '👍' };
+    await db.insert(commentReaction).values(row);
+    await db.insert(commentReaction).values({ ...row, emoji: '🎉' });
+    await expect(db.insert(commentReaction).values(row)).rejects.toThrow();
+  });
+
+  it('goes with the comment and with the reacting user', async () => {
+    const { userId, workspaceId, commentId } = await seedComment();
+    await db.insert(commentReaction).values({ commentId, workspaceId, userId, emoji: '👍' });
+    await db.delete(comment);
+    expect(await db.select().from(commentReaction)).toHaveLength(0);
+
+    const again = await seedComment();
+    await db.insert(commentReaction).values({ ...again, emoji: '👍' });
+    await db.delete(user).where(sql`${user.id} = ${again.userId}`);
+    expect(await db.select().from(commentReaction)).toHaveLength(0);
   });
 });
