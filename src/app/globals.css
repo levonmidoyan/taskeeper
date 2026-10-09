@@ -368,4 +368,11 @@
   .md-content :where(pre code) { @apply bg-transparent p-0; }
   .md-content :where(a) { @apply text-primary-base underline underline-offset-2; }
   .md-content :where(hr) { @apply border-stroke-soft-200; }
+  /* @mentions (kibo-ui/editor/mention.tsx); data-self marks the reader's own. */
+  .mention {
+    @apply rounded-md bg-primary-alpha-10 px-1 py-px text-label-sm text-primary-base whitespace-nowrap;
+  }
+  .mention[data-self] {
+    @apply bg-primary-alpha-16 text-primary-darker;
+  }
 }
