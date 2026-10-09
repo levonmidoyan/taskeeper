@@ -5,7 +5,7 @@ import {
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { TextField } from '@/components/forms/TextField';
 import { ActivityFeed } from '@/components/task/ActivityFeed';
@@ -29,6 +29,7 @@ import { useServerValue } from '@/hooks/use-server-value';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatInZone } from '@/lib/dates';
 import { settle } from '@/lib/settle';
+import { DETAIL_SELECTOR } from '@/lib/shortcuts/guards';
 import { useShortcut } from '@/lib/shortcuts/provider';
 import type { FeedEntry } from '@/server/activity/queries';
 import type { AttachmentView } from '@/server/attachments/queries';
@@ -101,6 +102,16 @@ export function TaskDetailView({
   // Controlled so s / p can open them from the keyboard.
   const [statusOpen, setStatusOpen] = useState(false);
   const [priorityOpen, setPriorityOpen] = useState(false);
+  // Set when s / p opened the list. Radix hands focus back to the trigger on
+  // close, where the next shortcut letter would pick an option by typeahead
+  // (d → Done); the task itself takes focus instead.
+  const openedByKey = useRef(false);
+  function onSelectCloseAutoFocus(event: Event) {
+    if (!openedByKey.current) return;
+    openedByKey.current = false;
+    event.preventDefault();
+    document.querySelector<HTMLElement>(DETAIL_SELECTOR)?.focus();
+  }
 
   const tasksBase = `/${workspaceSlug}/tasks`;
   const projectHref = `/${workspaceSlug}/projects/${projectId}`;
@@ -171,8 +182,14 @@ export function TaskDetailView({
     input?.focus();
     input?.select();
   });
-  useShortcut('detail.status', () => setStatusOpen(true));
-  useShortcut('detail.priority', () => setPriorityOpen(true));
+  useShortcut('detail.status', () => {
+    openedByKey.current = true;
+    setStatusOpen(true);
+  });
+  useShortcut('detail.priority', () => {
+    openedByKey.current = true;
+    setPriorityOpen(true);
+  });
   useShortcut('detail.assignee', () => document.getElementById('task-assignee')?.click());
   useShortcut('detail.assignMe', () => {
     if (assigneeId !== currentUserId) assign(currentUserId);
@@ -274,7 +291,7 @@ export function TaskDetailView({
               }}
             >
               <Select.Trigger id="task-status"><Select.Value /></Select.Trigger>
-              <Select.Content>
+              <Select.Content onCloseAutoFocus={onSelectCloseAutoFocus}>
                 {statuses.map((s) => (
                   <Select.Item key={s.id} value={s.id}>
                     <StatusIcon status={s} />
@@ -298,7 +315,7 @@ export function TaskDetailView({
               }}
             >
               <Select.Trigger id="task-priority"><Select.Value /></Select.Trigger>
-              <Select.Content>
+              <Select.Content onCloseAutoFocus={onSelectCloseAutoFocus}>
                 {PRIORITIES.map((p) => (
                   <Select.Item key={p} value={p}>
                     <PriorityIcon priority={p} />

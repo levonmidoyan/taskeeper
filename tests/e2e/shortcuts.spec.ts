@@ -57,6 +57,30 @@ test('board: j focuses, o opens, j/k step, i assigns, Escape returns focus', asy
   await page.keyboard.press('Escape');
   await expect(page.getByRole('listbox')).toBeHidden();
 
+  // After picking with the keyboard, the next letter is a shortcut again and
+  // never the Status trigger's typeahead ("d" would otherwise pick Done).
+  await page.keyboard.press('s');
+  await expect(page.getByRole('option', { name: 'Todo' })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('option', { name: 'In Progress' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('listbox')).toBeHidden();
+  await expect(page.locator('#task-status')).toContainText('In Progress');
+  await page.keyboard.press('d');
+  await expect(page.locator('[data-radix-popper-content-wrapper]')).toBeVisible();
+  await expect(page.locator('#task-status')).toContainText('In Progress');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-radix-popper-content-wrapper]')).toBeHidden();
+
+  // A confirm owns the keys: j does not step the task behind it.
+  await page.keyboard.press('#');
+  const confirm = page.getByRole('alertdialog');
+  await expect(confirm).toBeVisible();
+  await page.keyboard.press('j');
+  await expect(page.locator('#task-title')).toHaveValue('Second jk');
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  await expect(confirm).toBeHidden();
+
   await page.keyboard.press('Escape');
   await expect(page).not.toHaveURL(/[?&]task=/);
   // The card's name now ends with its assignee.

@@ -50,6 +50,16 @@ describe('activeScope', () => {
     expect(activeScope(key())).toBe('none');
   });
 
+  it('is none while a confirm (alertdialog) is open, even over the task dialog', () => {
+    document.body.innerHTML = '<div role="dialog" data-shortcut-scope="detail"></div><div role="alertdialog"></div>';
+    expect(activeScope(key())).toBe('none');
+  });
+
+  it('is none on a focused select trigger, whose typeahead owns letter keys', () => {
+    document.body.innerHTML = '<div role="dialog" data-shortcut-scope="detail"><button id="s" role="combobox"></button></div>';
+    expect(activeScope(key(document.getElementById('s')!))).toBe('none');
+  });
+
   it('is none during a board keyboard drag', () => {
     document.body.innerHTML = '<button aria-roledescription="sortable" aria-pressed="true"></button>';
     expect(activeScope(key())).toBe('none');
