@@ -80,6 +80,9 @@ export async function notifyTaskChange(
     previousAssigneeId?: string | null;
     status?: string;
     comment?: string;
+    /** Replaces the involved set (assignee, creator, previous assignee). The member/actor/opt-out filter still applies. */
+    recipients?: string[];
+    reaction?: { emoji: string; comment: string };
   },
 ): Promise<void> {
   const changes = [...new Set(input.changes)];
@@ -95,7 +98,7 @@ export async function notifyTaskChange(
 
   const involved = [row.assigneeId, row.createdBy, input.previousAssigneeId]
     .filter((id): id is string => Boolean(id));
-  const ids = await recipients(ctx, tx, [...new Set(involved)]);
+  const ids = await recipients(ctx, tx, [...new Set(input.recipients ?? involved)]);
   if (ids.length === 0) return;
 
   const name = await actorName(ctx, tx);
@@ -108,6 +111,7 @@ export async function notifyTaskChange(
     ...(assigned && userId === row.assigneeId ? { assignedToYou: true as const } : {}),
     ...(input.status ? { status: input.status } : {}),
     ...(input.comment ? { comment: input.comment } : {}),
+    ...(input.reaction ? { reaction: input.reaction } : {}),
   });
 
   // assignedToYou: a later assignee change decides, so "assigned you" goes once
@@ -126,7 +130,8 @@ export async function notifyTaskChange(
         || CASE WHEN n.data ? 'assignedToYou' AND NOT (EXCLUDED.data->'changes' ? 'assignee')
              THEN '{"assignedToYou": true}'::jsonb ELSE '{}'::jsonb END
         || ${keepStored('comment')}
-        || ${keepStored('status')},
+        || ${keepStored('status')}
+        || ${keepStored('reaction')},
       created_at = clock_timestamp()
   `);
 }

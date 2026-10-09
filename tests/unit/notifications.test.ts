@@ -16,6 +16,10 @@ describe('bellText', () => {
     expect(bellText(task({ changes: ['assignee', 'title'], assignedToYou: true })).detail).toBe('Anna assigned you');
     expect(bellText(task({ changes: ['comment'], comment: 'Looks good' })).detail).toBe('Anna commented: “Looks good”');
     expect(bellText(task({ changes: ['status'], status: 'Done' })).detail).toBe('Anna moved to Done');
+    expect(bellText(task({ changes: ['reaction'], reaction: { emoji: '🎉', comment: 'Shipped' } })).detail)
+      .toBe('Anna reacted 🎉 to your comment: “Shipped”');
+    expect(bellText(task({ changes: ['title', 'reaction'], reaction: { emoji: '🎉', comment: 'Shipped' } })).detail)
+      .toBe('Anna changed title, reaction');
     expect(bellText(task({ changes: ['attachment', 'labels'] })).detail).toBe('Anna changed attachments, labels');
   });
 

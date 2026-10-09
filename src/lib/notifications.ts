@@ -9,7 +9,7 @@ import {
 
 export const TASK_CHANGE_KINDS = [
   'title', 'description', 'status', 'priority', 'assignee', 'due_date',
-  'labels', 'attachment', 'comment',
+  'labels', 'attachment', 'comment', 'reaction',
 ] as const;
 export type TaskChangeKind = (typeof TASK_CHANGE_KINDS)[number];
 
@@ -26,6 +26,8 @@ export type TaskChangeData = {
   status?: string;
   /** Latest comment excerpt, when 'comment' is among changes. */
   comment?: string;
+  /** Latest reaction and the excerpt of the comment it is on, when 'reaction' is among changes. */
+  reaction?: { emoji: string; comment: string };
 };
 
 export const PROJECT_CHANGE_KINDS = ['renamed', 'archived', 'unarchived', 'deleted'] as const;
@@ -49,6 +51,7 @@ export const MAX_TOASTS = 3;
 const FIELD_LABELS: Record<TaskChangeKind, string> = {
   title: 'title', description: 'description', status: 'status', priority: 'priority', assignee: 'assignee',
   due_date: 'due date', labels: 'labels', attachment: 'attachments', comment: 'comment',
+  reaction: 'reaction',
 };
 
 const PROJECT_VERBS: Record<ProjectChangeKind, string> = {
@@ -59,6 +62,9 @@ function taskDetail(d: TaskChangeData): string {
   const only = d.changes.length === 1 ? d.changes[0] : null;
   if (d.assignedToYou) return `${d.actorName} assigned you`;
   if (only === 'comment' && d.comment) return `${d.actorName} commented: “${d.comment}”`;
+  if (only === 'reaction' && d.reaction) {
+    return `${d.actorName} reacted ${d.reaction.emoji} to your comment: “${d.reaction.comment}”`;
+  }
   if (only === 'status' && d.status) return `${d.actorName} moved to ${d.status}`;
   return `${d.actorName} changed ${d.changes.map((k) => FIELD_LABELS[k]).join(', ')}`;
 }

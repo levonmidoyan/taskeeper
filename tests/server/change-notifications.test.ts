@@ -210,6 +210,30 @@ describe('notifyTaskChange', () => {
     })).rejects.toThrow('rollback');
     expect(await rows()).toHaveLength(0);
   });
+
+  it('notifies only the given recipients when they are passed', async () => {
+    const { ada, bob, taskId } = await setup();
+    const carol = await createUser('cn-carol@example.com', 'Carol');
+    await joinWorkspace(carol.id, ada.workspaceId, 'member');
+    await db.transaction((tx) => notifyTaskChange(bob, tx, {
+      taskId, changes: ['reaction'], recipients: [carol.id], reaction: { emoji: '👍', comment: 'Hi' },
+    }));
+    const [row, ...rest] = await rows();
+    expect(rest).toHaveLength(0);
+    expect(row.userId).toBe(carol.id);
+    expect(row.data).toMatchObject({ changes: ['reaction'], reaction: { emoji: '👍', comment: 'Hi' } });
+  });
+
+  it('keeps the stored reaction when a later change carries none', async () => {
+    const { ada, bob, taskId } = await setup();
+    await db.transaction((tx) => notifyTaskChange(bob, tx, {
+      taskId, changes: ['reaction'], recipients: [ada.userId], reaction: { emoji: '👍', comment: 'Hi' },
+    }));
+    await db.transaction((tx) => notifyTaskChange(bob, tx, { taskId, changes: ['title'] }));
+    const [row, ...rest] = await rows();
+    expect(rest).toHaveLength(0);
+    expect(row.data).toMatchObject({ changes: ['reaction', 'title'], reaction: { emoji: '👍', comment: 'Hi' } });
+  });
 });
 
 describe('notifyProjectChange', () => {
