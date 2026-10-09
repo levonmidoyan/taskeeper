@@ -1,5 +1,6 @@
 'use client';
 
+import { Kbd } from '@/components/shell/ShortcutHint';
 import * as Modal from '@/components/ui/modal';
 import { formatBinding } from '@/lib/shortcuts/keys';
 import { useIsMac } from '@/lib/shortcuts/provider';
@@ -29,9 +30,7 @@ export function ShortcutHelpDialog({ open, onOpenChange }: { open: boolean; onOp
                               <span key={j} className="flex items-center gap-1">
                                 {j > 0 && <span>then</span>}
                                 {caps.map((cap) => (
-                                  <kbd key={cap} className="min-w-5 rounded border border-stroke-soft-200 px-1.5 text-center text-label-xs text-text-sub-600">
-                                    {cap}
-                                  </kbd>
+                                  <Kbd key={cap}>{cap}</Kbd>
                                 ))}
                               </span>
                             ))}

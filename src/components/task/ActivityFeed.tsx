@@ -4,6 +4,7 @@ import { IconTrash } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { ShortcutKeys } from '@/components/shell/ShortcutHint';
 import { CollapsibleSection } from '@/components/task/CollapsibleSection';
 import { Markdown } from '@/components/task/Markdown';
 import { RichTextField } from '@/components/task/RichTextField';
@@ -220,6 +221,12 @@ export function ActivityFeed({
                 </button>
               ))}
             </div>
+          )}
+          {!expanded && (
+            <p className="flex items-center gap-1 text-paragraph-xs text-text-soft-400">
+              <span className="text-label-xs text-text-sub-600">Pro tip:</span> press
+              <ShortcutKeys id="detail.comment" /> to comment
+            </p>
           )}
         </div>
       </form>

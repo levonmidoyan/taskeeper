@@ -18,6 +18,7 @@ import { LabelPicker } from '@/components/task/LabelPicker';
 import { PRIORITY_LABEL, PriorityIcon } from '@/components/task/Priority';
 import { StatusIcon } from '@/components/task/StatusIcon';
 import { homeCrumb } from '@/components/shell/crumbs';
+import { ShortcutTooltip } from '@/components/shell/ShortcutHint';
 import { PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
 import { SubtaskSection } from '@/components/task/SubtaskSection';
 import * as Button from '@/components/ui/button';
@@ -31,6 +32,7 @@ import { formatInZone } from '@/lib/dates';
 import { settle } from '@/lib/settle';
 import { DETAIL_SELECTOR } from '@/lib/shortcuts/guards';
 import { useShortcut } from '@/lib/shortcuts/provider';
+import type { ShortcutId } from '@/lib/shortcuts/registry';
 import type { FeedEntry } from '@/server/activity/queries';
 import type { AttachmentView } from '@/server/attachments/queries';
 import type { MemberRow } from '@/server/labels/queries';
@@ -41,11 +43,25 @@ import type { ReminderOffset } from '@/lib/reminders';
 
 const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
 
-function Field({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
-  return (
+function Field({ id, label, hint, footer, children }: {
+  id: string;
+  label: string;
+  /** The shortcut that reaches this field, named in a hover hint. */
+  hint?: ShortcutId;
+  /** Under the control, outside the hint's hover area. */
+  footer?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const field = (
     <div className="flex flex-col gap-1">
       <Label.Root htmlFor={id}>{label}</Label.Root>
       {children}
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-1.5">
+      {hint ? <ShortcutTooltip id={hint}>{field}</ShortcutTooltip> : field}
+      {footer}
     </div>
   );
 }
@@ -278,7 +294,7 @@ export function TaskDetailView({
         </div>
 
         <aside className="flex flex-col gap-4 border-b border-stroke-soft-200 p-5 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:overflow-y-auto lg:border-b-0 lg:border-l">
-          <Field id="task-status" label="Status">
+          <Field id="task-status" label="Status" hint="detail.status">
             <Select.Root
               open={statusOpen}
               onOpenChange={setStatusOpen}
@@ -301,7 +317,7 @@ export function TaskDetailView({
             </Select.Root>
           </Field>
 
-          <Field id="task-priority" label="Priority">
+          <Field id="task-priority" label="Priority" hint="detail.priority">
             <Select.Root
               open={priorityOpen}
               onOpenChange={setPriorityOpen}
@@ -325,7 +341,22 @@ export function TaskDetailView({
             </Select.Root>
           </Field>
 
-          <Field id="task-assignee" label="Assignee">
+          <Field
+            id="task-assignee"
+            label="Assignee"
+            hint="detail.assignee"
+            footer={assigneeId !== currentUserId && (
+              <ShortcutTooltip id="detail.assignMe">
+                <button
+                  type="button"
+                  onClick={() => assign(currentUserId)}
+                  className="self-start text-paragraph-xs text-primary-base hover:underline"
+                >
+                  Assign to me
+                </button>
+              </ShortcutTooltip>
+            )}
+          >
             <AssigneePicker
               id="task-assignee"
               members={members}
@@ -334,19 +365,23 @@ export function TaskDetailView({
             />
           </Field>
 
-          <DueDateField
-            id="task-due"
-            value={dueDate}
-            done={statuses.find((s) => s.id === statusId)?.isDone ?? false}
-            timezone={timezone}
-            // A bare YYYY-MM-DD string, never a Date: the value is a calendar
-            // day in the workspace zone (v1 spec §3.4).
-            onChange={(next) => {
-              const previous = dueDate;
-              setDueDate(next);
-              patch({ taskId: task.id, dueDate: next }, () => setDueDate(previous));
-            }}
-          />
+          <ShortcutTooltip id="detail.due">
+            <div>
+              <DueDateField
+                id="task-due"
+                value={dueDate}
+                done={statuses.find((s) => s.id === statusId)?.isDone ?? false}
+                timezone={timezone}
+                // A bare YYYY-MM-DD string, never a Date: the value is a calendar
+                // day in the workspace zone (v1 spec §3.4).
+                onChange={(next) => {
+                  const previous = dueDate;
+                  setDueDate(next);
+                  patch({ taskId: task.id, dueDate: next }, () => setDueDate(previous));
+                }}
+              />
+            </div>
+          </ShortcutTooltip>
           <ReminderField
             id="task-reminders"
             workspaceSlug={workspaceSlug}
@@ -355,15 +390,17 @@ export function TaskDetailView({
             hasDueDate={dueDate !== null}
           />
 
-          <div className="flex flex-col gap-1">
-            <span className="text-label-sm text-text-strong-950">Labels</span>
-            <LabelPicker
-              workspaceSlug={workspaceSlug}
-              taskId={task.id}
-              allLabels={allLabels}
-              selected={task.labels}
-            />
-          </div>
+          <ShortcutTooltip id="detail.labels">
+            <div className="flex flex-col gap-1">
+              <span className="text-label-sm text-text-strong-950">Labels</span>
+              <LabelPicker
+                workspaceSlug={workspaceSlug}
+                taskId={task.id}
+                allLabels={allLabels}
+                selected={task.labels}
+              />
+            </div>
+          </ShortcutTooltip>
 
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-t border-stroke-soft-200 pt-4 text-paragraph-xs">
             <dt className="text-text-sub-600">Created</dt>

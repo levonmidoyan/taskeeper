@@ -45,8 +45,18 @@ test('board: j focuses, o opens, j/k step, i assigns, Escape returns focus', asy
   await expect(page).toHaveURL(/task=/);
   await dialog.focus();
 
+  // Jira-style hints name the keys: a pro tip under the composer, a tooltip on hover.
+  await expect(dialog.getByText('Pro tip:')).toBeVisible();
+  await page.locator('#task-priority').hover();
+  await expect(page.getByRole('tooltip')).toContainText('Change priority');
+  await page.mouse.move(0, 0);
+  await dialog.focus();
+
+  const assignMe = dialog.getByRole('button', { name: 'Assign to me' });
+  await expect(assignMe).toBeVisible();
   await page.keyboard.press('i');
   await expect(dialog.getByLabel('Assignee')).toContainText('Keys Tester');
+  await expect(assignMe).toBeHidden();
 
   // s opens the Status list; j inside it belongs to the list, not to task stepping.
   await page.keyboard.press('s');
