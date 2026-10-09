@@ -2,6 +2,7 @@ import { AppHeader } from '@/components/shell/AppHeader';
 import { RememberWorkspace } from '@/components/shell/RememberWorkspace';
 import { Rail } from '@/components/shell/Rail';
 import type { WorkspaceContext } from '@/lib/session';
+import { ShortcutProvider } from '@/lib/shortcuts/provider';
 import { bellSnapshot } from '@/server/notifications/queries';
 import { listProjects } from '@/server/projects/queries';
 import { getReminderPrefs } from '@/server/user-settings/service';
@@ -29,13 +30,15 @@ export async function WorkspaceShell({
   const railProps = { workspaceSlug: ctx.slug, workspaces, projects, canManageProjects, views };
 
   return (
-    <div className="flex min-h-dvh bg-bg-white-0">
-      <RememberWorkspace slug={ctx.slug} />
-      <Rail {...railProps} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <AppHeader {...railProps} unread={bell.unread} serverNow={bell.now} sound={prefs.changeSound} />
-        {children}
+    <ShortcutProvider>
+      <div className="flex min-h-dvh bg-bg-white-0">
+        <RememberWorkspace slug={ctx.slug} />
+        <Rail {...railProps} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <AppHeader {...railProps} unread={bell.unread} serverNow={bell.now} sound={prefs.changeSound} />
+          {children}
+        </div>
       </div>
-    </div>
+    </ShortcutProvider>
   );
 }
