@@ -4,6 +4,7 @@ import { db, label, member, project, task, taskLabel, taskStatus, user } from '@
 import { isCalendarDay } from '@/lib/dates';
 import type { TaskChangeKind } from '@/lib/notifications';
 import { newId } from '@/lib/ids';
+import { extractMentionIds } from '@/lib/mentions';
 import { byId, byKey, positionBetween, positionsForCount } from '@/lib/position';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
@@ -11,7 +12,7 @@ import { recordActivity, type ActivityKind } from '@/server/activity/service';
 import { attachmentKeysForTasks, purgeObjects } from '@/server/attachments/cleanup';
 import { emitChange } from '@/server/changes/service';
 import { replaceTaskLabels } from '@/server/labels/service';
-import { notifyTaskChange } from '@/server/notifications/changes';
+import { notifyMentions, notifyTaskChange } from '@/server/notifications/changes';
 import { lastTaskPosition, lockColumns, nextTaskPosition } from '@/server/tasks/columns';
 
 const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const;
@@ -188,6 +189,9 @@ export async function createTask(
         await tx.insert(taskLabel).values(labelIds.map((labelId) => ({ taskId: id, labelId })));
       }
       await recordActivity(ctx, { taskId: id, kind: 'created', to: parsed.data.title }, tx);
+      if (parsed.data.description) {
+        await notifyMentions(ctx, tx, { taskId: id, userIds: extractMentionIds(parsed.data.description), where: 'description' });
+      }
       if (assigneeId && assigneeId !== ctx.userId) {
         await notifyTaskChange(ctx, tx, { taskId: id, changes: ['assignee'] });
       }
@@ -294,11 +298,22 @@ async function applyUpdate(ctx: WorkspaceContext, tx: Tx, plan: UpdatePlan): Pro
     await recordActivity(ctx, { taskId: plan.taskId, ...entry }, tx);
   }
   const reassigned = patch.assigneeId !== undefined && patch.assigneeId !== owned.assigneeId;
+  let mentioned: string[] = [];
+  if (plan.changes.includes('description')) {
+    // Only people this edit adds, as for comments.
+    const old = new Set(extractMentionIds(owned.description ?? ''));
+    mentioned = await notifyMentions(ctx, tx, {
+      taskId: plan.taskId,
+      userIds: extractMentionIds(patch.description as string).filter((id) => !old.has(id)),
+      where: 'description',
+    });
+  }
   await notifyTaskChange(ctx, tx, {
     taskId: plan.taskId,
     changes: plan.changes,
     previousAssigneeId: reassigned ? owned.assigneeId : null,
     ...(plan.newStatusName && plan.changes.includes('status') ? { status: plan.newStatusName } : {}),
+    mentioned: { ids: mentioned, covers: 'description' },
   });
   return ok(null);
 }

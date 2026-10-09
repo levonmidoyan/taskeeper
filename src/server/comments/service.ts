@@ -2,10 +2,11 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { comment, db, project, task } from '@/db';
 import { newId } from '@/lib/ids';
+import { extractMentionIds } from '@/lib/mentions';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
 import { emitChange } from '@/server/changes/service';
-import { commentExcerpt, notifyTaskChange } from '@/server/notifications/changes';
+import { commentExcerpt, notifyMentions, notifyTaskChange } from '@/server/notifications/changes';
 
 export const commentBodySchema = z
   .string()
@@ -51,8 +52,13 @@ export async function createComment(
         authorId: ctx.userId,
         body: parsed.data.body,
       });
+      const excerpt = commentExcerpt(parsed.data.body);
+      const mentioned = await notifyMentions(ctx, tx, {
+        taskId: parsed.data.taskId, userIds: extractMentionIds(parsed.data.body), where: 'comment', comment: excerpt,
+      });
       await notifyTaskChange(ctx, tx, {
-        taskId: parsed.data.taskId, changes: ['comment'], comment: commentExcerpt(parsed.data.body),
+        taskId: parsed.data.taskId, changes: ['comment'], comment: excerpt,
+        mentioned: { ids: mentioned, covers: 'comment' },
       });
       await emitChange(ctx, {}, tx);
     });
@@ -78,10 +84,24 @@ export async function updateComment(
     if (owned.authorId !== ctx.userId) return err('You can only edit your own comments.');
 
     await db.transaction(async (tx) => {
+      // Locked: two quick edits must not both see the old body and both notify.
+      const [before] = await tx
+        .select({ body: comment.body })
+        .from(comment)
+        .where(eq(comment.id, parsed.data.commentId))
+        .for('update');
       await tx
         .update(comment)
         .set({ body: parsed.data.body, editedAt: new Date() })
         .where(eq(comment.id, parsed.data.commentId));
+      // Only people this edit adds: the rest heard when they were first mentioned.
+      const old = new Set(extractMentionIds(before?.body ?? ''));
+      await notifyMentions(ctx, tx, {
+        taskId: owned.taskId,
+        userIds: extractMentionIds(parsed.data.body).filter((id) => !old.has(id)),
+        where: 'comment',
+        comment: commentExcerpt(parsed.data.body),
+      });
       await emitChange(ctx, {}, tx);
     });
 

@@ -1,12 +1,14 @@
+import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
-import { notification, userSettings } from '@/db';
+import { notification, taskStatus, userSettings } from '@/db';
 import { mentionMarkdown } from '@/lib/mentions';
 import type { WorkspaceContext } from '@/lib/session';
 import { commentExcerpt, notifyMentions, notifyTaskChange } from '@/server/notifications/changes';
+import { createComment, updateComment } from '@/server/comments/service';
 import { createProject } from '@/server/projects/service';
-import { createTask } from '@/server/tasks/service';
+import { createTask, updateTask } from '@/server/tasks/service';
 
 beforeEach(resetDb);
 afterAll(closeDb);
@@ -103,5 +105,84 @@ describe('notifyTaskChange with mentioned recipients', () => {
 describe('commentExcerpt', () => {
   it('shows mentions as @Name', () => {
     expect(commentExcerpt(`ping ${mentionMarkdown('u1', 'Ana')}`)).toBe('ping @Ana');
+  });
+});
+
+const mentionRows = async () => (await rows()).filter((r) => r.kind === 'mention');
+
+describe('comments', () => {
+  it('notifies everyone mentioned in a new comment', async () => {
+    const { bob, cleo, taskId } = await setup();
+    const result = await createComment(bob, { taskId, body: `hey ${mentionMarkdown(cleo.userId, 'Cleo')}` });
+    expect(result.ok).toBe(true);
+    const [row] = await mentionRows();
+    expect(row).toMatchObject({ userId: cleo.userId, actorId: bob.userId });
+    expect(row.data).toMatchObject({ where: ['comment'], comment: 'hey @Cleo' });
+  });
+
+  it('no second item for the creator who is mentioned', async () => {
+    const { ada, bob, taskId } = await setup();
+    await createComment(bob, { taskId, body: `ok ${mentionMarkdown(ada.userId, 'Ada')}` });
+    const all = await rows();
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ userId: ada.userId, kind: 'mention' });
+  });
+
+  it('notifies only people newly mentioned by an edit', async () => {
+    const { bob, cleo, ada, taskId } = await setup();
+    const made = await createComment(bob, { taskId, body: `hi ${mentionMarkdown(cleo.userId, 'Cleo')}` });
+    if (!made.ok) throw new Error('setup');
+    await db.update(notification).set({ readAt: new Date() });
+    await updateComment(bob, {
+      commentId: made.data.id,
+      body: `hi ${mentionMarkdown(cleo.userId, 'Cleo')} and ${mentionMarkdown(ada.userId, 'Ada')}`,
+    });
+    const unread = (await mentionRows()).filter((r) => r.readAt === null);
+    expect(unread.map((r) => r.userId)).toEqual([ada.userId]);
+  });
+
+  it('re-saving with the same mention notifies nobody', async () => {
+    const { bob, cleo, taskId } = await setup();
+    const made = await createComment(bob, { taskId, body: `hi ${mentionMarkdown(cleo.userId, 'Cleo')}` });
+    if (!made.ok) throw new Error('setup');
+    await db.update(notification).set({ readAt: new Date() });
+    await updateComment(bob, { commentId: made.data.id, body: `hi there ${mentionMarkdown(cleo.userId, 'Cleo')}` });
+    expect((await mentionRows()).filter((r) => r.readAt === null)).toHaveLength(0);
+  });
+
+  it('a mention inside code notifies nobody', async () => {
+    const { bob, cleo, taskId } = await setup();
+    await createComment(bob, { taskId, body: `\`${mentionMarkdown(cleo.userId, 'Cleo')}\`` });
+    expect(await mentionRows()).toHaveLength(0);
+  });
+});
+
+describe('descriptions', () => {
+  it('notifies people mentioned in a new task', async () => {
+    const { bob, cleo, projectId } = await setup();
+    await createTask(bob, { projectId, title: 'Docs', description: `for ${mentionMarkdown(cleo.userId, 'Cleo')}` });
+    const [row] = await mentionRows();
+    expect(row).toMatchObject({ userId: cleo.userId });
+    expect(row.data).toMatchObject({ title: 'Docs', where: ['description'] });
+  });
+
+  it('notifies only newly mentioned people on update', async () => {
+    const { ada, bob, cleo, taskId } = await setup();
+    await updateTask(ada, { taskId, description: `for ${mentionMarkdown(cleo.userId, 'Cleo')}` });
+    await db.update(notification).set({ readAt: new Date() });
+    await updateTask(ada, {
+      taskId, description: `for ${mentionMarkdown(cleo.userId, 'Cleo')} ${mentionMarkdown(bob.userId, 'Bob')}`,
+    });
+    const unread = (await mentionRows()).filter((r) => r.readAt === null);
+    expect(unread.map((r) => r.userId)).toEqual([bob.userId]);
+  });
+
+  it('a mentioned creator still hears about the status change in the same update', async () => {
+    const { ada, bob, projectId, taskId } = await setup();
+    const [done] = await db.select().from(taskStatus).where(and(eq(taskStatus.projectId, projectId), eq(taskStatus.isDone, true))).limit(1);
+    await updateTask(bob, { taskId, statusId: done.id, description: `see ${mentionMarkdown(ada.userId, 'Ada')}` });
+    const all = await rows();
+    expect(all.map((r) => r.kind).sort()).toEqual(['mention', 'task_change']);
+    expect(all.find((r) => r.kind === 'task_change')!.data).toMatchObject({ changes: ['status'] });
   });
 });
