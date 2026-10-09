@@ -1,5 +1,6 @@
 import { and, asc, eq } from 'drizzle-orm';
-import { comment, db, taskActivity, user } from '@/db';
+import { comment, commentReaction, db, taskActivity, user } from '@/db';
+import { groupReactions, type CommentReaction } from '@/lib/reactions';
 import type { WorkspaceContext } from '@/lib/session';
 import { ACTIVITY_KINDS, type ActivityKind } from './service';
 
@@ -14,6 +15,8 @@ export type FeedEntry =
       authorImage: string | null;
       body: string;
       editedAt: Date | null;
+      /** Chips in emoji-set order; empty when nobody has reacted. */
+      reactions: CommentReaction[];
     }
   | {
       type: 'activity';
@@ -35,8 +38,8 @@ function isKnownKind(kind: string): kind is ActivityKind {
 }
 
 /**
- * Two indexed reads merged in memory rather than a UNION: the two row shapes
- * share no columns, and a task's feed is small enough that sorting it here costs
+ * Indexed reads (comments, their reactions, activity) merged in memory rather
+ * than a UNION: comment and activity rows share no columns, and a task's feed is small enough that sorting it here costs
  * less than the casts a UNION would need. Both halves filter on workspace_id, so
  * a task id from another workspace yields nothing.
  */
@@ -44,7 +47,7 @@ export async function listTaskFeed(
   ctx: WorkspaceContext,
   taskId: string,
 ): Promise<FeedEntry[]> {
-  const [comments, activity] = await Promise.all([
+  const [comments, activity, reactionRows] = await Promise.all([
     db
       .select({
         id: comment.id,
@@ -73,13 +76,28 @@ export async function listTaskFeed(
       .leftJoin(user, eq(user.id, taskActivity.actorId))
       .where(and(eq(taskActivity.taskId, taskId), eq(taskActivity.workspaceId, ctx.workspaceId)))
       .orderBy(asc(taskActivity.createdAt)),
+    db
+      .select({
+        commentId: commentReaction.commentId,
+        emoji: commentReaction.emoji,
+        userId: commentReaction.userId,
+        name: user.name,
+      })
+      .from(commentReaction)
+      .innerJoin(comment, eq(comment.id, commentReaction.commentId))
+      .innerJoin(user, eq(user.id, commentReaction.userId))
+      .where(and(eq(comment.taskId, taskId), eq(commentReaction.workspaceId, ctx.workspaceId)))
+      .orderBy(asc(commentReaction.createdAt), asc(commentReaction.userId)),
   ]);
+
+  const reactions = groupReactions(reactionRows, ctx.userId);
 
   const entries: FeedEntry[] = [
     ...comments.map((c) => ({
       type: 'comment' as const,
       ...c,
       authorName: c.authorName ?? DELETED_USER,
+      reactions: reactions.get(c.id) ?? [],
     })),
     // A kind written by an older deploy that this build does not know is dropped
     // rather than rendered as raw text.

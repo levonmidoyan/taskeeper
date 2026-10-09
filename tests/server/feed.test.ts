@@ -2,9 +2,10 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { closeDb, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
 import { formatInZone } from '@/lib/dates';
-import { createProject } from '@/server/projects/service';
+import { archiveProject, createProject } from '@/server/projects/service';
 import { createTask, updateTask } from '@/server/tasks/service';
 import { createComment } from '@/server/comments/service';
+import { toggleReaction } from '@/server/comments/reactions';
 import { listTaskFeed } from '@/server/activity/queries';
 import type { WorkspaceContext } from '@/lib/session';
 
@@ -21,7 +22,7 @@ async function setup(email: string, slug: string) {
   if (!created.ok) throw new Error('setup failed');
   const madeTask = await createTask(ctx, { projectId: created.data.id, title: 'Ship v1' });
   if (!madeTask.ok) throw new Error('setup failed');
-  return { ctx, taskId: madeTask.data.id };
+  return { ctx, taskId: madeTask.data.id, projectId: created.data.id };
 }
 
 describe('listTaskFeed', () => {
@@ -64,5 +65,30 @@ describe('listTaskFeed', () => {
     // renderer an instant, so the zone is applied once, at render time.
     const at21Utc = new Date('2026-09-23T21:00:00Z');
     expect(formatInZone(at21Utc, ctx.timezone)).toBe('24 Sep 2026, 01:00');
+  });
+
+  it('attaches reactions to comment entries', async () => {
+    const { ctx, taskId } = await setup('feed-rx@example.com', 'ws-feed-rx');
+    const posted = await createComment(ctx, { taskId, body: 'React to me' });
+    if (!posted.ok) throw new Error('setup');
+    await toggleReaction(ctx, { commentId: posted.data.id, emoji: '🎉' });
+
+    const entry = (await listTaskFeed(ctx, taskId)).find((e) => e.type === 'comment')!;
+
+    expect(entry).toMatchObject({
+      reactions: [{ emoji: '🎉', count: 1, reactedByMe: true, userIds: [ctx.userId], names: ['Ada'] }],
+    });
+  });
+
+  // Review Focus 5: the thread is read-only once archived, but reactions still show.
+  it('still shows reactions after the project is archived', async () => {
+    const { ctx, taskId, projectId } = await setup('feed-rx2@example.com', 'ws-feed-rx2');
+    const posted = await createComment(ctx, { taskId, body: 'Old news' });
+    if (!posted.ok) throw new Error('setup');
+    await toggleReaction(ctx, { commentId: posted.data.id, emoji: '👀' });
+    await archiveProject(ctx, { projectId });
+
+    const entry = (await listTaskFeed(ctx, taskId)).find((e) => e.type === 'comment')!;
+    expect(entry).toMatchObject({ reactions: [{ emoji: '👀', count: 1 }] });
   });
 });
