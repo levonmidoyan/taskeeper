@@ -140,7 +140,6 @@ Applies to the detail dialog and the full task page.
 | `l` | open Label picker |
 | `d` | open Due date field |
 | `m` | focus comment composer (switches feed to Comments tab) |
-| `Delete` / `#` | delete (existing confirm dialog) |
 
 - `j` / `k` read the `[data-task-nav]` items still rendered behind the
   dialog, find the current `?task=` id, and `router.replace` to the

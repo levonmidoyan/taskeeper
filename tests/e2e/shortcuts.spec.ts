@@ -73,7 +73,7 @@ test('board: j focuses, o opens, j/k step, i assigns, Escape returns focus', asy
   await expect(page.locator('[data-radix-popper-content-wrapper]')).toBeHidden();
 
   // A confirm owns the keys: j does not step the task behind it.
-  await page.keyboard.press('#');
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
   const confirm = page.getByRole('alertdialog');
   await expect(confirm).toBeVisible();
   await page.keyboard.press('j');

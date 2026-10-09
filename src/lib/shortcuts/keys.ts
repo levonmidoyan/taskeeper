@@ -9,7 +9,7 @@ export function parseBinding(spec: string): KeyStep[] {
 }
 
 /**
- * Shift is never checked, so '?' and '#' match as typed, while 'J' (Shift+j)
+ * Shift is never checked, so '?' matches as typed, while 'J' (Shift+j)
  * is simply a different key from 'j'.
  */
 export function matchStep(

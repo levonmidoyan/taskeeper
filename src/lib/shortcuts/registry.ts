@@ -34,7 +34,6 @@ export const SHORTCUTS = [
   { id: 'detail.labels', keys: ['l'], scope: 'detail', group: 'Task', label: 'Add labels' },
   { id: 'detail.due', keys: ['d'], scope: 'detail', group: 'Task', label: 'Set due date' },
   { id: 'detail.comment', keys: ['m'], scope: 'detail', group: 'Task', label: 'Comment' },
-  { id: 'detail.delete', keys: ['#', 'Delete'], scope: 'detail', group: 'Task', label: 'Delete task' },
 
   { id: 'goto.home', keys: ['g h'], scope: 'global', group: 'Go to', label: 'For you' },
   { id: 'goto.todo', keys: ['g t'], scope: 'global', group: 'Go to', label: 'My To-do' },

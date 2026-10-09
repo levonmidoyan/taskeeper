@@ -197,7 +197,6 @@ export function TaskDetailView({
   useShortcut('detail.labels', () =>
     document.querySelector<HTMLElement>('[data-shortcut-target="labels"]')?.focus());
   useShortcut('detail.due', () => document.getElementById('task-due')?.click());
-  useShortcut('detail.delete', () => { void onDelete(); });
 
   const deleteButton = (
     <Button.Root type="button" variant="error" mode="ghost" size="xsmall" onClick={onDelete}>
