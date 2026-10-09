@@ -21,6 +21,7 @@ import { settle } from '@/lib/settle';
 import { useShortcut } from '@/lib/shortcuts/provider';
 import { cn } from '@/utils/cn';
 import type { FeedEntry } from '@/server/activity/queries';
+import type { MemberRow } from '@/server/labels/queries';
 import {
   createCommentAction, deleteCommentAction, updateCommentAction,
 } from '@/server/comments/actions';
@@ -38,6 +39,7 @@ const QUICK_REPLIES = ['Looks good!', 'Need help?', 'This is blocked…', 'Can y
 export function ActivityFeed({
   taskId,
   feed,
+  members,
   workspaceSlug,
   currentUserId,
   canModerate,
@@ -45,6 +47,8 @@ export function ActivityFeed({
 }: {
   taskId: string;
   feed: FeedEntry[];
+  /** Offered by the @ menu, and the names mention chips show. */
+  members: MemberRow[];
   workspaceSlug: string;
   currentUserId: string;
   canModerate: boolean;
@@ -193,6 +197,7 @@ export function ActivityFeed({
               key={composerKey}
               value={seed}
               label="Comment"
+              members={members}
               placeholder="Add a comment… Markdown and / commands work."
               autoFocus={seed !== ''}
               onChange={setDraft}
@@ -288,7 +293,7 @@ export function ActivityFeed({
                     onSubmit={(event) => { event.preventDefault(); onEdit(entry.id); }}
                     className="mt-2 flex flex-col gap-2"
                   >
-                    <RichTextField value={entry.body} label="Edit comment" onChange={setEditDraft} />
+                    <RichTextField value={entry.body} label="Edit comment" members={members} onChange={setEditDraft} />
                     <div className="flex gap-2">
                       <Button.Root type="submit" size="xxsmall" disabled={pending}>Save</Button.Root>
                       <Button.Root type="button" variant="neutral" mode="stroke" size="xxsmall" onClick={() => setEditingId(null)}>
@@ -298,7 +303,7 @@ export function ActivityFeed({
                   </form>
                 ) : (
                   <>
-                    <Markdown className="mt-1">{entry.body}</Markdown>
+                    <Markdown className="mt-1" members={members} currentUserId={currentUserId}>{entry.body}</Markdown>
                     <CommentReactions
                       workspaceSlug={workspaceSlug}
                       commentId={entry.id}

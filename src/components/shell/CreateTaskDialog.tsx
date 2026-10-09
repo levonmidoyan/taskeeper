@@ -241,6 +241,8 @@ function CreateTaskForm({
               key={descriptionKey}
               value=""
               labelledBy="create-task-description-label"
+              // Never undefined: the @ menu is built with the editor, before the options load.
+              members={options?.members ?? []}
               placeholder="Add details… Type / for headings, lists and more."
               onChange={setDescription}
               className="[&_.md-content]:min-h-32"

@@ -8,6 +8,7 @@ import { RichTextField } from '@/components/task/RichTextField';
 import * as Button from '@/components/ui/button';
 import { useServerValue } from '@/hooks/use-server-value';
 import { LOCAL_ESCAPE_EVENT } from '@/lib/local-escape';
+import type { MemberRow } from '@/server/labels/queries';
 
 /**
  * The task's description, Jira-style: rendered Markdown until clicked, then the
@@ -15,9 +16,14 @@ import { LOCAL_ESCAPE_EVENT } from '@/lib/local-escape';
  */
 export function DescriptionField({
   value: server,
+  members,
+  currentUserId,
   onSave,
 }: {
   value: string;
+  /** Offered by the @ menu, and the names mention chips show. */
+  members: MemberRow[];
+  currentUserId: string;
   /** `revert` puts the shown text back if the server rejects the save. */
   onSave: (markdown: string, revert: () => void) => void;
 }) {
@@ -111,6 +117,7 @@ export function DescriptionField({
           <RichTextField
             value={value}
             label="Description"
+            members={members}
             placeholder="Add details… Type / for headings, lists and more."
             autoFocus
             onChange={(markdown) => { draft.current = markdown; }}
@@ -143,7 +150,7 @@ export function DescriptionField({
           }}
           className="-mx-3 cursor-text rounded-10 px-3 py-2 transition-colors duration-150 hover:bg-bg-weak-50"
         >
-          <Markdown>{value}</Markdown>
+          <Markdown members={members} currentUserId={currentUserId}>{value}</Markdown>
         </div>
       )}
     </CollapsibleSection>

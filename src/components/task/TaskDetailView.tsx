@@ -424,6 +424,8 @@ export function TaskDetailView({
         <div className="flex flex-col gap-5 p-5 lg:col-start-1 lg:row-start-2 lg:overflow-y-auto">
           <DescriptionField
             value={task.description}
+            members={members}
+            currentUserId={currentUserId}
             onSave={(description, revert) => patch({ taskId: task.id, description }, revert)}
           />
 
@@ -454,6 +456,7 @@ export function TaskDetailView({
           <ActivityFeed
             taskId={task.id}
             feed={feed}
+            members={members}
             workspaceSlug={workspaceSlug}
             currentUserId={currentUserId}
             canModerate={canModerate}

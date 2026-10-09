@@ -50,7 +50,7 @@ describe('Markdown', () => {
 
 describe('mentions', () => {
   const md = (body: string, props: Omit<ComponentProps<typeof Markdown>, 'children'> = {}) =>
-    renderToStaticMarkup(createElement(Markdown, { ...props, children: body }));
+    renderToStaticMarkup(Markdown({ ...props, children: body }));
   const members = [{ userId: 'u1', name: 'Ana Petrosyan', email: 'a@x.com', image: null }];
 
   it('renders a mention as a chip, not a link', () => {
