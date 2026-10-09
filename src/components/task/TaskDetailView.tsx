@@ -103,7 +103,13 @@ export function TaskDetailView({
   timezone,
   attachments,
   reminders,
-}: TaskDetailViewProps & { mode: 'modal' | 'page'; projectName?: string }) {
+  onDeleted,
+}: TaskDetailViewProps & {
+  mode: 'modal' | 'page';
+  projectName?: string;
+  /** Modal only: runs once the task is deleted, before the modal closes. */
+  onDeleted?: () => void;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
@@ -183,6 +189,7 @@ export function TaskDetailView({
         return;
       }
       if (mode === 'modal') {
+        onDeleted?.();
         close();
         router.refresh();
       } else {

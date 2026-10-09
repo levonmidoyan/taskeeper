@@ -13,7 +13,9 @@ export function moveNavCursor(dir: NavDirection, e: KeyboardEvent): void | false
   const items = collectNavItems();
   if (!items.length) return false;
   const target = current ? navTarget(items, current, dir) : items[0].id;
-  if (target) focusNavItem(target);
+  // At an edge (or left/right in a list) an arrow keeps its scroll.
+  if (!target) return e.key.startsWith('Arrow') ? false : undefined;
+  focusNavItem(target);
 }
 
 /** j/k/h/l (and arrows) walk the task stops on the page; o opens the focused one. */

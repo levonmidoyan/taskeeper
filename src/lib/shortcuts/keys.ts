@@ -9,12 +9,13 @@ export function parseBinding(spec: string): KeyStep[] {
 }
 
 /**
- * Shift is never checked, so '?' matches as typed, while 'J' (Shift+j)
- * is simply a different key from 'j'.
+ * Shift is not checked on printable keys, so '?' matches as typed, while 'J'
+ * (Shift+j) is simply a different key from 'j'. Named keys and Mod combos
+ * must come without Shift: Shift+ArrowDown extends a selection, not the cursor.
  */
 export function matchStep(
   step: KeyStep,
-  e: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey'>,
+  e: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>,
   isMac: boolean,
 ): boolean {
   // Autofill fires keydown events with no `key`.
@@ -22,6 +23,7 @@ export function matchStep(
   const modHeld = isMac ? e.metaKey : e.ctrlKey;
   const otherHeld = isMac ? e.ctrlKey : e.metaKey;
   if (otherHeld || modHeld !== step.mod) return false;
+  if (e.shiftKey && (step.mod || step.key.length > 1)) return false;
   return step.mod ? e.key.toLowerCase() === step.key : e.key === step.key;
 }
 

@@ -10,7 +10,7 @@ import { matchActions, PALETTE_GROUPS, paletteActions, type PaletteAction } from
 import * as CommandMenu from '@/components/ui/command-menu';
 import { splitHighlights } from '@/lib/highlights';
 import { settle } from '@/lib/settle';
-import { OVERLAY_SELECTOR } from '@/lib/shortcuts/guards';
+import { DETAIL_SELECTOR, OVERLAY_SELECTOR } from '@/lib/shortcuts/guards';
 import { useIsMac, useShortcut } from '@/lib/shortcuts/provider';
 import type { ProjectSummary } from '@/server/projects/queries';
 import type { RecentTask, TaskSearchHit } from '@/server/tasks/queries';
@@ -59,8 +59,9 @@ export function CommandPalette({
       // Autofill fires keydown events with no `key`.
       const modK = e.key?.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey;
       if (!modK) return;
-      // Another dialog, menu or dropdown owns the screen; leave it alone.
-      if (!open && document.querySelector(OVERLAY_SELECTOR)) return;
+      // Another dialog, menu or dropdown owns the screen; leave it alone. The
+      // task detail is the exception: the palette opens over it.
+      if (!open && [...document.querySelectorAll(OVERLAY_SELECTOR)].some((el) => !el.matches(DETAIL_SELECTOR))) return;
       e.preventDefault();
       onOpenChange(!open);
     }

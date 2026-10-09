@@ -93,4 +93,25 @@ describe('arrow keys with nothing focused', () => {
     d.handle(new KeyboardEvent('keydown', { key: 'j', cancelable: true }));
     expect(focusedNavId()).toBe('a');
   });
+
+  it('leave the page to scroll when the cursor cannot move; j is still taken', async () => {
+    const { createDispatcher } = await import('@/lib/shortcuts/dispatcher');
+    const { moveNavCursor } = await import('@/components/shell/TaskNavShortcuts');
+    document.body.innerHTML = '<button data-task-nav="a"></button><button data-task-nav="b"></button>';
+    Element.prototype.scrollIntoView = () => {};
+    const d = createDispatcher({ isMac: () => false });
+    d.bind('nav.next', (e) => moveNavCursor('next', e));
+    d.bind('nav.right', (e) => moveNavCursor('right', e));
+    focusNavItem('b');
+    const down = new KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true });
+    d.handle(down);
+    expect(down.defaultPrevented).toBe(false);
+    const right = new KeyboardEvent('keydown', { key: 'ArrowRight', cancelable: true });
+    d.handle(right);
+    expect(right.defaultPrevented).toBe(false);
+    const j = new KeyboardEvent('keydown', { key: 'j', cancelable: true });
+    d.handle(j);
+    expect(j.defaultPrevented).toBe(true);
+    expect(focusedNavId()).toBe('b');
+  });
 });

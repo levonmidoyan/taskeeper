@@ -97,6 +97,46 @@ test('board: j focuses, o opens, j/k step, i assigns, Escape returns focus', asy
   await expect(page.getByRole('button', { name: /^Second jk/ })).toBeFocused();
 });
 
+test('fast j/j, Mod+K over a task, focus after delete, Shift+arrow', async ({ page }) => {
+  await signUpWithProject(page);
+  await createTask(page, 'One');
+  await createTask(page, 'Two');
+  await createTask(page, 'Three');
+
+  await page.keyboard.press('j');
+  const one = page.getByRole('button', { name: 'One', exact: true });
+  await expect(one).toBeFocused();
+  // Shift+ArrowDown is not the cursor's.
+  await page.keyboard.press('Shift+ArrowDown');
+  await expect(one).toBeFocused();
+
+  await page.keyboard.press('o');
+  const dialog = page.getByRole('dialog', { name: 'Task details' });
+  await expect(dialog.getByLabel('Title')).toHaveValue('One');
+  // Two quick presses step twice, though the next task has not loaded yet.
+  await page.keyboard.press('j');
+  await page.keyboard.press('j');
+  await expect(dialog.getByLabel('Title')).toHaveValue('Three');
+
+  // The palette opens over the task, as the help says it does everywhere,
+  // and an Escape pressed straight away never closes the task beneath it.
+  await page.keyboard.press('ControlOrMeta+k');
+  const palette = page.getByPlaceholder('Search tasks, projects and pages');
+  await expect(palette).toBeFocused();
+  await expect(async () => {
+    await page.keyboard.press('Escape');
+    await expect(palette).toBeHidden({ timeout: 500 });
+  }).toPass();
+  await expect(dialog.getByLabel('Title')).toHaveValue('Three');
+
+  // Deleting lands focus on the card beside the deleted one.
+  await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
+  await expect(page).not.toHaveURL(/[?&]task=/);
+  await expect(page.getByRole('button', { name: 'Three', exact: true })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Two', exact: true })).toBeFocused();
+});
+
 test('g chords move between views and ? lists the shortcuts', async ({ page }) => {
   await signUpWithProject(page);
 

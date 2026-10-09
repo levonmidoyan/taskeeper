@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { formatBinding, matchStep, parseBinding } from '@/lib/shortcuts/keys';
 
-const ev = (key: string, mods: Partial<Record<'metaKey' | 'ctrlKey' | 'altKey', boolean>> = {}) =>
-  ({ key, metaKey: false, ctrlKey: false, altKey: false, ...mods });
+const ev = (key: string, mods: Partial<Record<'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey', boolean>> = {}) =>
+  ({ key, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...mods });
 
 describe('parseBinding', () => {
   it('reads single keys, chords and Mod combos', () => {
@@ -23,9 +23,16 @@ describe('matchStep', () => {
     expect(matchStep({ key: 'j', mod: false }, ev('j', { metaKey: true }), true)).toBe(false);
   });
 
-  it('lets shifted symbols through (Shift is never checked)', () => {
+  it('lets shifted symbols through (Shift is not checked on them)', () => {
     expect(matchStep({ key: '?', mod: false }, ev('?'), false)).toBe(true);
+    expect(matchStep({ key: '?', mod: false }, ev('?', { shiftKey: true }), false)).toBe(true);
     expect(matchStep({ key: '#', mod: false }, ev('#'), false)).toBe(true);
+  });
+
+  it('rejects Shift on named keys and Mod combos', () => {
+    expect(matchStep({ key: 'ArrowDown', mod: false }, ev('ArrowDown', { shiftKey: true }), false)).toBe(false);
+    expect(matchStep({ key: 'Escape', mod: false }, ev('Escape', { shiftKey: true }), false)).toBe(false);
+    expect(matchStep({ key: 'k', mod: true }, ev('K', { ctrlKey: true, shiftKey: true }), false)).toBe(false);
   });
 
   it('reads Mod as Meta on Mac and Control elsewhere', () => {
