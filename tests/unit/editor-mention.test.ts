@@ -38,6 +38,14 @@ describe('mention Markdown', () => {
     expect(hasMention(editor)).toBe(false);
   });
 
+  it('Backspace removes a mention whole', () => {
+    const editor = open('hi [@Ana](mention:a)');
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+    editor.commands.keyboardShortcut('Backspace');
+    expect(hasMention(editor)).toBe(false);
+    expect(readMarkdown(editor)).not.toContain('@');
+  });
+
   it('saves an inserted mention in link form', () => {
     const editor = open('hi ');
     editor.commands.insertContentAt(editor.state.doc.content.size - 1, { type: 'mention', attrs: { id: 'u9', label: 'Zed' } });

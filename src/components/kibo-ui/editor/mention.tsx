@@ -84,6 +84,8 @@ export function createMentionExtension(getMembers: () => MentionMember[]): AnyEx
     renderMarkdown: (node) => mentionMarkdown(String(node.attrs?.id ?? ''), String(node.attrs?.label ?? '')),
   }).configure({
     HTMLAttributes: { class: 'mention' },
+    // The chip goes whole; by default Backspace leaves "@" behind and reopens the menu.
+    deleteTriggerWithBackspace: true,
     renderText: ({ node }) => `@${node.attrs.label}`,
     renderHTML: ({ options, node }) => ['span', options.HTMLAttributes, `@${node.attrs.label}`],
     suggestion: {
