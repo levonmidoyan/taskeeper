@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { matchActions, PALETTE_GROUPS, paletteActions } from '@/components/shell/palette-actions';
+import { matchActions, PALETTE_GROUPS, paletteActions, projectIdFromPath } from '@/components/shell/palette-actions';
 
 describe('paletteActions', () => {
   it('lists the workspace actions, pages and settings', () => {
     expect(paletteActions('acme', '/acme').map((a) => a.label)).toEqual([
-      'New task', 'New workspace',
+      'New task', 'Keyboard shortcuts', 'New workspace',
       'For you', 'All tasks', 'My To-do', 'My calendar', 'Recent', 'Starred', 'API docs',
       'Workspace settings', 'Workspace members', 'Archived projects',
       'Account profile', 'Account security', 'Account preferences', 'API tokens',
@@ -43,6 +43,19 @@ describe('paletteActions', () => {
     expect(byId['api-tokens'].href).toBe('/settings/api-tokens');
     expect(byId['api-docs'].href).toBe('/docs/api');
     expect(byId['new-workspace'].href).toBe('/new-workspace');
+  });
+  it('offers the shortcuts overlay as a command', () => {
+    const byId = Object.fromEntries(paletteActions('acme', '/acme').map((a) => [a.id, a]));
+    expect(byId.shortcuts.command).toBe('shortcuts');
+    expect(byId.shortcuts.href).toBeUndefined();
+  });
+});
+
+describe('projectIdFromPath', () => {
+  it('reads the project id from any project route', () => {
+    expect(projectIdFromPath('/acme/projects/p1')).toBe('p1');
+    expect(projectIdFromPath('/acme/projects/p1/list')).toBe('p1');
+    expect(projectIdFromPath('/acme/tasks')).toBeUndefined();
   });
 });
 

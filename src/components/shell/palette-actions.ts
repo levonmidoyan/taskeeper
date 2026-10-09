@@ -7,7 +7,7 @@ export type PaletteAction = {
   label: string;
   group: PaletteGroup;
   href?: string;
-  command?: 'new-task';
+  command?: 'new-task' | 'shortcuts';
   /** Other words people type for it; matched like the label, never shown. */
   keywords?: string[];
 };
@@ -20,6 +20,10 @@ export const PALETTE_GROUPS: { id: PaletteGroup; heading: string }[] = [
 
 const PROJECT_PATH = /^\/[^/]+\/projects\/([^/]+)/;
 
+export function projectIdFromPath(pathname: string): string | undefined {
+  return PROJECT_PATH.exec(pathname)?.[1];
+}
+
 /**
  * What the palette can do besides search: every page the rail and settings
  * menus reach. On a project page the project's views join the list, named
@@ -29,6 +33,7 @@ export function paletteActions(workspaceSlug: string, pathname: string, projectN
   const base = `/${workspaceSlug}`;
   const actions: PaletteAction[] = [
     { id: 'new-task', label: 'New task', group: 'actions', command: 'new-task', keywords: ['create', 'add'] },
+    { id: 'shortcuts', label: 'Keyboard shortcuts', group: 'actions', command: 'shortcuts', keywords: ['keys', 'hotkeys', 'help'] },
     { id: 'new-workspace', label: 'New workspace', group: 'actions', href: '/new-workspace', keywords: ['create'] },
 
     { id: 'for-you', label: 'For you', group: 'pages', href: base, keywords: ['home', 'dashboard'] },
@@ -48,7 +53,7 @@ export function paletteActions(workspaceSlug: string, pathname: string, projectN
     { id: 'api-tokens', label: 'API tokens', group: 'settings', href: '/settings/api-tokens', keywords: ['keys', 'access'] },
   ];
 
-  const projectId = PROJECT_PATH.exec(pathname)?.[1];
+  const projectId = projectIdFromPath(pathname);
   if (projectId && projectName) {
     // Same order as the project's view tabs.
     for (const view of ['summary', 'board', 'list', 'calendar'] as const) {

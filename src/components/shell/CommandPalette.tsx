@@ -29,10 +29,12 @@ export function CommandPalette({
   workspaceSlug,
   projects,
   onNewTask,
+  onShowShortcuts,
 }: {
   workspaceSlug: string;
   projects: ProjectSummary[];
   onNewTask: () => void;
+  onShowShortcuts: () => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -42,9 +44,9 @@ export function CommandPalette({
   // Results remember the term they answer, so a slow response for an older
   // term never shows under a newer one, and "loading" is simply a mismatch.
   const [found, setFound] = useState<{ term: string; tasks: TaskSearchHit[] }>({ term: '', tasks: [] });
-  // Set when "New task" is picked; the create dialog opens once this one has
-  // finished closing, so focus lands in it rather than on <body>.
-  const pendingNewTask = useRef(false);
+  // Set when a command is picked; it runs once this dialog has finished
+  // closing, so focus lands in the next dialog rather than on <body>.
+  const pendingCommand = useRef<PaletteAction['command']>(undefined);
   const isMac = useIsMac();
 
   const trimmed = term.trim();
@@ -107,8 +109,8 @@ export function CommandPalette({
   }
 
   function run(action: PaletteAction) {
-    if (action.command === 'new-task') {
-      pendingNewTask.current = true;
+    if (action.command) {
+      pendingCommand.current = action.command;
       onOpenChange(false);
     } else if (action.href) {
       go(action.href);
@@ -150,10 +152,12 @@ export function CommandPalette({
         contentProps={{
           'aria-describedby': undefined,
           onCloseAutoFocus: (e) => {
-            if (!pendingNewTask.current) return;
-            pendingNewTask.current = false;
+            const command = pendingCommand.current;
+            if (!command) return;
+            pendingCommand.current = undefined;
             e.preventDefault();
-            onNewTask();
+            if (command === 'new-task') onNewTask();
+            else onShowShortcuts();
           },
         }}
       >
