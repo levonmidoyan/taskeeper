@@ -69,3 +69,24 @@ test('a comment is written with the editor and rendered as Markdown', async ({ p
   await page.reload();
   await expect(posted).toBeVisible();
 });
+
+test('a reaction toggles on and off', async ({ page }) => {
+  await signUpWithTask(page, 'reactions');
+  await page.getByRole('button', { name: 'Talk about me', exact: true }).click();
+
+  await page.getByLabel('Comment').fill('React to this');
+  await page.getByRole('button', { name: 'Save' }).click();
+  const item = page.getByRole('listitem').filter({ hasText: 'React to this' });
+  await expect(item).toBeVisible();
+
+  await item.getByRole('button', { name: 'Add reaction' }).click();
+  await page.getByRole('button', { name: 'React with 👍', exact: true }).click();
+
+  const chip = item.getByRole('button', { name: 'React with 👍 (1)' });
+  await expect(chip).toHaveAttribute('aria-pressed', 'true');
+  await page.reload();
+  await expect(chip).toHaveAttribute('aria-pressed', 'true');
+
+  await chip.click();
+  await expect(chip).toHaveCount(0);
+});

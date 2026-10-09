@@ -6,6 +6,7 @@ import { useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { ShortcutKeys } from '@/components/shell/ShortcutHint';
 import { CollapsibleSection } from '@/components/task/CollapsibleSection';
+import { CommentReactions } from '@/components/task/CommentReactions';
 import { Markdown } from '@/components/task/Markdown';
 import { RichTextField } from '@/components/task/RichTextField';
 import { UserAvatar } from '@/components/auth/user/user-avatar';
@@ -296,7 +297,15 @@ export function ActivityFeed({
                     </div>
                   </form>
                 ) : (
-                  <Markdown className="mt-1">{entry.body}</Markdown>
+                  <>
+                    <Markdown className="mt-1">{entry.body}</Markdown>
+                    <CommentReactions
+                      workspaceSlug={workspaceSlug}
+                      commentId={entry.id}
+                      reactions={entry.reactions}
+                      currentUserId={currentUserId}
+                    />
+                  </>
                 )}
               </div>
             </li>
