@@ -371,8 +371,11 @@
   /* @mentions (kibo-ui/editor/mention.tsx); data-self marks the reader's own. */
   .mention {
     @apply rounded-md bg-primary-alpha-10 px-1 py-px text-label-sm text-primary-base whitespace-nowrap;
+    @apply dark:bg-primary-alpha-16 dark:text-indigo-300;
   }
+  /* Dark mode remaps primary-darker to indigo-600, which sinks into slate-950; lift instead. */
   .mention[data-self] {
     @apply bg-primary-alpha-16 text-primary-darker;
+    @apply dark:bg-primary-alpha-24 dark:text-indigo-200;
   }
 }
