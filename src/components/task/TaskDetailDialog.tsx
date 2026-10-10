@@ -68,8 +68,8 @@ export function TaskDetailDialog(props: TaskDetailViewProps) {
         // The visible shell is the inner panel, which the view transition morphs
         // from the card (or pops in); Radix's own zoom would animate on top of it.
         className="flex h-dvh max-w-6xl flex-col rounded-none bg-transparent shadow-none data-[state=open]:animate-none sm:h-[90vh] sm:rounded-20"
-        // Focus the dialog itself, not its first button: that is Delete, and it
-        // opened with a focus ring one keypress away from the confirm.
+        // Focus the dialog itself, not its first button: a focus ring on the
+        // header's Copy link on every open is noise.
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           (event.currentTarget as HTMLElement).focus();

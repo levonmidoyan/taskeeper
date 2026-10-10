@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  IconArrowUpRight, IconChevronLeft, IconLink, IconTrash, IconX,
+  IconArrowUpRight, IconChevronLeft, IconDots, IconLink, IconTrash, IconX,
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -21,8 +21,8 @@ import { homeCrumb } from '@/components/shell/crumbs';
 import { ShortcutTooltip } from '@/components/shell/ShortcutHint';
 import { PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
 import { SubtaskSection } from '@/components/task/SubtaskSection';
-import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
+import * as Dropdown from '@/components/ui/dropdown';
 import * as Label from '@/components/ui/label';
 import * as Modal from '@/components/ui/modal';
 import * as Select from '@/components/ui/select';
@@ -221,11 +221,21 @@ export function TaskDetailView({
     document.querySelector<HTMLElement>('[data-shortcut-target="labels"]')?.focus());
   useShortcut('detail.due', () => document.getElementById('task-due')?.click());
 
-  const deleteButton = (
-    <Button.Root type="button" variant="error" mode="ghost" size="xsmall" onClick={onDelete}>
-      <Button.Icon as={IconTrash} />
-      Delete
-    </Button.Root>
+  // The rarer, destructive actions sit behind "⋯", as in Jira.
+  const moreMenu = (
+    <Dropdown.Root>
+      <Dropdown.Trigger asChild>
+        <CompactButton.Root variant="ghost" size="large" aria-label="More actions">
+          <CompactButton.Icon as={IconDots} aria-hidden="true" />
+        </CompactButton.Root>
+      </Dropdown.Trigger>
+      <Dropdown.Content align="end" className="w-48">
+        <Dropdown.Item onSelect={onDelete} className="text-error-base">
+          <Dropdown.ItemIcon as={IconTrash} className="text-error-base" />
+          Delete
+        </Dropdown.Item>
+      </Dropdown.Content>
+    </Dropdown.Root>
   );
 
   const header = mode === 'modal' ? (
@@ -244,7 +254,6 @@ export function TaskDetailView({
       )}
 
       <div className="flex shrink-0 items-center gap-1">
-        {deleteButton}
         <CompactButton.Root variant="ghost" size="large" onClick={copyLink} aria-label="Copy link">
           <CompactButton.Icon as={IconLink} aria-hidden="true" />
         </CompactButton.Root>
@@ -253,6 +262,7 @@ export function TaskDetailView({
             <CompactButton.Icon as={IconArrowUpRight} aria-hidden="true" />
           </Link>
         </CompactButton.Root>
+        {moreMenu}
         <Modal.Close asChild>
           <CompactButton.Root variant="ghost" size="large">
             <CompactButton.Icon as={IconX} aria-hidden="true" />
@@ -273,10 +283,10 @@ export function TaskDetailView({
       />
 
       <div className="flex shrink-0 items-center gap-1">
-        {deleteButton}
         <CompactButton.Root variant="ghost" size="large" onClick={copyLink} aria-label="Copy link">
           <CompactButton.Icon as={IconLink} aria-hidden="true" />
         </CompactButton.Root>
+        {moreMenu}
       </div>
     </header>
   );

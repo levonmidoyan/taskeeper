@@ -83,7 +83,8 @@ test('board: j focuses, o opens, j/k step, i assigns, Escape returns focus', asy
   await expect(page.locator('[data-radix-popper-content-wrapper]')).toBeHidden();
 
   // A confirm owns the keys: j does not step the task behind it.
-  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await page.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
   const confirm = page.getByRole('alertdialog');
   await expect(confirm).toBeVisible();
   await page.keyboard.press('j');
@@ -130,7 +131,8 @@ test('fast j/j, Mod+K over a task, focus after delete, Shift+arrow', async ({ pa
   await expect(dialog.getByLabel('Title')).toHaveValue('Three');
 
   // Deleting lands focus on the card beside the deleted one.
-  await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+  await dialog.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
   await expect(page).not.toHaveURL(/[?&]task=/);
   await expect(page.getByRole('button', { name: 'Three', exact: true })).toBeHidden();
