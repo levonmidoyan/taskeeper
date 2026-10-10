@@ -39,8 +39,9 @@ function isKnownKind(kind: string): kind is ActivityKind {
 
 /**
  * Indexed reads (comments, their reactions, activity) merged in memory rather
- * than a UNION: comment and activity rows share no columns, and a task's feed is small enough that sorting it here costs
- * less than the casts a UNION would need. Both halves filter on workspace_id, so
+ * than a UNION: comment and activity rows share no columns, and a task's feed
+ * is small enough that sorting it here costs less than the casts a UNION would
+ * need. Both halves filter on workspace_id, so
  * a task id from another workspace yields nothing.
  */
 export async function listTaskFeed(

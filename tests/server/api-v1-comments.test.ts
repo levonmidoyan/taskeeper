@@ -6,7 +6,7 @@ import { createUser, joinWorkspace } from '../setup/factories';
 import { comment, user, workspaceChange } from '@/db';
 import { resolveWorkspace } from '@/lib/session';
 import { createComment } from '@/server/comments/service';
-import { toggleReaction } from '@/server/comments/reactions';
+import { setReaction } from '@/server/comments/reactions';
 import { archiveProject } from '@/server/projects/service';
 import { createTask } from '@/server/tasks/service';
 import * as comments from '@/app/api/v1/workspaces/[slug]/tasks/[taskId]/comments/route';
@@ -57,7 +57,7 @@ describe('GET comments', () => {
   it('lists reactions with counts and user ids', async () => {
     const f = await withTask('m-rx');
     const made = await post(f, { body: 'React' });
-    await toggleReaction(f.ctx, { commentId: made.json.id, emoji: '👍' });
+    await setReaction(f.ctx, { commentId: made.json.id, emoji: '👍', on: true });
 
     const res = await get(f);
 

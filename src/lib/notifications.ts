@@ -61,11 +61,20 @@ export type BellItem = { kind: BellKind; taskId: string | null; projectId: strin
 
 export const MAX_TOASTS = 3;
 
-const FIELD_LABELS: Record<TaskChangeKind, string> = {
+/** Comments and reactions are things someone did, not fields they changed. */
+type FieldChangeKind = Exclude<TaskChangeKind, 'comment' | 'reaction'>;
+
+const FIELD_LABELS: Record<FieldChangeKind, string> = {
   title: 'title', description: 'description', status: 'status', priority: 'priority', assignee: 'assignee',
-  due_date: 'due date', labels: 'labels', attachment: 'attachments', comment: 'comment',
-  reaction: 'reaction',
+  due_date: 'due date', labels: 'labels', attachment: 'attachments',
 };
+
+const isField = (k: TaskChangeKind): k is FieldChangeKind => k !== 'comment' && k !== 'reaction';
+
+/** "a", "a and b", "a, b and c". */
+function joinAnd(parts: string[]): string {
+  return parts.length <= 1 ? parts.join('') : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+}
 
 const PROJECT_VERBS: Record<ProjectChangeKind, string> = {
   renamed: 'renamed', archived: 'archived', unarchived: 'restored', deleted: 'deleted',
@@ -79,7 +88,14 @@ function taskDetail(d: TaskChangeData): string {
     return `${d.actorName} reacted ${d.reaction.emoji} to your comment: “${d.reaction.comment}”`;
   }
   if (only === 'status' && d.status) return `${d.actorName} moved to ${d.status}`;
-  return `${d.actorName} changed ${d.changes.map((k) => FIELD_LABELS[k]).join(', ')}`;
+  // "Anna changed title, status", "Anna changed title and reacted 🎉".
+  const fields = d.changes.filter(isField);
+  const acts = [
+    ...(fields.length > 0 ? [`changed ${fields.map((k) => FIELD_LABELS[k]).join(', ')}`] : []),
+    ...(d.changes.includes('comment') ? ['commented'] : []),
+    ...(d.changes.includes('reaction') ? [d.reaction ? `reacted ${d.reaction.emoji}` : 'reacted'] : []),
+  ];
+  return `${d.actorName} ${joinAnd(acts)}`;
 }
 
 function projectDetail(d: ProjectChangeData): string {

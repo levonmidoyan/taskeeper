@@ -11,7 +11,7 @@ import {
   applyToggle, reactorsLabel, REACTION_EMOJIS, type CommentReaction, type ReactionEmoji,
 } from '@/lib/reactions';
 import { settle } from '@/lib/settle';
-import { toggleReactionAction } from '@/server/comments/actions';
+import { setReactionAction } from '@/server/comments/actions';
 import { cn } from '@/utils/cn';
 
 /**
@@ -38,11 +38,15 @@ export function CommentReactions({
   );
   const [, startTransition] = useTransition();
 
+  const mine = new Set(shown.filter((r) => r.reactedByMe).map((r) => r.emoji));
+
   function toggle(emoji: ReactionEmoji) {
     setOpen(false);
+    // Sent as the state wanted, not a flip, so a retried request cannot undo itself.
+    const on = !mine.has(emoji);
     startTransition(async () => {
       toggleShown(emoji);
-      const result = await settle(toggleReactionAction(workspaceSlug, { commentId, emoji }));
+      const result = await settle(setReactionAction(workspaceSlug, { commentId, emoji, on }));
       if (!result.ok) toast.error(result.error);
       router.refresh();
     });
@@ -93,11 +97,13 @@ export function CommentReactions({
                 <button
                   key={emoji}
                   type="button"
+                  aria-pressed={mine.has(emoji)}
                   aria-label={`React with ${emoji}`}
                   onClick={() => toggle(emoji)}
                   className={cn(
                     'flex size-8 items-center justify-center rounded-md text-lg transition-colors duration-150',
                     'hover:bg-bg-soft-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base',
+                    mine.has(emoji) && 'bg-primary-alpha-10 ring-1 ring-inset ring-primary-base',
                   )}
                 >
                   {emoji}

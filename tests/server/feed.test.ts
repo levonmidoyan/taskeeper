@@ -5,7 +5,7 @@ import { formatInZone } from '@/lib/dates';
 import { archiveProject, createProject } from '@/server/projects/service';
 import { createTask, updateTask } from '@/server/tasks/service';
 import { createComment } from '@/server/comments/service';
-import { toggleReaction } from '@/server/comments/reactions';
+import { setReaction } from '@/server/comments/reactions';
 import { listTaskFeed } from '@/server/activity/queries';
 import type { WorkspaceContext } from '@/lib/session';
 
@@ -71,7 +71,7 @@ describe('listTaskFeed', () => {
     const { ctx, taskId } = await setup('feed-rx@example.com', 'ws-feed-rx');
     const posted = await createComment(ctx, { taskId, body: 'React to me' });
     if (!posted.ok) throw new Error('setup');
-    await toggleReaction(ctx, { commentId: posted.data.id, emoji: '🎉' });
+    await setReaction(ctx, { commentId: posted.data.id, emoji: '🎉', on: true });
 
     const entry = (await listTaskFeed(ctx, taskId)).find((e) => e.type === 'comment')!;
 
@@ -85,7 +85,7 @@ describe('listTaskFeed', () => {
     const { ctx, taskId, projectId } = await setup('feed-rx2@example.com', 'ws-feed-rx2');
     const posted = await createComment(ctx, { taskId, body: 'Old news' });
     if (!posted.ok) throw new Error('setup');
-    await toggleReaction(ctx, { commentId: posted.data.id, emoji: '👀' });
+    await setReaction(ctx, { commentId: posted.data.id, emoji: '👀', on: true });
     await archiveProject(ctx, { projectId });
 
     const entry = (await listTaskFeed(ctx, taskId)).find((e) => e.type === 'comment')!;
