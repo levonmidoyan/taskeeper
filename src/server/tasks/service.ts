@@ -293,6 +293,18 @@ async function applyUpdate(ctx: WorkspaceContext, tx: Tx, plan: UpdatePlan): Pro
     patch.position = positionBetween(last, null);
   }
 
+  // The description as committed, locked: planUpdate's read can be stale, and two
+  // quick edits must not both diff against it and both notify, as for comments.
+  let committedDescription: string | null = null;
+  if (plan.changes.includes('description')) {
+    const [row] = await tx
+      .select({ description: task.description })
+      .from(task)
+      .where(eq(task.id, plan.taskId))
+      .for('update');
+    committedDescription = row?.description ?? null;
+  }
+
   await tx.update(task).set(patch).where(eq(task.id, plan.taskId));
   for (const entry of entries) {
     await recordActivity(ctx, { taskId: plan.taskId, ...entry }, tx);
@@ -301,7 +313,7 @@ async function applyUpdate(ctx: WorkspaceContext, tx: Tx, plan: UpdatePlan): Pro
   let mentioned: string[] = [];
   if (plan.changes.includes('description')) {
     // Only people this edit adds, as for comments.
-    const old = new Set(extractMentionIds(owned.description ?? ''));
+    const old = new Set(extractMentionIds(committedDescription ?? ''));
     mentioned = await notifyMentions(ctx, tx, {
       taskId: plan.taskId,
       userIds: extractMentionIds(patch.description as string).filter((id) => !old.has(id)),

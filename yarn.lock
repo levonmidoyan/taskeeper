@@ -9591,7 +9591,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"remark-parse@npm:^11.0.0":
+"remark-parse@npm:11.0.0, remark-parse@npm:^11.0.0":
   version: 11.0.0
   resolution: "remark-parse@npm:11.0.0"
   dependencies:
@@ -10476,6 +10476,7 @@ __metadata:
     react-markdown: "npm:10.1.0"
     remark-breaks: "npm:4.0.0"
     remark-gfm: "npm:4.0.1"
+    remark-parse: "npm:11.0.0"
     sonner: "npm:2.0.8"
     tailwind-merge: "npm:3.7.0"
     tailwind-variants: "npm:3.3.1"
@@ -10485,6 +10486,7 @@ __metadata:
     tunnel-rat: "npm:0.1.2"
     tw-animate-css: "npm:1.4.0"
     typescript: "npm:^5"
+    unified: "npm:11.0.5"
     vitest: "npm:4.1.0"
     zod: "npm:4.6.5"
   languageName: unknown
@@ -10855,7 +10857,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"unified@npm:^11.0.0":
+"unified@npm:11.0.5, unified@npm:^11.0.0":
   version: 11.0.5
   resolution: "unified@npm:11.0.5"
   dependencies:

@@ -70,4 +70,14 @@ describe('mentions', () => {
   it('still neutralises javascript: links', () => {
     expect(md('[x](javascript:alert(1))')).not.toContain('javascript:');
   });
+  it('shows a mention: link that would not notify as plain text, not a chip', () => {
+    for (const body of ['[Ana](mention:u1)', '[@Ana](mention:u1%20x)', '[@Ana](mention:)']) {
+      const html = md(body);
+      expect(html).not.toContain('class="mention"');
+      expect(html).not.toContain('href="mention:');
+    }
+  });
+  it('chips a reference-style mention, as it notifies', () => {
+    expect(md('[@Ana][a]\n\n[a]: mention:u1')).toContain('<span class="mention">@Ana</span>');
+  });
 });

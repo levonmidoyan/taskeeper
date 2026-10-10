@@ -120,7 +120,9 @@ export function createMentionExtension(getMembers: () => MentionMember[]): AnyEx
           },
           onKeyDown: ({ event }) => {
             if (event.key === 'Escape') {
-              popup?.hide();
+              // A hidden menu has nothing to close: the key goes on (cancel an edit, close a dialog).
+              if (!popup?.state.isVisible) return false;
+              popup.hide();
               return true;
             }
             return hasItems && forwardToMenu(event);

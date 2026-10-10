@@ -83,19 +83,21 @@ export async function updateComment(
     // its author's name, so someone else's words must not change under it.
     if (owned.authorId !== ctx.userId) return err('You can only edit your own comments.');
 
-    await db.transaction(async (tx) => {
+    const found = await db.transaction(async (tx) => {
       // Locked: two quick edits must not both see the old body and both notify.
       const [before] = await tx
         .select({ body: comment.body })
         .from(comment)
         .where(eq(comment.id, parsed.data.commentId))
         .for('update');
+      // Deleted since the check above: nothing to edit, and nobody to tell.
+      if (!before) return false;
       await tx
         .update(comment)
         .set({ body: parsed.data.body, editedAt: new Date() })
         .where(eq(comment.id, parsed.data.commentId));
       // Only people this edit adds: the rest heard when they were first mentioned.
-      const old = new Set(extractMentionIds(before?.body ?? ''));
+      const old = new Set(extractMentionIds(before.body));
       await notifyMentions(ctx, tx, {
         taskId: owned.taskId,
         userIds: extractMentionIds(parsed.data.body).filter((id) => !old.has(id)),
@@ -103,9 +105,10 @@ export async function updateComment(
         comment: commentExcerpt(parsed.data.body),
       });
       await emitChange(ctx, {}, tx);
+      return true;
     });
 
-    return ok(null);
+    return found ? ok(null) : err('Comment not found.');
   });
 }
 

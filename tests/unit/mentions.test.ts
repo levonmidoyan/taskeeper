@@ -21,6 +21,17 @@ describe('extractMentionIds', () => {
     expect(extractMentionIds('`[@A](mention:a)`')).toEqual([]);
     expect(extractMentionIds('```\n[@A](mention:a)\n```\n[@B](mention:b)')).toEqual(['b']);
   });
+  it('follows CommonMark: tilde fences, indented code, double-backtick spans, escapes', () => {
+    expect(extractMentionIds('~~~\n[@A](mention:a)\n~~~')).toEqual([]);
+    expect(extractMentionIds('para\n\n    [@A](mention:a)')).toEqual([]);
+    expect(extractMentionIds('``[@A](mention:a) ` x``')).toEqual([]);
+    expect(extractMentionIds('\\[@A](mention:a)')).toEqual([]);
+    // An unclosed backtick is literal, so the mention after it is real.
+    expect(extractMentionIds('a ` b [@A](mention:a)')).toEqual(['a']);
+  });
+  it('counts reference-style mention links', () => {
+    expect(extractMentionIds('[@A][x]\n\n[x]: mention:a')).toEqual(['a']);
+  });
   it('ignores malformed links and other schemes', () => {
     expect(extractMentionIds('[@A](mention:) [@B](mention:b c) [A](mention:x) [@C](https://c.com)')).toEqual([]);
   });

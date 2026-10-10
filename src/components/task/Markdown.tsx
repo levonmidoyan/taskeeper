@@ -2,7 +2,7 @@ import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markd
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import type { MentionMember } from '@/components/kibo-ui/editor/mention';
-import { MENTION_SCHEME } from '@/lib/mentions';
+import { MENTION_SCHEME, mentionTarget, nodeText } from '@/lib/mentions';
 import { cn } from '@/utils/cn';
 
 type MdNode = { type: string; children?: MdNode[] };
@@ -27,9 +27,11 @@ function buildComponents(members?: MentionMember[], currentUserId?: string): Com
   return {
     // react-markdown's URL transform has already emptied unsafe hrefs
     // (javascript:, data:, …) by the time this runs.
-    a: ({ href, children }) => {
+    a: ({ href, children, node }) => {
       if (href?.startsWith(MENTION_SCHEME)) {
-        const id = href.slice(MENTION_SCHEME.length);
+        // Chip only what notifies (the same rule); any other mention: link is just its text.
+        const id = mentionTarget(href, node ? nodeText(node) : '');
+        if (!id) return <>{children}</>;
         const name = members?.find((m) => m.userId === id)?.name;
         return (
           <span className="mention" {...(id === currentUserId ? { 'data-self': '' } : {})}>
