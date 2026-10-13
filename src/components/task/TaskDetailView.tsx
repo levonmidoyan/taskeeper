@@ -1,33 +1,38 @@
 'use client';
 
 import {
-  IconArrowUpRight, IconChevronLeft, IconLink, IconTrash, IconX,
+  IconArrowUpRight, IconChevronLeft, IconDots, IconLink, IconTrash, IconX,
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { TextField } from '@/components/forms/TextField';
 import { ActivityFeed } from '@/components/task/ActivityFeed';
 import { AssigneePicker } from '@/components/task/AssigneePicker';
 import { AttachmentSection } from '@/components/task/AttachmentSection';
+import { DescriptionField } from '@/components/task/DescriptionField';
 import { DueDateField } from '@/components/task/DueDateField';
 import { ReminderField } from '@/components/task/ReminderField';
 import { LabelPicker } from '@/components/task/LabelPicker';
 import { PRIORITY_LABEL, PriorityIcon } from '@/components/task/Priority';
-import { RichTextField } from '@/components/task/RichTextField';
 import { StatusIcon } from '@/components/task/StatusIcon';
 import { homeCrumb } from '@/components/shell/crumbs';
+import { ShortcutTooltip } from '@/components/shell/ShortcutHint';
 import { PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
 import { SubtaskSection } from '@/components/task/SubtaskSection';
-import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
+import * as Dropdown from '@/components/ui/dropdown';
 import * as Label from '@/components/ui/label';
 import * as Modal from '@/components/ui/modal';
 import * as Select from '@/components/ui/select';
+import { useServerValue } from '@/hooks/use-server-value';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatInZone } from '@/lib/dates';
 import { settle } from '@/lib/settle';
+import { DETAIL_SELECTOR } from '@/lib/shortcuts/guards';
+import { useShortcut } from '@/lib/shortcuts/provider';
+import type { ShortcutId } from '@/lib/shortcuts/registry';
 import type { FeedEntry } from '@/server/activity/queries';
 import type { AttachmentView } from '@/server/attachments/queries';
 import type { MemberRow } from '@/server/labels/queries';
@@ -38,28 +43,27 @@ import type { ReminderOffset } from '@/lib/reminders';
 
 const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
 
-function Field({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
-  return (
+function Field({ id, label, hint, footer, children }: {
+  id: string;
+  label: string;
+  /** The shortcut that reaches this field, named in a hover hint. */
+  hint?: ShortcutId;
+  /** Under the control, outside the hint's hover area. */
+  footer?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const field = (
     <div className="flex flex-col gap-1">
       <Label.Root htmlFor={id}>{label}</Label.Root>
       {children}
     </div>
   );
-}
-
-/**
- * Local state for a field the server also holds. When a refresh brings a new
- * server value (a teammate's edit, via live refresh), it replaces the local one,
- * unless the local one has an edit of its own not yet saved.
- */
-function useServerValue<T>(server: T) {
-  const [value, setValue] = useState(server);
-  const [synced, setSynced] = useState(server);
-  if (server !== synced) {
-    setSynced(server);
-    if (value === synced) setValue(server);
-  }
-  return [value, setValue] as const;
+  return (
+    <div className="flex flex-col gap-1.5">
+      {hint ? <ShortcutTooltip id={hint}>{field}</ShortcutTooltip> : field}
+      {footer}
+    </div>
+  );
 }
 
 export type TaskDetailViewProps = {
@@ -99,7 +103,13 @@ export function TaskDetailView({
   timezone,
   attachments,
   reminders,
-}: TaskDetailViewProps & { mode: 'modal' | 'page'; projectName?: string }) {
+  onDeleted,
+}: TaskDetailViewProps & {
+  mode: 'modal' | 'page';
+  projectName?: string;
+  /** Modal only: runs once the task is deleted, before the modal closes. */
+  onDeleted?: () => void;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
@@ -111,6 +121,19 @@ export function TaskDetailView({
   const [statusId, setStatusId] = useServerValue(task.statusId);
   const [priority, setPriority] = useServerValue<Priority>(task.priority);
   const [dueDate, setDueDate] = useServerValue(task.dueDate);
+  // Controlled so s / p can open them from the keyboard.
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [priorityOpen, setPriorityOpen] = useState(false);
+  // Set when s / p opened the list. Radix hands focus back to the trigger on
+  // close, where the next shortcut letter would pick an option by typeahead
+  // (d → Done); the task itself takes focus instead.
+  const openedByKey = useRef(false);
+  function onSelectCloseAutoFocus(event: Event) {
+    if (!openedByKey.current) return;
+    openedByKey.current = false;
+    event.preventDefault();
+    document.querySelector<HTMLElement>(DETAIL_SELECTOR)?.focus();
+  }
 
   const tasksBase = `/${workspaceSlug}/tasks`;
   const projectHref = `/${workspaceSlug}/projects/${projectId}`;
@@ -147,6 +170,12 @@ export function TaskDetailView({
     });
   }
 
+  function assign(next: string | null) {
+    const previous = assigneeId;
+    setAssigneeId(next);
+    patch({ taskId: task.id, assigneeId: next }, () => setAssigneeId(previous));
+  }
+
   async function onDelete() {
     const ok = await confirm({
       title: `Delete "${task.title}"?`,
@@ -160,6 +189,7 @@ export function TaskDetailView({
         return;
       }
       if (mode === 'modal') {
+        onDeleted?.();
         close();
         router.refresh();
       } else {
@@ -169,11 +199,43 @@ export function TaskDetailView({
     });
   }
 
-  const deleteButton = (
-    <Button.Root type="button" variant="error" mode="ghost" size="xsmall" onClick={onDelete}>
-      <Button.Icon as={IconTrash} />
-      Delete
-    </Button.Root>
+  // The fields' own controls, reached from the keyboard; no new UI.
+  useShortcut('detail.title', () => {
+    const input = document.getElementById('task-title') as HTMLInputElement | null;
+    input?.focus();
+    input?.select();
+  });
+  useShortcut('detail.status', () => {
+    openedByKey.current = true;
+    setStatusOpen(true);
+  });
+  useShortcut('detail.priority', () => {
+    openedByKey.current = true;
+    setPriorityOpen(true);
+  });
+  useShortcut('detail.assignee', () => document.getElementById('task-assignee')?.click());
+  useShortcut('detail.assignMe', () => {
+    if (assigneeId !== currentUserId) assign(currentUserId);
+  });
+  useShortcut('detail.labels', () =>
+    document.querySelector<HTMLElement>('[data-shortcut-target="labels"]')?.focus());
+  useShortcut('detail.due', () => document.getElementById('task-due')?.click());
+
+  // The rarer, destructive actions sit behind "⋯", as in Jira.
+  const moreMenu = (
+    <Dropdown.Root>
+      <Dropdown.Trigger asChild>
+        <CompactButton.Root variant="ghost" size="large" aria-label="More actions">
+          <CompactButton.Icon as={IconDots} aria-hidden="true" />
+        </CompactButton.Root>
+      </Dropdown.Trigger>
+      <Dropdown.Content align="end" className="w-48">
+        <Dropdown.Item onSelect={onDelete} className="text-error-base">
+          <Dropdown.ItemIcon as={IconTrash} className="text-error-base" />
+          Delete
+        </Dropdown.Item>
+      </Dropdown.Content>
+    </Dropdown.Root>
   );
 
   const header = mode === 'modal' ? (
@@ -192,7 +254,6 @@ export function TaskDetailView({
       )}
 
       <div className="flex shrink-0 items-center gap-1">
-        {deleteButton}
         <CompactButton.Root variant="ghost" size="large" onClick={copyLink} aria-label="Copy link">
           <CompactButton.Icon as={IconLink} aria-hidden="true" />
         </CompactButton.Root>
@@ -201,6 +262,7 @@ export function TaskDetailView({
             <CompactButton.Icon as={IconArrowUpRight} aria-hidden="true" />
           </Link>
         </CompactButton.Root>
+        {moreMenu}
         <Modal.Close asChild>
           <CompactButton.Root variant="ghost" size="large">
             <CompactButton.Icon as={IconX} aria-hidden="true" />
@@ -221,10 +283,10 @@ export function TaskDetailView({
       />
 
       <div className="flex shrink-0 items-center gap-1">
-        {deleteButton}
         <CompactButton.Root variant="ghost" size="large" onClick={copyLink} aria-label="Copy link">
           <CompactButton.Icon as={IconLink} aria-hidden="true" />
         </CompactButton.Root>
+        {moreMenu}
       </div>
     </header>
   );
@@ -249,8 +311,10 @@ export function TaskDetailView({
         </div>
 
         <aside className="flex flex-col gap-4 border-b border-stroke-soft-200 p-5 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:overflow-y-auto lg:border-b-0 lg:border-l">
-          <Field id="task-status" label="Status">
+          <Field id="task-status" label="Status" hint="detail.status">
             <Select.Root
+              open={statusOpen}
+              onOpenChange={setStatusOpen}
               value={statusId}
               onValueChange={(next) => {
                 const previous = statusId;
@@ -259,7 +323,7 @@ export function TaskDetailView({
               }}
             >
               <Select.Trigger id="task-status"><Select.Value /></Select.Trigger>
-              <Select.Content>
+              <Select.Content onCloseAutoFocus={onSelectCloseAutoFocus}>
                 {statuses.map((s) => (
                   <Select.Item key={s.id} value={s.id}>
                     <StatusIcon status={s} />
@@ -270,8 +334,10 @@ export function TaskDetailView({
             </Select.Root>
           </Field>
 
-          <Field id="task-priority" label="Priority">
+          <Field id="task-priority" label="Priority" hint="detail.priority">
             <Select.Root
+              open={priorityOpen}
+              onOpenChange={setPriorityOpen}
               value={priority}
               onValueChange={(value) => {
                 const previous = priority;
@@ -281,7 +347,7 @@ export function TaskDetailView({
               }}
             >
               <Select.Trigger id="task-priority"><Select.Value /></Select.Trigger>
-              <Select.Content>
+              <Select.Content onCloseAutoFocus={onSelectCloseAutoFocus}>
                 {PRIORITIES.map((p) => (
                   <Select.Item key={p} value={p}>
                     <PriorityIcon priority={p} />
@@ -292,32 +358,47 @@ export function TaskDetailView({
             </Select.Root>
           </Field>
 
-          <Field id="task-assignee" label="Assignee">
+          <Field
+            id="task-assignee"
+            label="Assignee"
+            hint="detail.assignee"
+            footer={assigneeId !== currentUserId && (
+              <ShortcutTooltip id="detail.assignMe">
+                <button
+                  type="button"
+                  onClick={() => assign(currentUserId)}
+                  className="self-start text-paragraph-xs text-primary-base hover:underline"
+                >
+                  Assign to me
+                </button>
+              </ShortcutTooltip>
+            )}
+          >
             <AssigneePicker
               id="task-assignee"
               members={members}
               value={assigneeId}
-              onChange={(next) => {
-                const previous = assigneeId;
-                setAssigneeId(next);
-                patch({ taskId: task.id, assigneeId: next }, () => setAssigneeId(previous));
-              }}
+              onChange={assign}
             />
           </Field>
 
-          <DueDateField
-            id="task-due"
-            value={dueDate}
-            done={statuses.find((s) => s.id === statusId)?.isDone ?? false}
-            timezone={timezone}
-            // A bare YYYY-MM-DD string, never a Date: the value is a calendar
-            // day in the workspace zone (v1 spec §3.4).
-            onChange={(next) => {
-              const previous = dueDate;
-              setDueDate(next);
-              patch({ taskId: task.id, dueDate: next }, () => setDueDate(previous));
-            }}
-          />
+          <ShortcutTooltip id="detail.due">
+            <div>
+              <DueDateField
+                id="task-due"
+                value={dueDate}
+                done={statuses.find((s) => s.id === statusId)?.isDone ?? false}
+                timezone={timezone}
+                // A bare YYYY-MM-DD string, never a Date: the value is a calendar
+                // day in the workspace zone (v1 spec §3.4).
+                onChange={(next) => {
+                  const previous = dueDate;
+                  setDueDate(next);
+                  patch({ taskId: task.id, dueDate: next }, () => setDueDate(previous));
+                }}
+              />
+            </div>
+          </ShortcutTooltip>
           <ReminderField
             id="task-reminders"
             workspaceSlug={workspaceSlug}
@@ -326,15 +407,17 @@ export function TaskDetailView({
             hasDueDate={dueDate !== null}
           />
 
-          <div className="flex flex-col gap-1">
-            <span className="text-label-sm text-text-strong-950">Labels</span>
-            <LabelPicker
-              workspaceSlug={workspaceSlug}
-              taskId={task.id}
-              allLabels={allLabels}
-              selected={task.labels}
-            />
-          </div>
+          <ShortcutTooltip id="detail.labels">
+            <div className="flex flex-col gap-1">
+              <span className="text-label-sm text-text-strong-950">Labels</span>
+              <LabelPicker
+                workspaceSlug={workspaceSlug}
+                taskId={task.id}
+                allLabels={allLabels}
+                selected={task.labels}
+              />
+            </div>
+          </ShortcutTooltip>
 
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-t border-stroke-soft-200 pt-4 text-paragraph-xs">
             <dt className="text-text-sub-600">Created</dt>
@@ -349,20 +432,12 @@ export function TaskDetailView({
         </aside>
 
         <div className="flex flex-col gap-5 p-5 lg:col-start-1 lg:row-start-2 lg:overflow-y-auto">
-          <div className="flex flex-col gap-1">
-            <span id="task-description-label" className="text-label-sm text-text-strong-950">
-              Description
-            </span>
-            {/* Reloads when the stored description changes (a teammate's edit). Never while
-                I am in it: a focused editor holds live refresh back, and mine saves on blur. */}
-            <RichTextField
-              key={task.description}
-              value={task.description}
-              labelledBy="task-description-label"
-              placeholder="Add details… Type / for headings, lists and more."
-              onCommit={(description) => patch({ taskId: task.id, description })}
-            />
-          </div>
+          <DescriptionField
+            value={task.description}
+            members={members}
+            currentUserId={currentUserId}
+            onSave={(description, revert) => patch({ taskId: task.id, description }, revert)}
+          />
 
           {/* Depth is capped at one level: a subtask offers the way back to
               its parent instead of a nested list. */}
@@ -391,6 +466,7 @@ export function TaskDetailView({
           <ActivityFeed
             taskId={task.id}
             feed={feed}
+            members={members}
             workspaceSlug={workspaceSlug}
             currentUserId={currentUserId}
             canModerate={canModerate}

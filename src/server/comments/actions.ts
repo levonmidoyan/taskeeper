@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { requireWorkspace } from '@/lib/session';
 import { withAction, type Result } from '@/lib/result';
+import { setReaction } from './reactions';
 import { createComment, deleteComment, updateComment } from './service';
 
 /**
@@ -42,6 +43,17 @@ export async function deleteCommentAction(
 ): Promise<Result<null>> {
   return withAction(async () => {
     const result = await deleteComment(await requireWorkspace(workspaceSlug), input);
+    if (result.ok) revalidateWorkspace(workspaceSlug);
+    return result;
+  });
+}
+
+export async function setReactionAction(
+  workspaceSlug: string,
+  input: { commentId: string; emoji: string; on: boolean },
+): Promise<Result<{ reacted: boolean }>> {
+  return withAction(async () => {
+    const result = await setReaction(await requireWorkspace(workspaceSlug), input);
     if (result.ok) revalidateWorkspace(workspaceSlug);
     return result;
   });

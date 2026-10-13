@@ -26,3 +26,13 @@ export async function pollWorkspaceVersion(userId: string, slug: string): Promis
   if (!row) return null;
   return row.version ?? 0;
 }
+
+/** For the Pusher auth route: may this user listen to this workspace's channel? */
+export async function isWorkspaceMember(userId: string, workspaceId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.organizationId, workspaceId), eq(member.userId, userId)))
+    .limit(1);
+  return Boolean(row);
+}

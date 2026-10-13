@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
 import { organization, user } from './auth';
 import { task } from './task';
 
@@ -19,6 +19,21 @@ export const comment = pgTable(
     editedAt: timestamp('edited_at', { withTimezone: true }),
   },
   (t) => [index('comment_task_created_idx').on(t.taskId, t.createdAt)],
+);
+
+export const commentReaction = pgTable(
+  'comment_reaction',
+  {
+    commentId: text('comment_id').notNull().references(() => comment.id, { onDelete: 'cascade' }),
+    // Denormalized like comment.workspace_id: the tenancy filter is one predicate.
+    workspaceId: text('workspace_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    // Cascade, not set null: a reaction says nothing once its person is gone.
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+    // Plain text like task_activity.kind; validated against REACTION_EMOJIS.
+    emoji: text('emoji').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.commentId, t.userId, t.emoji] })],
 );
 
 export const taskActivity = pgTable(

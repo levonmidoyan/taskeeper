@@ -70,6 +70,7 @@ export async function claimUnsentEmails(limit = EMAIL_BATCH): Promise<OutgoingMa
     WHERE id IN (
       SELECT id FROM notification
       WHERE email_sent_at IS NULL
+        AND kind IN ('reminder', 'digest')
         AND email_attempts < ${EMAIL_ATTEMPTS}
         AND created_at > now() - ${EMAIL_RETRY_WINDOW}
         AND (email_claimed_at IS NULL OR email_claimed_at < now() - interval '10 minutes')

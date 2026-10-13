@@ -4,19 +4,18 @@ import {
   IconArrowDown, IconArrowRight, IconArrowUp, IconCircleCheck, IconCornerDownLeft, IconPlus, IconSearch,
 } from '@tabler/icons-react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { projectDot } from '@/components/brand/tint';
-import { matchActions, paletteActions, type PaletteAction } from '@/components/shell/palette-actions';
-import { ignoreShortcut, OVERLAY_SELECTOR } from '@/components/shell/shortcuts';
+import { matchActions, PALETTE_GROUPS, paletteActions, type PaletteAction } from '@/components/shell/palette-actions';
 import * as CommandMenu from '@/components/ui/command-menu';
 import { splitHighlights } from '@/lib/highlights';
 import { settle } from '@/lib/settle';
+import { DETAIL_SELECTOR, OVERLAY_SELECTOR } from '@/lib/shortcuts/guards';
+import { useIsMac, useShortcut } from '@/lib/shortcuts/provider';
 import type { ProjectSummary } from '@/server/projects/queries';
 import type { RecentTask, TaskSearchHit } from '@/server/tasks/queries';
 import { recentTasksAction, searchTasksAction } from '@/server/tasks/actions';
 import { cn } from '@/utils/cn';
-
-const noSubscribe = () => () => {};
 
 type TaskLike = Pick<TaskSearchHit, 'id' | 'title' | 'projectName' | 'completed'> & { snippet?: string | null };
 
@@ -30,10 +29,12 @@ export function CommandPalette({
   workspaceSlug,
   projects,
   onNewTask,
+  onShowShortcuts,
 }: {
   workspaceSlug: string;
   projects: ProjectSummary[];
   onNewTask: () => void;
+  onShowShortcuts: () => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -43,11 +44,10 @@ export function CommandPalette({
   // Results remember the term they answer, so a slow response for an older
   // term never shows under a newer one, and "loading" is simply a mismatch.
   const [found, setFound] = useState<{ term: string; tasks: TaskSearchHit[] }>({ term: '', tasks: [] });
-  // Set when "New task" is picked; the create dialog opens once this one has
-  // finished closing, so focus lands in it rather than on <body>.
-  const pendingNewTask = useRef(false);
-  // The platform never changes; false on the server so the first paint matches.
-  const isMac = useSyncExternalStore(noSubscribe, () => /Mac|iPhone|iPad/.test(navigator.platform), () => false);
+  // Set when a command is picked; it runs once this dialog has finished
+  // closing, so focus lands in the next dialog rather than on <body>.
+  const pendingCommand = useRef<PaletteAction['command']>(undefined);
+  const isMac = useIsMac();
 
   const trimmed = term.trim();
   const searchable = trimmed.length >= 2;
@@ -58,21 +58,18 @@ export function CommandPalette({
     function onKey(e: KeyboardEvent) {
       // Autofill fires keydown events with no `key`.
       const modK = e.key?.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey;
-      if (modK) {
-        // Another dialog, menu or dropdown owns the screen; leave it alone.
-        if (!open && document.querySelector(OVERLAY_SELECTOR)) return;
-        e.preventDefault();
-        onOpenChange(!open);
-        return;
-      }
-      if (e.key === '/' && !open && !ignoreShortcut(e)) {
-        e.preventDefault();
-        setOpen(true);
-      }
+      if (!modK) return;
+      // Another dialog, menu or dropdown owns the screen; leave it alone. The
+      // task detail is the exception: the palette opens over it.
+      if (!open && [...document.querySelectorAll(OVERLAY_SELECTOR)].some((el) => !el.matches(DETAIL_SELECTOR))) return;
+      e.preventDefault();
+      onOpenChange(!open);
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  useShortcut('general.search', () => setOpen(true), !open);
 
   useEffect(() => {
     if (!open) return;
@@ -113,8 +110,8 @@ export function CommandPalette({
   }
 
   function run(action: PaletteAction) {
-    if (action.command === 'new-task') {
-      pendingNewTask.current = true;
+    if (action.command) {
+      pendingCommand.current = action.command;
       onOpenChange(false);
     } else if (action.href) {
       go(action.href);
@@ -156,10 +153,12 @@ export function CommandPalette({
         contentProps={{
           'aria-describedby': undefined,
           onCloseAutoFocus: (e) => {
-            if (!pendingNewTask.current) return;
-            pendingNewTask.current = false;
+            const command = pendingCommand.current;
+            if (!command) return;
+            pendingCommand.current = undefined;
             e.preventDefault();
-            onNewTask();
+            if (command === 'new-task') onNewTask();
+            else onShowShortcuts();
           },
         }}
       >
@@ -170,7 +169,7 @@ export function CommandPalette({
             value={term}
             onValueChange={setTerm}
             maxLength={100}
-            placeholder="Search tasks, projects and actions"
+            placeholder="Search tasks, projects and pages"
             // 16px on phones stops iOS zooming the page when the field is focused.
             className="h-12 max-lg:text-paragraph-md"
           />
@@ -228,16 +227,20 @@ export function CommandPalette({
               ))}
             </CommandMenu.Group>
           )}
-          {actions.length > 0 && (
-            <CommandMenu.Group heading="Actions">
-              {actions.map((a) => (
-                <CommandMenu.Item key={a.id} value={`action-${a.id}`} onSelect={() => run(a)}>
-                  <CommandMenu.ItemIcon as={a.command === 'new-task' ? IconPlus : IconArrowRight} aria-hidden="true" />
-                  <span className="truncate">{a.label}</span>
-                </CommandMenu.Item>
-              ))}
-            </CommandMenu.Group>
-          )}
+          {PALETTE_GROUPS.map(({ id, heading }) => {
+            const rows = actions.filter((a) => a.group === id);
+            if (!rows.length) return null;
+            return (
+              <CommandMenu.Group key={id} heading={heading}>
+                {rows.map((a) => (
+                  <CommandMenu.Item key={a.id} value={`action-${a.id}`} onSelect={() => run(a)}>
+                    <CommandMenu.ItemIcon as={a.group === 'actions' ? IconPlus : IconArrowRight} aria-hidden="true" />
+                    <span className="truncate">{a.label}</span>
+                  </CommandMenu.Item>
+                ))}
+              </CommandMenu.Group>
+            );
+          })}
         </CommandMenu.List>
         <CommandMenu.Footer className="max-sm:hidden">
           <div className="flex items-center gap-2 text-paragraph-xs text-text-sub-600">

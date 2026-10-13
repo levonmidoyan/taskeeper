@@ -2,8 +2,10 @@ import { AppHeader } from '@/components/shell/AppHeader';
 import { RememberWorkspace } from '@/components/shell/RememberWorkspace';
 import { Rail } from '@/components/shell/Rail';
 import type { WorkspaceContext } from '@/lib/session';
-import { unreadCount } from '@/server/notifications/queries';
+import { ShortcutProvider } from '@/lib/shortcuts/provider';
+import { bellSnapshot } from '@/server/notifications/queries';
 import { listProjects } from '@/server/projects/queries';
+import { getReminderPrefs } from '@/server/user-settings/service';
 import { listViews } from '@/server/views/queries';
 import { listMyWorkspaces } from '@/server/workspaces/queries';
 
@@ -15,11 +17,12 @@ export async function WorkspaceShell({
   ctx: WorkspaceContext;
   children: React.ReactNode;
 }) {
-  const [projects, workspaces, unread, views] = await Promise.all([
+  const [projects, workspaces, bell, views, prefs] = await Promise.all([
     listProjects(ctx),
     listMyWorkspaces(ctx.userId),
-    unreadCount(ctx),
+    bellSnapshot(ctx),
     listViews(ctx, { workspace: true }),
+    getReminderPrefs(ctx),
   ]);
 
   // Mirrors the role check in the project services; the server still enforces it.
@@ -27,13 +30,15 @@ export async function WorkspaceShell({
   const railProps = { workspaceSlug: ctx.slug, workspaces, projects, canManageProjects, views };
 
   return (
-    <div className="flex min-h-dvh bg-bg-white-0">
-      <RememberWorkspace slug={ctx.slug} />
-      <Rail {...railProps} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <AppHeader {...railProps} unread={unread} />
-        {children}
+    <ShortcutProvider>
+      <div className="flex min-h-dvh bg-bg-white-0">
+        <RememberWorkspace slug={ctx.slug} />
+        <Rail {...railProps} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <AppHeader {...railProps} unread={bell.unread} serverNow={bell.now} sound={prefs.changeSound} />
+          {children}
+        </div>
       </div>
-    </div>
+    </ShortcutProvider>
   );
 }

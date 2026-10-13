@@ -35,7 +35,7 @@ test('a comment survives a reload and priority changes show in the feed', async 
 
   await page.getByRole('tab', { name: 'Comments' }).click();
   await page.getByLabel('Comment').fill('First thoughts');
-  await page.getByRole('button', { name: 'Comment' }).click();
+  await page.getByRole('button', { name: 'Save' }).click();
 
   // Scoped to the feed, as in the Markdown test below: the composer still shows the
   // draft until the post lands, and reloading before then would cancel it.
@@ -60,7 +60,7 @@ test('a comment is written with the editor and rendered as Markdown', async ({ p
 
   // Typed key by key so the editor's **bold** input rule fires, as it does for a person.
   await page.getByLabel('Comment').pressSequentially('Ship **today**');
-  await page.getByRole('button', { name: 'Comment' }).click();
+  await page.getByRole('button', { name: 'Save' }).click();
 
   // Scoped to the feed: the composer shows its own bold "today" until the post lands, and
   // reloading before then would cancel it.
@@ -68,4 +68,25 @@ test('a comment is written with the editor and rendered as Markdown', async ({ p
   await expect(posted).toBeVisible();
   await page.reload();
   await expect(posted).toBeVisible();
+});
+
+test('a reaction toggles on and off', async ({ page }) => {
+  await signUpWithTask(page, 'reactions');
+  await page.getByRole('button', { name: 'Talk about me', exact: true }).click();
+
+  await page.getByLabel('Comment').fill('React to this');
+  await page.getByRole('button', { name: 'Save' }).click();
+  const item = page.getByRole('listitem').filter({ hasText: 'React to this' });
+  await expect(item).toBeVisible();
+
+  await item.getByRole('button', { name: 'Add reaction' }).click();
+  await page.getByRole('button', { name: 'React with 👍', exact: true }).click();
+
+  const chip = item.getByRole('button', { name: 'React with 👍 (1)' });
+  await expect(chip).toHaveAttribute('aria-pressed', 'true');
+  await page.reload();
+  await expect(chip).toHaveAttribute('aria-pressed', 'true');
+
+  await chip.click();
+  await expect(chip).toHaveCount(0);
 });

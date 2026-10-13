@@ -69,7 +69,7 @@ export function WorkspaceTaskTable({
         {tasks.map((t) => (
           <tr key={t.id} className="border-b border-stroke-soft-200 text-paragraph-sm hover:bg-bg-weak-50">
             <td className="max-w-0 px-4 py-2 lg:px-6">
-              <Link href={`/${workspaceSlug}/tasks/${t.id}`} className={cn('block truncate text-label-sm', t.isDone ? 'text-text-soft-400 line-through' : 'text-text-strong-950')}>
+              <Link href={`/${workspaceSlug}/tasks/${t.id}`} data-task-nav={t.id} className={cn('block truncate text-label-sm', t.isDone ? 'text-text-soft-400 line-through' : 'text-text-strong-950')}>
                 {t.title}
               </Link>
             </td>

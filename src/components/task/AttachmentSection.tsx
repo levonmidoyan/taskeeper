@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { ReadyAttachmentCard, UploadCard } from '@/components/task/AttachmentCard';
+import { CollapsibleSection } from '@/components/task/CollapsibleSection';
 import { AttachmentUploadModal } from '@/components/task/AttachmentUploadModal';
 import { useAttachmentUploads } from '@/components/task/use-attachment-uploads';
 import * as Button from '@/components/ui/button';
@@ -51,9 +52,17 @@ export function AttachmentSection({
   }
 
   return (
-    <section
-      aria-labelledby={`attachments-${taskId}`}
-      className={cn('flex flex-col gap-2 rounded-2xl transition-shadow', dragging && 'ring-2 ring-primary-base ring-offset-4 ring-offset-bg-white-0')}
+    <CollapsibleSection
+      sectionId="attachments"
+      title="Attachments"
+      meta={attachments.length > 0 ? attachments.length : undefined}
+      actions={(
+        <Button.Root type="button" variant="neutral" mode="stroke" size="xsmall" onClick={() => setModalOpen(true)}>
+          <Button.Icon as={IconPaperclip} />
+          Attach files
+        </Button.Root>
+      )}
+      className={cn('rounded-2xl transition-shadow', dragging && 'ring-2 ring-primary-base ring-offset-4 ring-offset-bg-white-0')}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes('Files')) return;
         e.preventDefault();
@@ -69,19 +78,6 @@ export function AttachmentSection({
         uploads.add(Array.from(e.dataTransfer.files));
       }}
     >
-      <div className="flex items-center justify-between">
-        <h2 id={`attachments-${taskId}`} className="text-label-sm text-text-strong-950">
-          Attachments
-          {attachments.length > 0 && (
-            <span className="tabular ml-1.5 text-paragraph-xs text-text-sub-600">{attachments.length}</span>
-          )}
-        </h2>
-        <Button.Root type="button" variant="neutral" mode="stroke" size="xsmall" onClick={() => setModalOpen(true)}>
-          <Button.Icon as={IconPaperclip} />
-          Attach files
-        </Button.Root>
-      </div>
-
       {attachments.length === 0 && active.length === 0 ? (
         <button
           type="button"
@@ -121,6 +117,6 @@ export function AttachmentSection({
       )}
 
       <AttachmentUploadModal taskId={taskId} open={modalOpen} onOpenChange={setModalOpen} uploads={uploads} />
-    </section>
+    </CollapsibleSection>
   );
 }

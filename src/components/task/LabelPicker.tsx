@@ -181,6 +181,7 @@ export function LabelSelect({
                 <Input.Input
                   ref={inputRef}
                   id={inputId}
+                  data-shortcut-target="labels"
                   role="combobox"
                   aria-expanded={showList}
                   aria-controls={listId}

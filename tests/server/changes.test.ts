@@ -11,7 +11,7 @@ import { setTaskReminders } from '@/server/reminders/service';
 import { createTodo, deleteTodo, moveTodo, updateTodo } from '@/server/todos/service';
 import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
 import type { WorkspaceContext } from '@/lib/session';
-import { getWorkspaceVersion, pollWorkspaceVersion } from '@/server/changes/queries';
+import { getWorkspaceVersion, isWorkspaceMember, pollWorkspaceVersion } from '@/server/changes/queries';
 import { emitChange, emitChangeFor } from '@/server/changes/service';
 import {
   acceptInvitation, changeMemberRole, declineInvitation, inviteMember, removeMember,
@@ -109,6 +109,16 @@ describe('pollWorkspaceVersion', () => {
     const { ada: outsider } = await setup('globex');
     expect(await pollWorkspaceVersion(outsider.id, 'acme')).toBeNull();
     expect(await pollWorkspaceVersion(outsider.id, 'nope')).toBeNull();
+  });
+});
+
+describe('isWorkspaceMember', () => {
+  it('true for a member, false for an outsider and an unknown workspace', async () => {
+    const { ws, ada } = await setup();
+    const eve = await createUser('eve@example.com', 'Eve');
+    expect(await isWorkspaceMember(ada.id, ws.id)).toBe(true);
+    expect(await isWorkspaceMember(eve.id, ws.id)).toBe(false);
+    expect(await isWorkspaceMember(ada.id, 'nope')).toBe(false);
   });
 });
 

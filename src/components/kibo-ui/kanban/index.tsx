@@ -25,22 +25,52 @@
  * - shadcn Card and ScrollArea (Radix) replaced by Align-styled elements and native overflow.
  *   The drop-target ring is drawn on an overlay above the column's content, so a footer
  *   does not paint over it. The provider has no grid defaults; the caller lays out columns.
+ * - Motion (2026-10-08 motion spec): the overlay lifts and settles, the source card becomes an
+ *   empty slot, columns tint while hovered. The overlay card stays set until the drop
+ *   animation ends, so the settle animates the card rather than an empty frame.
  */
 
 import {
   type Collision, DndContext, type DndContextProps, type DragEndEvent, type DragOverEvent,
-  DragOverlay, type DragStartEvent, useDroppable,
+  defaultDropAnimationSideEffects, type DropAnimation, DragOverlay, type DragStartEvent, useDroppable,
 } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
-  createContext, type HTMLAttributes, type ReactNode, useContext, useState, useSyncExternalStore,
+  createContext, type HTMLAttributes, type ReactNode, useContext, useEffect, useMemo, useState,
+  useSyncExternalStore, ViewTransition,
 } from 'react';
 import { createPortal } from 'react-dom';
 import tunnel from 'tunnel-rat';
+import { DURATION, EASE_OUT_SOFT, EASE_SPRING, REMOTE_CHANGE, TASK_MORPH_SHARE } from '@/lib/motion';
+import { isRemoteRefresh } from '@/lib/live/remote-refresh';
+import { useReducedMotion } from '@/lib/use-reduced-motion';
 import { cn } from '@/utils/cn';
 
 const overlay = tunnel();
+
+/**
+ * The overlay glides into the slot and its lift (scale + tilt) eases back. The
+ * source card stays invisible until then, so the swap back to it does not flash.
+ * `onSettled` runs with the dropped card's id once the animation has finished.
+ */
+function dropAnimation(onSettled: (id: string) => void): DropAnimation {
+  const sideEffects = defaultDropAnimationSideEffects({
+    styles: { active: { opacity: '0' } },
+    className: { dragOverlay: 'kanban-settling' },
+  });
+  return {
+    duration: DURATION.slow,
+    easing: EASE_SPRING,
+    sideEffects: (args) => {
+      const cleanup = sideEffects(args);
+      return () => {
+        cleanup?.();
+        onSettled(String(args.active.id));
+      };
+    },
+  };
+}
 
 export type { DragEndEvent } from '@dnd-kit/core';
 
@@ -51,9 +81,11 @@ type KanbanContextValue = {
   columns: KanbanColumnProps[];
   data: KanbanItemProps[];
   activeCardId: string | null;
+  /** Every card id this board has shown, so a teammate's move is not taken for an add. */
+  seen: Set<string>;
 };
 
-const KanbanContext = createContext<KanbanContextValue>({ columns: [], data: [], activeCardId: null });
+const KanbanContext = createContext<KanbanContextValue>({ columns: [], data: [], activeCardId: null, seen: new Set() });
 
 export type KanbanBoardProps = { id: string; children: ReactNode; className?: string } &
   Omit<HTMLAttributes<HTMLElement>, 'id' | 'children'>;
@@ -67,9 +99,9 @@ export function KanbanBoard({ id, children, className, ...props }: KanbanBoardPr
       className={cn(
         // The ring sits on an ::after overlay above the content, so nothing inside the
         // column (such as a footer with its own background) paints over it.
-        'relative flex min-h-40 flex-col overflow-hidden rounded-2xl bg-bg-weak-50',
-        'after:pointer-events-none after:absolute after:inset-0 after:z-10 after:rounded-2xl after:ring-2 after:ring-inset after:transition-shadow after:duration-150',
-        isOver ? 'after:ring-primary-base' : 'after:ring-transparent',
+        'relative flex min-h-40 flex-col overflow-hidden rounded-2xl transition-colors duration-120 ease-out-soft',
+        'after:pointer-events-none after:absolute after:inset-0 after:z-10 after:rounded-2xl after:ring-2 after:ring-inset after:transition-shadow after:duration-120',
+        isOver ? 'bg-primary-lighter after:ring-primary-base' : 'bg-bg-weak-50 after:ring-transparent',
         className,
       )}
       {...props}
@@ -85,36 +117,79 @@ export type KanbanCardProps = {
   children?: ReactNode;
   className?: string;
   onClick?: () => void;
+  /**
+   * Opts the card into view transitions (board cards; Task 4 names the button with it).
+   * Without it the card renders no <ViewTransition>.
+   */
+  transitionName?: string;
+  /** The name shared with the task modal; undefined while this card's task is open. */
+  morphName?: string;
+  /** Marks the card as a keyboard stop for task shortcuts (data-task-nav / data-nav-col). */
+  navColumn?: string;
 };
 
-export function KanbanCard({ id, name, children, className, onClick }: KanbanCardProps) {
-  const { attributes, listeners, setNodeRef, transition, transform, isDragging } = useSortable({ id });
-  const { activeCardId } = useContext(KanbanContext);
+export function KanbanCard({ id, name, children, className, onClick, transitionName, morphName, navColumn }: KanbanCardProps) {
+  const { attributes, listeners, setNodeRef, transition, transform, isDragging } = useSortable({
+    id,
+    transition: { duration: DURATION.base, easing: EASE_OUT_SOFT },
+  });
+  const { activeCardId, seen } = useContext(KanbanContext);
   const body = children ?? <p className="m-0 text-paragraph-sm text-text-strong-950">{name}</p>;
+  // A card a teammate added grows in: one this board never showed (a moved card remounts
+  // too). A keyframe, not a <ViewTransition> enter: a boundary that can enter starts a
+  // view transition for my own adds too, and React holds every commit (typing
+  // included) until its snapshot is taken.
+  const [grow] = useState(() => isRemoteRefresh() && !seen.has(id));
+
+  // dnd-kit puts the keyboard sensor on this button: Space lifts, arrows move, Space
+  // drops, Escape cancels (v1 spec §6.4).
+  const button = (
+    <button
+      type="button"
+      {...attributes}
+      {...listeners}
+      onClick={onClick}
+      data-task-nav={navColumn !== undefined ? id : undefined}
+      data-nav-col={navColumn}
+      className={cn(
+        'w-full cursor-grab rounded-10 bg-bg-white-0 p-3 text-left shadow-regular-xs ring-1 ring-inset ring-stroke-soft-200 transition-shadow duration-150 hover:shadow-regular-sm active:cursor-grabbing',
+        // The slot the card will land in: same size, content hidden but still named
+        // for assistive tech.
+        isDragging && 'pointer-events-none bg-primary-lighter shadow-none ring-0 outline-1 -outline-offset-1 outline-dashed outline-primary-base',
+        className,
+      )}
+    >
+      {transitionName ? (
+        // Keyed by name: giving the name up remounts this boundary, which is what
+        // pairs it with the modal's (React shares a name only between an unmount and
+        // a mount). Only the body remounts; the button keeps focus and listeners.
+        <ViewTransition key={morphName ?? 'open'} name={morphName} share={TASK_MORPH_SHARE} default="none">
+          <span data-card-body className={cn('block', isDragging && 'opacity-0')}>{body}</span>
+        </ViewTransition>
+      ) : (
+        <span data-card-body className={cn('block', isDragging && 'opacity-0')}>{body}</span>
+      )}
+    </button>
+  );
 
   return (
-    <li ref={setNodeRef} style={{ transition, transform: CSS.Translate.toString(transform) }}>
-      {/* dnd-kit puts the keyboard sensor on this button: Space lifts, arrows move, Space
-          drops, Escape cancels (v1 spec §6.4). */}
-      <button
-        type="button"
-        {...attributes}
-        {...listeners}
-        onClick={onClick}
-        className={cn(
-          'w-full cursor-grab rounded-10 bg-bg-white-0 p-3 text-left shadow-regular-xs ring-1 ring-inset ring-stroke-soft-200 transition-shadow duration-150 hover:shadow-regular-sm active:cursor-grabbing',
-          isDragging && 'pointer-events-none opacity-30',
-          className,
-        )}
-      >
-        {body}
-      </button>
+    <li
+      ref={setNodeRef}
+      style={{ transition, transform: CSS.Translate.toString(transform) }}
+      className={cn(grow && 'animate-[vt-pop-in_180ms_cubic-bezier(0.22,1,0.36,1)_both]')}
+    >
+      {transitionName ? (
+        // A teammate's move slides the whole card; only live refreshes are tagged, so my
+        // own drops stay with dnd-kit. Inside the <li>, so it never starts a transition
+        // of its own when a card mounts.
+        <ViewTransition name={transitionName} {...REMOTE_CHANGE}>{button}</ViewTransition>
+      ) : button}
       {activeCardId === id && (
         <overlay.In>
           <div
             aria-hidden="true"
             className={cn(
-              'w-full cursor-grabbing rounded-10 bg-bg-white-0 p-3 shadow-regular-md ring-2 ring-primary-base',
+              'w-full animate-kanban-lift cursor-grabbing rounded-10 bg-bg-white-0 p-3 shadow-regular-md ring-2 ring-primary-base',
               className,
             )}
           >
@@ -184,11 +259,26 @@ export function KanbanProvider<T extends KanbanItemProps, C extends KanbanColumn
   onDragCancel, ...props
 }: KanbanProviderProps<T, C>) {
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [seen] = useState(() => new Set(data.map((item) => item.id)));
+  useEffect(() => {
+    for (const item of data) seen.add(item.id);
+  }, [data, seen]);
   const mounted = useSyncExternalStore(
     () => () => {},
     () => true,
     () => false,
   );
+  const reducedMotion = useReducedMotion();
+  // A newer drag may have started by the time a drop settles; it keeps its card.
+  const drop = useMemo(
+    () => (reducedMotion ? null : dropAnimation((id) => setActiveCardId((current) => (current === id ? null : current)))),
+    [reducedMotion],
+  );
+
+  /** Ends the drag; with a drop animation the overlay card stays until it has settled. */
+  function release() {
+    if (!drop) setActiveCardId(null);
+  }
 
   function handleDragStart(event: DragStartEvent) {
     if (data.some((item) => item.id === event.active.id)) setActiveCardId(String(event.active.id));
@@ -222,7 +312,7 @@ export function KanbanProvider<T extends KanbanItemProps, C extends KanbanColumn
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    setActiveCardId(null);
+    release();
     const { active, over } = event;
 
     let next = data;
@@ -247,12 +337,12 @@ export function KanbanProvider<T extends KanbanItemProps, C extends KanbanColumn
   }
 
   function handleDragCancel() {
-    setActiveCardId(null);
+    release();
     onDragCancel?.();
   }
 
   return (
-    <KanbanContext.Provider value={{ columns, data, activeCardId }}>
+    <KanbanContext.Provider value={{ columns, data, activeCardId, seen }}>
       <DndContext
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
@@ -263,7 +353,7 @@ export function KanbanProvider<T extends KanbanItemProps, C extends KanbanColumn
         <div className={cn('flex size-full gap-4', className)}>
           {columns.map((column) => children(column))}
         </div>
-        {mounted && createPortal(<DragOverlay><overlay.Out /></DragOverlay>, document.body)}
+        {mounted && createPortal(<DragOverlay dropAnimation={drop}><overlay.Out /></DragOverlay>, document.body)}
       </DndContext>
     </KanbanContext.Provider>
   );

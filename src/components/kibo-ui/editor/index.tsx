@@ -36,6 +36,7 @@ import { useMemo, useState } from 'react';
 import * as CompactButton from '@/components/ui/compact-button';
 import { markdownExtensions } from '@/components/kibo-ui/editor/extensions';
 import { normalizeLinkUrl } from '@/components/kibo-ui/editor/link';
+import { mentionPluginKey } from '@/components/kibo-ui/editor/mention';
 import { SlashCommand, slashPluginKey } from '@/components/kibo-ui/editor/slash';
 import { cn } from '@/utils/cn';
 
@@ -71,7 +72,7 @@ export function EditorProvider({ className, placeholder, extensions, ...props }:
 }
 
 /**
- * Lets Escape close the slash menu or the link field instead of a surrounding dialog. Call it
+ * Lets Escape close the slash or @ menu or the link field instead of a surrounding dialog. Call it
  * from the dialog's onEscapeKeyDown and preventDefault when it returns true. The dialog sees
  * Escape first (Radix listens on the document in the capture phase) and its preventDefault
  * makes ProseMirror skip the key, so the slash menu is closed here rather than by the editor.
@@ -82,11 +83,15 @@ export function handleEditorEscape(event: KeyboardEvent): boolean {
   // The link field closes itself from its own React onKeyDown.
   if (target.closest('[data-editor-link-form]')) return true;
   const dom = target.closest<HTMLElement & { editor?: Editor }>('.ProseMirror');
-  if (!dom?.editor || !slashPluginKey.getState(dom.editor.state)?.active) return false;
-  // A menu with no matches is hidden; Escape then belongs to the dialog.
-  if (!document.querySelector('#slash-command')?.closest('.tippy-box[data-state="visible"]')) return false;
-  exitSuggestion(dom.editor.view, slashPluginKey);
-  return true;
+  if (!dom?.editor) return false;
+  for (const [key, menu] of [[slashPluginKey, '#slash-command'], [mentionPluginKey, '#mention-menu']] as const) {
+    if (!key.getState(dom.editor.state)?.active) continue;
+    // A menu with no matches is hidden; Escape then belongs to the dialog.
+    if (!document.querySelector(menu)?.closest('.tippy-box[data-state="visible"]')) return false;
+    exitSuggestion(dom.editor.view, key);
+    return true;
+  }
+  return false;
 }
 
 export function EditorBubbleMenu({ className, children, ...props }: Omit<BubbleMenuProps, 'editor'>) {

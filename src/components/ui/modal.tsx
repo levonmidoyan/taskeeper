@@ -24,7 +24,7 @@ const ModalOverlay = React.forwardRef<
         // base
         'fixed inset-0 z-50 flex flex-col items-center justify-center overflow-y-auto bg-overlay p-4 backdrop-blur-[10px]',
         // animation
-        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-180 ease-out-soft',
         className,
       )}
       {...rest}
@@ -38,14 +38,19 @@ const ModalContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     overlayClassName?: string;
     showClose?: boolean;
+    /**
+     * Where the portal renders. Given, the content mounts in the same commit as the
+     * modal; without it Radix waits a layout effect, which a view transition misses.
+     */
+    container?: HTMLElement | null;
   }
 >(
   (
-    { className, overlayClassName, children, showClose = true, ...rest },
+    { className, overlayClassName, children, showClose = true, container, ...rest },
     forwardedRef,
   ) => {
     return (
-      <ModalPortal>
+      <ModalPortal container={container}>
         <ModalOverlay className={overlayClassName}>
           <DialogPrimitive.Content
             ref={forwardedRef}
@@ -56,7 +61,7 @@ const ModalContent = React.forwardRef<
               // focus
               'focus:outline-none',
               // animation
-              'data-[state=open]:animate-in data-[state=closed]:animate-out',
+              'data-[state=open]:animate-in data-[state=closed]:animate-out duration-180 ease-out-soft',
               'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
               'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
               className,

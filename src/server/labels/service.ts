@@ -5,6 +5,7 @@ import { newId } from '@/lib/ids';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
 import { emitChange } from '@/server/changes/service';
+import { notifyTaskChange } from '@/server/notifications/changes';
 import type { LabelRow } from '@/server/tasks/queries';
 
 const nameSchema = z
@@ -72,7 +73,9 @@ export async function setTaskLabels(
 
     const result = await db.transaction(async (tx) => {
       const replaced = await replaceTaskLabels(ctx, tx, parsed.data.taskId, parsed.data.labelIds);
-      if (replaced.ok) await emitChange(ctx, { projectId: owned.projectId }, tx);
+      if (!replaced.ok) return replaced;
+      if (replaced.data.changed) await notifyTaskChange(ctx, tx, { taskId: parsed.data.taskId, changes: ['labels'] });
+      await emitChange(ctx, { projectId: owned.projectId }, tx);
       return replaced;
     });
     if (!result.ok) return result;
@@ -93,7 +96,7 @@ export async function replaceTaskLabels(
   tx: Tx,
   taskId: string,
   ids: string[],
-): Promise<Result<null>> {
+): Promise<Result<{ changed: boolean }>> {
   // Deduplicated first: task_label is keyed on (task_id, label_id), so a repeated
   // id would break the insert, and comparing counts against a list holding the
   // same id twice would reject a perfectly valid selection.
@@ -109,12 +112,15 @@ export async function replaceTaskLabels(
     if (valid.length !== labelIds.length) return err('Unknown label.');
   }
 
+  const before = await tx.select({ id: taskLabel.labelId }).from(taskLabel).where(eq(taskLabel.taskId, taskId));
+  const changed = before.length !== labelIds.length || before.some((b) => !labelIds.includes(b.id));
+
   await tx.delete(taskLabel).where(eq(taskLabel.taskId, taskId));
   if (labelIds.length > 0) {
     await tx.insert(taskLabel).values(labelIds.map((labelId) => ({ taskId, labelId })));
   }
   await tx.update(task).set({ updatedAt: new Date() }).where(eq(task.id, taskId));
-  return ok(null);
+  return ok({ changed });
 }
 
 export async function deleteLabel(

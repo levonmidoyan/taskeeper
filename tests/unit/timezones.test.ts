@@ -13,4 +13,10 @@ describe('zoneOptions', () => {
   it('appends a stored zone the list does not have, so the select can still show it', () => {
     expect(zoneOptions('Australia/Sydney')).toEqual([...ZONES, 'Australia/Sydney']);
   });
+
+  it('keeps both a saved and a newly chosen off-list zone', () => {
+    expect(zoneOptions('Australia/Sydney', 'Asia/Kolkata')).toEqual([...ZONES, 'Australia/Sydney', 'Asia/Kolkata']);
+    expect(zoneOptions('Australia/Sydney', null)).toEqual([...ZONES, 'Australia/Sydney']);
+    expect(zoneOptions('Asia/Kolkata', 'Asia/Kolkata')).toEqual([...ZONES, 'Asia/Kolkata']);
+  });
 });

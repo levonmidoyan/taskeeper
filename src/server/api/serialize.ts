@@ -61,5 +61,6 @@ export function serializeComment(c: Extract<FeedEntry, { type: 'comment' }>): Ap
     body: c.body,
     createdAt: c.createdAt.toISOString(),
     editedAt: c.editedAt ? c.editedAt.toISOString() : null,
+    reactions: c.reactions.map((r) => ({ emoji: r.emoji, count: r.count, userIds: r.userIds })),
   };
 }

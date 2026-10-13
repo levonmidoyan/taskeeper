@@ -1,14 +1,16 @@
 'use client';
 
 import { IconPlus } from '@tabler/icons-react';
-import { useRef, useState } from 'react';
+import { addTransitionType, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { TODO_CHANGE } from '@/lib/motion';
 import { settle } from '@/lib/settle';
 import { createTodoAction } from '@/server/todos/actions';
 
 export function TodoQuickAdd({ workspaceSlug }: { workspaceSlug: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState(false);
+  const [, startTransition] = useTransition();
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -20,13 +22,19 @@ export function TodoQuickAdd({ workspaceSlug }: { workspaceSlug: string }) {
     if (inputRef.current) inputRef.current.value = '';
 
     setPending(true);
-    const result = await settle(createTodoAction(workspaceSlug, { title }));
-    setPending(false);
-
-    if (!result.ok) {
-      toast.error(result.error);
-      if (inputRef.current && inputRef.current.value === '') inputRef.current.value = title;
-    }
+    // A transition tagged like the list's own changes, so the new item animates in
+    // when the action's revalidation renders it.
+    startTransition(async () => {
+      addTransitionType(TODO_CHANGE);
+      const result = await settle(createTodoAction(workspaceSlug, { title }));
+      startTransition(() => {
+        setPending(false);
+        if (!result.ok) {
+          toast.error(result.error);
+          if (inputRef.current && inputRef.current.value === '') inputRef.current.value = title;
+        }
+      });
+    });
   }
 
   return (

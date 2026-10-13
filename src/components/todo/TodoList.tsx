@@ -7,13 +7,14 @@ import {
   SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { IconChecklist, IconChevronRight } from '@tabler/icons-react';
-import { useOptimistic, useState, useTransition } from 'react';
+import { addTransitionType, startTransition, useState, ViewTransition } from 'react';
 import { toast } from 'sonner';
 import { SortableTodoItem, TodoItem, type TodoItemHandlers } from '@/components/todo/TodoItem';
 import { TodoQuickAdd } from '@/components/todo/TodoQuickAdd';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import type { Result } from '@/lib/result';
 import { settle } from '@/lib/settle';
+import { TODO_CHANGE, TODO_CHANGE_CLASSES, todoTransitionName } from '@/lib/motion';
 import { applyTodoOp, dropTarget, type TodoOp } from '@/lib/todo-list';
 import {
   deleteTodoAction, moveTodoAction, updateTodoAction,
@@ -30,8 +31,11 @@ export function TodoList({
   timezone: string;
   lists: TodoLists;
 }) {
-  const [view, apply] = useOptimistic(lists, applyTodoOp);
-  const [, startTransition] = useTransition();
+  // My pending changes, layered on the lists they were made against. Fresh server lists
+  // (the action's revalidation) replace the layer. Plain state set in a transition, not
+  // useOptimistic: an optimistic update commits urgently, outside any view transition.
+  const [local, setLocal] = useState<{ base: TodoLists; view: TodoLists } | null>(null);
+  const view = local?.base === lists ? local.view : lists;
   const [showDone, setShowDone] = useState(false);
   const confirm = useConfirm();
 
@@ -41,15 +45,24 @@ export function TodoList({
   );
 
   /**
-   * Optimistic first, server second. On success the action's revalidatePath
-   * delivers fresh props in the same transition; on failure the props are
-   * unchanged, so dropping the optimistic layer is the rollback.
+   * Local first, server second. On success the action's revalidatePath delivers
+   * fresh lists, which replace the layer; on failure the lists are unchanged, so
+   * dropping the layer is the rollback.
    */
   function run(op: TodoOp, call: () => Promise<Result<unknown>>) {
-    startTransition(async () => {
-      apply(op);
-      const result = await call();
-      if (!result.ok) toast.error(result.error);
+    startTransition(() => {
+      addTransitionType(TODO_CHANGE);
+      setLocal({ base: lists, view: applyTodoOp(view, op) });
+    });
+    // Next task: a server action starts a transition of its own, and React gives every
+    // transition started in one tick the same lane, so the local change would wait for
+    // the server round-trip.
+    setTimeout(() => {
+      void call().then((result) => {
+        if (result.ok) return;
+        toast.error(result.error);
+        startTransition(() => setLocal(null));
+      });
     });
   }
 
@@ -108,7 +121,9 @@ export function TodoList({
                 className="overflow-hidden rounded-xl bg-bg-white-0 shadow-regular-xs ring-1 ring-inset ring-stroke-soft-200"
               >
                 {view.open.map((item) => (
-                  <SortableTodoItem key={item.id} item={item} timezone={timezone} {...handlers} />
+                  <ViewTransition key={item.id} name={todoTransitionName(item.id)} {...TODO_CHANGE_CLASSES}>
+                    <SortableTodoItem item={item} timezone={timezone} {...handlers} />
+                  </ViewTransition>
                 ))}
               </ul>
             </SortableContext>
@@ -122,7 +137,10 @@ export function TodoList({
             type="button"
             aria-expanded={showDone}
             aria-controls="todo-completed"
-            onClick={() => setShowDone((v) => !v)}
+            onClick={() => startTransition(() => {
+              addTransitionType(TODO_CHANGE);
+              setShowDone((v) => !v);
+            })}
             className="flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-label-sm text-text-sub-600 transition-colors duration-150 hover:bg-bg-weak-50 hover:text-text-strong-950"
           >
             <IconChevronRight
@@ -138,14 +156,15 @@ export function TodoList({
               className="mt-2 overflow-hidden rounded-xl bg-bg-white-0 shadow-regular-xs ring-1 ring-inset ring-stroke-soft-200"
             >
               {view.done.map((item) => (
-                <TodoItem
-                  key={item.id}
-                  item={item}
-                  timezone={timezone}
-                  // Keeps the title column aligned with the open list's handle.
-                  handle={<span className="size-9 shrink-0" aria-hidden="true" />}
-                  {...handlers}
-                />
+                <ViewTransition key={item.id} name={todoTransitionName(item.id)} {...TODO_CHANGE_CLASSES}>
+                  <TodoItem
+                    item={item}
+                    timezone={timezone}
+                    // Keeps the title column aligned with the open list's handle.
+                    handle={<span className="size-9 shrink-0" aria-hidden="true" />}
+                    {...handlers}
+                  />
+                </ViewTransition>
               ))}
             </ul>
           )}

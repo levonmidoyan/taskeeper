@@ -8,6 +8,7 @@ import { err, ok, type Result } from '@/lib/result';
 import { requireRole, type WorkspaceContext } from '@/lib/session';
 import { attachmentKeysForProject, purgeObjects } from '@/server/attachments/cleanup';
 import { emitChange } from '@/server/changes/service';
+import { notifyProjectChange } from '@/server/notifications/changes';
 import { slugify } from '@/lib/slug';
 
 const DEFAULT_STATUSES = [
@@ -95,12 +96,21 @@ export async function renameProject(
   if (!parsed.success) return err(parsed.error.issues[0].message);
 
   const updated = await db.transaction(async (tx) => {
+    const scope = and(eq(project.id, parsed.data.projectId), eq(project.workspaceId, ctx.workspaceId));
+    // Read under a row lock: the notification names the project as it was.
+    const [before] = await tx.select({ name: project.name }).from(project).where(scope).for('update');
+    if (!before) return [];
     const rows = await tx
       .update(project)
       .set({ name: parsed.data.name, updatedAt: new Date() })
-      .where(and(eq(project.id, parsed.data.projectId), eq(project.workspaceId, ctx.workspaceId)))
+      .where(scope)
       .returning({ id: project.id });
-    if (rows.length > 0) await emitChange(ctx, { projectId: parsed.data.projectId }, tx);
+    await emitChange(ctx, { projectId: parsed.data.projectId }, tx);
+    if (before.name !== parsed.data.name) {
+      await notifyProjectChange(ctx, tx, {
+        projectId: parsed.data.projectId, change: 'renamed', projectName: before.name, newName: parsed.data.name,
+      });
+    }
     return rows;
   });
 
@@ -145,8 +155,11 @@ export async function archiveProject(
       .where(and(
         eq(project.id, input.projectId), eq(project.workspaceId, ctx.workspaceId), isNull(project.archivedAt),
       ))
-      .returning({ id: project.id });
-    if (rows.length > 0) await emitChange(ctx, { projectId: input.projectId }, tx);
+      .returning({ id: project.id, name: project.name });
+    if (rows.length > 0) {
+      await emitChange(ctx, { projectId: input.projectId }, tx);
+      await notifyProjectChange(ctx, tx, { projectId: input.projectId, change: 'archived', projectName: rows[0].name });
+    }
     return rows;
   });
 
@@ -169,8 +182,11 @@ export async function unarchiveProject(
       .where(and(
         eq(project.id, input.projectId), eq(project.workspaceId, ctx.workspaceId), isNotNull(project.archivedAt),
       ))
-      .returning({ id: project.id });
-    if (rows.length > 0) await emitChange(ctx, { projectId: input.projectId }, tx);
+      .returning({ id: project.id, name: project.name });
+    if (rows.length > 0) {
+      await emitChange(ctx, { projectId: input.projectId }, tx);
+      await notifyProjectChange(ctx, tx, { projectId: input.projectId, change: 'unarchived', projectName: rows[0].name });
+    }
     return rows;
   });
 
@@ -194,13 +210,15 @@ export async function deleteProject(
     // outside it, this is check-then-act — a race that a concurrent change
     // could slip through between the SELECT and the DELETEs.
     const [owned] = await tx
-      .select({ id: project.id })
+      .select({ id: project.id, name: project.name })
       .from(project)
       .where(and(eq(project.id, input.projectId), eq(project.workspaceId, ctx.workspaceId)))
       .limit(1);
 
     if (!owned) return { result: err('Project not found.'), keys: [] as string[] };
     const keys = await attachmentKeysForProject(tx, ctx.workspaceId, input.projectId);
+    // Before the deletes: the rows reference the project, and its delete sets that to null.
+    await notifyProjectChange(ctx, tx, { projectId: input.projectId, change: 'deleted', projectName: owned.name });
 
     // Explicit order, every delete scoped to this workspace. task.status_id is
     // RESTRICT, and relying on cascade would leave the delete order between

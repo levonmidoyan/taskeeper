@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
 import { resetBucket, uploadTo } from '../setup/storage';
-import { attachment, taskActivity } from '@/db';
+import { attachment, notification, taskActivity } from '@/db';
 import { MAX_ATTACHMENT_BYTES } from '@/lib/attachments';
 import { headObject } from '@/lib/storage';
 import type { WorkspaceContext } from '@/lib/session';
@@ -344,5 +344,17 @@ describe('files of deleted work', () => {
 
     expect((await deleteTask(a.ctx, { taskId: b.taskId })).ok).toBe(false);
     expect(await headObject(keyOf(b.ctx, b.taskId, view.id))).not.toBeNull();
+  });
+});
+
+describe('change notifications', () => {
+  it('adding and removing an attachment notifies the task creator', async () => {
+    const { ctx, ws, taskId } = await setup('an1@example.com', 'ws-an1');
+    const grace = await addMember(ws.id, ws.slug, 'an1-grace@example.com', 'admin');
+    const view = await attach(grace, taskId);
+    await deleteAttachment(grace, { attachmentId: view.id });
+    const rows = await db.select().from(notification);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ userId: ctx.userId, data: { changes: ['attachment'] } });
   });
 });

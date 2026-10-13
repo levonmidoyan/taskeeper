@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { closeDb, db, resetDb } from '../setup/db';
 import { auth } from '@/lib/auth';
-import { user } from '@/db';
+import { user, verification } from '@/db';
 
 beforeEach(resetDb);
 afterEach(() => vi.restoreAllMocks());
@@ -102,5 +102,125 @@ describe('auth', () => {
     await expect(
       auth.api.signInEmail({ body: { email: 'wrong@example.com', password: 'wrong-pass' } }),
     ).rejects.toThrow();
+  });
+
+  it('keeps only a hash of an emailed sign-in code and accepts the code itself', async () => {
+    await auth.api.signUpEmail({
+      body: { name: 'Ada', email: 'code@example.com', password: 'correct-horse' },
+    });
+    await markVerified('code@example.com');
+    const codes: string[] = [];
+    vi.spyOn(console, 'info').mockImplementation((line: string) => {
+      const match = /^\[sign-in-code\] \S+ -> (\d+)$/.exec(line);
+      if (match) codes.push(match[1]);
+    });
+
+    await auth.api.sendVerificationOTP({ body: { email: 'code@example.com', type: 'sign-in' } });
+    expect(codes).toHaveLength(1);
+    const stored = await db.select().from(verification);
+    expect(stored.map((row) => row.value).join()).not.toContain(codes[0]);
+
+    const result = await auth.api.signInEmailOTP({
+      body: { email: 'code@example.com', otp: codes[0] },
+    });
+    expect(result.user.email).toBe('code@example.com');
+  });
+
+  it('reads a session and its user in one joined query', async () => {
+    await auth.api.signUpEmail({
+      body: { name: 'Ada', email: 'join@example.com', password: 'correct-horse' },
+    });
+    await markVerified('join@example.com');
+    const { headers: signedIn } = await auth.api.signInEmail({
+      body: { email: 'join@example.com', password: 'correct-horse' },
+      returnHeaders: true,
+    });
+    const cookie = signedIn.getSetCookie().map((line) => line.split(';')[0]).join('; ');
+    const joined = vi.spyOn(db.query.session, 'findFirst');
+
+    const result = await auth.api.getSession({
+      headers: new Headers({ cookie }),
+    });
+
+    expect(result?.user.email).toBe('join@example.com');
+    expect(joined).toHaveBeenCalledWith(expect.objectContaining({ with: { user: true } }));
+  });
+});
+
+/** An unsigned token carrying the claims; the hook reads, never verifies, it. */
+function googleIdToken(claims: Record<string, unknown>) {
+  const part = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${part({ alg: 'none' })}.${part({ sub: 'google-sub', ...claims })}.`;
+}
+
+describe('Google profile photo', () => {
+  const picture = 'https://lh3.googleusercontent.com/a/photo';
+
+  async function signUp(email: string) {
+    await auth.api.signUpEmail({ body: { name: 'Ada', email, password: 'correct-horse' } });
+    const [row] = await db.select().from(user).where(eq(user.email, email));
+    return row;
+  }
+
+  async function imageOf(id: string) {
+    const [row] = await db.select({ image: user.image }).from(user).where(eq(user.id, id));
+    return row.image;
+  }
+
+  it('takes the Google photo when Google is linked to an account without one', async () => {
+    const { id } = await signUp('link@example.com');
+    const { internalAdapter } = await auth.$context;
+
+    await internalAdapter.linkAccount({
+      userId: id,
+      providerId: 'google',
+      accountId: 'google-sub',
+      idToken: googleIdToken({ picture }),
+    });
+
+    expect(await imageOf(id)).toBe(picture);
+  });
+
+  it('takes the Google photo at a later Google sign-in when linking left none', async () => {
+    const { id } = await signUp('later@example.com');
+    const { internalAdapter } = await auth.$context;
+    const account = await internalAdapter.linkAccount({
+      userId: id,
+      providerId: 'google',
+      accountId: 'google-sub',
+    });
+
+    await internalAdapter.updateAccount(account.id, { idToken: googleIdToken({ picture }) });
+
+    expect(await imageOf(id)).toBe(picture);
+  });
+
+  it('keeps a photo the user already has', async () => {
+    const { id } = await signUp('keep@example.com');
+    await db.update(user).set({ image: 'https://example.com/mine.png' }).where(eq(user.id, id));
+    const { internalAdapter } = await auth.$context;
+
+    await internalAdapter.linkAccount({
+      userId: id,
+      providerId: 'google',
+      accountId: 'google-sub',
+      idToken: googleIdToken({ picture }),
+    });
+
+    expect(await imageOf(id)).toBe('https://example.com/mine.png');
+  });
+
+  it('ignores a token without a usable picture', async () => {
+    const { id } = await signUp('none@example.com');
+    const { internalAdapter } = await auth.$context;
+
+    await internalAdapter.linkAccount({
+      userId: id,
+      providerId: 'google',
+      accountId: 'google-sub',
+      idToken: googleIdToken({ picture: 'javascript:alert(1)' }),
+    });
+
+    expect(await imageOf(id)).toBeNull();
   });
 });

@@ -61,6 +61,7 @@ export default async function RecentPage({
                 <li key={task.id} className="border-b border-stroke-soft-200 last:border-b-0">
                   <Link
                     href={`/${workspaceSlug}/tasks/${task.id}`}
+                    data-task-nav={task.id}
                     className="group flex items-center gap-3 px-4 py-3 transition-colors duration-150 hover:bg-bg-weak-50"
                   >
                     {task.completed && (
