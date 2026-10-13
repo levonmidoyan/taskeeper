@@ -23,9 +23,8 @@ import {
   type Updater,
 } from '@tanstack/react-table';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Fragment, useEffect, useMemo, useRef, useState, useTransition, type MouseEvent } from 'react';
+import { Fragment, useMemo, useRef, useState, useTransition, ViewTransition, type MouseEvent } from 'react';
 import { toast } from 'sonner';
-import { ignoreShortcut } from '@/components/shell/shortcuts';
 import { UserView } from '@/components/auth/user/user-view';
 import { DueChip } from '@/components/task/DueChip';
 import { LabelChip } from '@/components/task/LabelChip';
@@ -40,7 +39,10 @@ import * as Divider from '@/components/ui/divider';
 import * as StatusBadge from '@/components/ui/status-badge';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useTableSettings } from '@/hooks/use-table-settings';
+import { TASK_MORPH_SHARE, TASK_OPEN, taskMorphName } from '@/lib/motion';
 import { settle } from '@/lib/settle';
+import { focusedNavId } from '@/lib/shortcuts/nav';
+import { useShortcut } from '@/lib/shortcuts/provider';
 import type { TableSettings } from '@/lib/task-table-settings';
 import {
   PRIORITY_RANK,
@@ -385,14 +387,12 @@ export function TaskTable({
     setSelection(next);
   }
 
-  useEffect(() => {
-    if (selectedIds.length === 0) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !ignoreShortcut(e)) clearSelection();
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedIds.length]);
+  useShortcut('nav.clear', clearSelection, selectedIds.length > 0);
+  useShortcut('nav.select', () => {
+    const id = focusedNavId();
+    if (!id || !rows.some((r) => r.id === id)) return false;
+    toggleRow(id, false);
+  });
 
   function applyPatch(taskIds: string[], patch: TaskPatch) {
     startTransition(async () => {
@@ -428,11 +428,13 @@ export function TaskTable({
     });
   }
 
+  const openTaskId = searchParams.get('task');
+
   function openTask(taskId: string) {
     const next = new URLSearchParams(searchParams);
     next.set('task', taskId);
     // Deep-linkable and back-dismissable (v1 spec §6.3).
-    router.push(`?${next.toString()}`, { scroll: false });
+    router.push(`?${next.toString()}`, { scroll: false, transitionTypes: [TASK_OPEN] });
   }
 
   return (
@@ -584,9 +586,20 @@ export function TaskTable({
                               openTask(row.original.id);
                             }}
                             aria-label={row.original.title}
+                            data-task-nav={row.original.id}
                             className="flex w-full min-w-0 text-left"
                           >
-                            <table.FlexRender cell={cell} />
+                            {(() => {
+                              const morph = taskMorphName(row.original.id, openTaskId);
+                              return (
+                                // Keyed by name so the morph pairs with the modal (see KanbanCard).
+                                <ViewTransition key={morph ?? 'open'} name={morph} share={TASK_MORPH_SHARE} default="none">
+                                  <span className="flex min-w-0 flex-1">
+                                    <table.FlexRender cell={cell} />
+                                  </span>
+                                </ViewTransition>
+                              );
+                            })()}
                           </button>
                         ) : (
                           <table.FlexRender cell={cell} />

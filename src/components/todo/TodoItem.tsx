@@ -3,12 +3,14 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
-  IconCircle, IconCircleCheckFilled, IconDots, IconGripVertical, IconTrash,
+  IconDots, IconGripVertical, IconTrash,
 } from '@tabler/icons-react';
 import { useRef, useState } from 'react';
+import { DoneIcon, StrikeText } from '@/components/task/DoneMark';
 import { TodoDuePicker } from '@/components/todo/TodoDuePicker';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Dropdown from '@/components/ui/dropdown';
+import { DURATION, EASE_OUT_SOFT } from '@/lib/motion';
 import type { TodoRow } from '@/server/todos/queries';
 import { cn } from '@/utils/cn';
 
@@ -62,7 +64,7 @@ export function TodoItem({
       style={style}
       className={cn(
         'group flex items-center gap-1 border-b border-stroke-soft-200 bg-bg-white-0 px-1 transition-colors duration-150 last:border-b-0 hover:bg-bg-weak-50',
-        dragging && 'relative z-10 shadow-regular-md',
+        dragging && 'relative z-10 animate-todo-lift shadow-regular-md',
       )}
     >
       {handle}
@@ -75,9 +77,7 @@ export function TodoItem({
         aria-label={done ? `Mark "${item.title}" as not done` : `Mark "${item.title}" as done`}
         className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-text-soft-400 transition-colors duration-150 hover:text-text-strong-950"
       >
-        {done
-          ? <IconCircleCheckFilled className="size-5 text-success-base" aria-hidden="true" />
-          : <IconCircle className="size-5" aria-hidden="true" />}
+        <DoneIcon done={done} className="size-5" />
       </button>
 
       {editing ? (
@@ -102,11 +102,11 @@ export function TodoItem({
           <span
             data-todo-title
             className={cn(
-              'min-w-0 flex-1 truncate text-paragraph-sm',
-              done ? 'text-text-soft-400 line-through' : 'text-text-strong-950',
+              'min-w-0 flex-1 truncate text-paragraph-sm transition-colors duration-220',
+              done ? 'text-text-soft-400' : 'text-text-strong-950',
             )}
           >
-            {item.title}
+            <StrikeText done={done}>{item.title}</StrikeText>
           </span>
         </button>
       )}
@@ -146,7 +146,7 @@ export function TodoItem({
 export function SortableTodoItem(props: TodoItemHandlers & { item: TodoRow; timezone: string }) {
   const {
     attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging,
-  } = useSortable({ id: props.item.id });
+  } = useSortable({ id: props.item.id, transition: { duration: DURATION.base, easing: EASE_OUT_SOFT } });
 
   return (
     <TodoItem

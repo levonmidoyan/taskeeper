@@ -10,6 +10,7 @@ import type { WorkspaceContext } from '@/lib/session';
 import { deleteObject, headObject, presignPut, storageEnabled } from '@/lib/storage';
 import { recordActivity } from '@/server/activity/service';
 import { emitChange } from '@/server/changes/service';
+import { notifyTaskChange } from '@/server/notifications/changes';
 import { getAttachmentView, type AttachmentView } from './queries';
 
 const NOT_SET_UP = 'Attachments are not set up.';
@@ -133,6 +134,7 @@ export async function confirmUpload(
         .returning({ id: attachment.id });
       if (!updated.length) return false;
       await recordActivity(ctx, { taskId: row.taskId, kind: 'attachment_added', to: row.fileName }, tx);
+      await notifyTaskChange(ctx, tx, { taskId: row.taskId, changes: ['attachment'] });
       await emitChange(ctx, {}, tx);
       return true;
     });
@@ -188,6 +190,7 @@ export async function deleteAttachment(
         .returning({ id: attachment.id });
       if (!removed.length) return false;
       await recordActivity(ctx, { taskId: row.taskId, kind: 'attachment_removed', from: row.fileName }, tx);
+      await notifyTaskChange(ctx, tx, { taskId: row.taskId, changes: ['attachment'] });
       await emitChange(ctx, {}, tx);
       return true;
     });

@@ -18,7 +18,7 @@ export const selectVariants = tv({
       'group/trigger min-w-0 shrink-0 bg-bg-white-0 shadow-regular-xs outline-none ring-1 ring-inset ring-stroke-soft-200',
       'text-paragraph-sm text-text-strong-950',
       'flex items-center text-left',
-      'transition duration-200 ease-out',
+      'transition duration-120 ease-out-soft',
       // hover
       'hover:bg-bg-weak-50 hover:ring-transparent',
       // focus
@@ -32,7 +32,7 @@ export const selectVariants = tv({
     triggerArrow: [
       // base
       'ml-auto size-5 shrink-0',
-      'transition duration-200 ease-out',
+      'transition duration-120 ease-out-soft',
       // placeholder state
       'group-data-[placeholder]/trigger:text-text-soft-400',
       // filled state
@@ -49,7 +49,7 @@ export const selectVariants = tv({
     triggerIcon: [
       // base
       'h-5 w-auto min-w-0 shrink-0 object-contain text-text-sub-600',
-      'transition duration-200 ease-out',
+      'transition duration-120 ease-out-soft',
       // placeholder state
       'group-data-[placeholder]/trigger:text-text-soft-400',
       // hover
@@ -329,7 +329,7 @@ const SelectContent = React.forwardRef<
           // heights
           'max-h-(--radix-select-content-available-height)',
           // animation
-          'data-[state=open]:animate-in data-[state=open]:fade-in-0',
+          'data-[state=open]:animate-in data-[state=open]:fade-in-0 duration-180 ease-out-soft',
           'data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
           'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
           'data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2',
@@ -372,7 +372,7 @@ const SelectItem = React.forwardRef<
       className={cn(
         // base
         'group relative cursor-pointer select-none rounded-lg p-2 pr-9 text-paragraph-sm text-text-strong-950',
-        'flex items-center gap-2 transition duration-200 ease-out',
+        'flex items-center gap-2 transition duration-120 ease-out-soft',
         // disabled
         'data-[disabled]:pointer-events-none data-[disabled]:text-text-disabled-300',
         // hover, focus

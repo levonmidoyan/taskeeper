@@ -2,11 +2,11 @@
 
 import { IconFilter, IconLoader2, IconPlus, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
-import { ignoreShortcut } from '@/components/shell/shortcuts';
 import * as Button from '@/components/ui/button';
 import * as Input from '@/components/ui/input';
 import * as Popover from '@/components/ui/popover';
 import * as SegmentedControl from '@/components/ui/segmented-control';
+import { useShortcut } from '@/lib/shortcuts/provider';
 import { isFiltered, type TaskFilter, type TaskState } from '@/lib/task-filter';
 import {
   chipValues, FILTER_FIELDS, fieldLabel, isNegated, removeField, toggleOp, type FilterField, type FilterOptions,
@@ -55,15 +55,7 @@ export function FilterBar({
   }, [text, filter.q, apply]);
 
   // F opens "+ Filter", like the other single-key shortcuts.
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'f' || ignoreShortcut(e)) return;
-      e.preventDefault();
-      setAdding(true);
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  useShortcut('general.filter', () => setAdding(true));
 
   return (
     <div role="toolbar" aria-label="Filters" className="flex flex-wrap items-center gap-2 border-b border-stroke-soft-200 px-4 py-2 lg:px-6">
@@ -81,7 +73,7 @@ export function FilterBar({
 
       <Popover.Root open={adding} onOpenChange={(open) => { setAdding(open); if (!open) setAddField(null); }}>
         <Popover.Trigger asChild>
-          <Button.Root variant="neutral" mode="ghost" size="xxsmall">
+          <Button.Root variant="neutral" mode="ghost" size="xxsmall" title="Add filter (F)" aria-keyshortcuts="f">
             <Button.Icon as={IconPlus} />
             Filter
           </Button.Root>

@@ -6,6 +6,8 @@ export type WorkspaceSummary = {
   id: string;
   name: string;
   slug: string;
+  /** Icon as a data URL; null shows the tinted initial. */
+  logo: string | null;
   role: WorkspaceRole;
 };
 
@@ -19,6 +21,7 @@ export async function listMyWorkspaces(userId: string): Promise<WorkspaceSummary
       id: organization.id,
       name: organization.name,
       slug: organization.slug,
+      logo: organization.logo,
       role: member.role,
     })
     .from(member)

@@ -11,10 +11,11 @@ let fetchMock: ReturnType<typeof vi.fn<typeof fetch>>;
 const json = (version: number) => new Response(JSON.stringify({ version }), { status: 200 });
 
 function start(onVersion = vi.fn()) {
-  const stop = createPollingTransport('acme', {
+  const transport = createPollingTransport('acme', {
     fetch: fetchMock as never, doc: doc as never, win: win as never,
-  }).subscribe(onVersion);
-  return { onVersion, stop };
+  });
+  const stop = transport.subscribe(onVersion);
+  return { onVersion, stop, transport };
 }
 
 beforeEach(() => {
@@ -119,5 +120,100 @@ describe('createPollingTransport', () => {
     win.dispatchEvent(new Event('focus'));
     await vi.advanceTimersByTimeAsync(120_000);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('safety mode polls every 5 min, idle or not', async () => {
+    const { stop, transport } = start();
+    transport.setMode('safety');
+    await vi.advanceTimersByTimeAsync(299_999);
+    expect(fetchMock).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    stop();
+  });
+
+  it('back to fast mode restarts the 30 s timer without checking at once', async () => {
+    const { stop, transport } = start();
+    transport.setMode('safety');
+    await vi.advanceTimersByTimeAsync(100_000);
+    transport.setMode('fast');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it('focus still checks at once in safety mode', async () => {
+    const { stop, transport } = start();
+    transport.setMode('safety');
+    win.dispatchEvent(new Event('focus'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it('checkNow checks at once, and is a no-op once unsubscribed', async () => {
+    const { stop, transport } = start();
+    transport.checkNow();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    stop();
+    transport.checkNow();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('checkNow is a no-op after a 401 stopped it', async () => {
+    fetchMock.mockResolvedValue(new Response('', { status: 401 }));
+    const { transport } = start();
+    transport.checkNow();
+    await vi.advanceTimersByTimeAsync(0);
+    transport.checkNow();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('checkNow during a poll in flight runs one more check when it lands', async () => {
+    let answer!: (res: Response) => void;
+    fetchMock.mockImplementationOnce(() => new Promise((resolve) => { answer = resolve; }));
+    const { onVersion, stop, transport } = start();
+    win.dispatchEvent(new Event('focus'));
+    await vi.advanceTimersByTimeAsync(0);
+    transport.checkNow();
+    transport.checkNow();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    answer(json(2));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(onVersion.mock.calls).toEqual([[2], [3]]);
+    stop();
+  });
+
+  it('focus during a poll in flight does not queue another', async () => {
+    let answer!: (res: Response) => void;
+    fetchMock.mockImplementationOnce(() => new Promise((resolve) => { answer = resolve; }));
+    const { stop } = start();
+    win.dispatchEvent(new Event('focus'));
+    await vi.advanceTimersByTimeAsync(0);
+    win.dispatchEvent(new Event('focus'));
+    answer(json(2));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it.each([401, 404])('calls onEnd once when %i stops it', async (status) => {
+    fetchMock.mockResolvedValue(new Response('', { status }));
+    const onEnd = vi.fn();
+    const stop = createPollingTransport('acme', {
+      fetch: fetchMock as never, doc: doc as never, win: win as never,
+    }).subscribe(vi.fn(), onEnd);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    stop();
+    expect(onEnd).toHaveBeenCalledTimes(1);
   });
 });

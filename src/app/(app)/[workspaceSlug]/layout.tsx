@@ -3,6 +3,7 @@ import { LiveRefresh } from '@/components/shell/LiveRefresh';
 import { WorkspaceShell } from '@/components/shell/WorkspaceShell';
 import { auth } from '@/lib/auth';
 import { requireWorkspace, signInRedirect } from '@/lib/session';
+import { pusherClientConfig } from '@/server/changes/pusher';
 import { getWorkspaceVersion } from '@/server/changes/queries';
 
 export default async function WorkspaceLayout({
@@ -21,7 +22,7 @@ export default async function WorkspaceLayout({
 
   return (
     <WorkspaceShell ctx={ctx}>
-      <LiveRefresh slug={ctx.slug} version={version} />
+      <LiveRefresh slug={ctx.slug} workspaceId={ctx.workspaceId} version={version} pusher={pusherClientConfig()} />
       {children}
     </WorkspaceShell>
   );

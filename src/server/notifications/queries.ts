@@ -5,8 +5,9 @@ import type { WorkspaceContext } from '@/lib/session';
 
 export type NotificationItem = {
   id: string;
-  kind: 'reminder' | 'digest';
+  kind: 'reminder' | 'digest' | 'task_change' | 'project_change' | 'mention';
   taskId: string | null;
+  projectId: string | null;
   data: NotificationData;
   readAt: Date | null;
   createdAt: Date;
@@ -18,11 +19,12 @@ const mine = (ctx: WorkspaceContext) =>
 export async function listNotifications(ctx: WorkspaceContext, limit = 30): Promise<NotificationItem[]> {
   return db
     .select({
-      id: notification.id, kind: notification.kind, taskId: notification.taskId, data: notification.data,
+      id: notification.id, kind: notification.kind, taskId: notification.taskId, projectId: notification.projectId,
+      data: notification.data,
       readAt: notification.readAt, createdAt: notification.createdAt,
     })
     .from(notification)
-    .where(mine(ctx))
+    .where(and(mine(ctx), isNull(notification.clearedAt)))
     .orderBy(desc(notification.createdAt), desc(notification.id))
     .limit(limit);
 }
@@ -33,4 +35,17 @@ export async function unreadCount(ctx: WorkspaceContext): Promise<number> {
     .from(notification)
     .where(and(mine(ctx), isNull(notification.readAt)));
   return row?.n ?? 0;
+}
+
+/**
+ * The shell's bell: the unread count, plus the database's clock. The bell
+ * toasts only items created after `now`, and created_at comes from this same
+ * clock, so a browser clock running fast or slow cannot hide or replay toasts.
+ */
+export async function bellSnapshot(ctx: WorkspaceContext): Promise<{ unread: number; now: number }> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int`, now: sql<string>`now()` })
+    .from(notification)
+    .where(and(mine(ctx), isNull(notification.readAt)));
+  return { unread: row?.n ?? 0, now: new Date(row?.now ?? Date.now()).getTime() };
 }

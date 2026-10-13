@@ -5,19 +5,29 @@ import { AssigneeAvatar } from '@/components/task/AssigneeAvatar';
 import { DueChip } from '@/components/task/DueChip';
 import { LabelChip } from '@/components/task/LabelChip';
 import { PriorityChip } from '@/components/task/Priority';
+import { cardTransitionName, taskMorphName } from '@/lib/motion';
 import type { TaskRow } from '@/server/tasks/queries';
 
 export function TaskCard({
   task,
   timezone,
+  openTaskId,
   onOpen,
 }: {
   task: TaskRow;
   timezone: string;
+  openTaskId: string | null;
   onOpen: (id: string) => void;
 }) {
   return (
-    <KanbanCard id={task.id} name={task.title} onClick={() => onOpen(task.id)}>
+    <KanbanCard
+      id={task.id}
+      name={task.title}
+      onClick={() => onOpen(task.id)}
+      transitionName={cardTransitionName(task.id)}
+      morphName={taskMorphName(task.id, openTaskId)}
+      navColumn={task.statusId}
+    >
       <p className="text-paragraph-sm text-text-strong-950">{task.title}</p>
 
       {task.labels.length > 0 && (

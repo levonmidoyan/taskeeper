@@ -37,6 +37,11 @@ export default defineConfig({
       RESEND_API_KEY: '',
       // Lets reminders.spec.ts trigger the reminders cron like Vercel does.
       CRON_SECRET: 'e2e-cron-secret',
+      // Live refresh runs on polling in e2e, never against a real Pusher app.
+      PUSHER_APP_ID: '',
+      PUSHER_KEY: '',
+      PUSHER_SECRET: '',
+      PUSHER_CLUSTER: '',
     },
   },
 });

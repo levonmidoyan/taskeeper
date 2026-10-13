@@ -41,6 +41,13 @@ describe('buildOpenApi', () => {
     components: { securitySchemes: Record<string, { type: string; scheme: string }>; schemas: Record<string, unknown> };
   };
 
+  it('documents reactions on comments', () => {
+    // The 200 response references a component schema, so look across the document.
+    const text = JSON.stringify(doc);
+    expect(text).toContain('"reactions"');
+    expect(text).toContain('"userIds"');
+  });
+
   it('is an OpenAPI 3.1 document with bearer auth', () => {
     expect(doc.openapi).toBe('3.1.0');
     expect(doc.info).toMatchObject({ title: 'Taskeeper API', version: '1' });

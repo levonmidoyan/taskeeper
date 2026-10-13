@@ -15,6 +15,12 @@ process.env.DATABASE_URL = process.env.DATABASE_URL_TEST;
 // link to the console instead (see src/lib/email.tsx).
 delete process.env.SMTP_HOST;
 
+// Tests must never publish to a real Pusher app; without these, live refresh
+// is polling only (see src/server/changes/pusher.ts).
+for (const name of ['PUSHER_APP_ID', 'PUSHER_KEY', 'PUSHER_SECRET', 'PUSHER_CLUSTER']) {
+  delete process.env[name];
+}
+
 if (!process.env.S3_BUCKET_TEST) {
   throw new Error('S3_BUCKET_TEST is not set. Copy the S3_* block from .env.example to .env.local.');
 }

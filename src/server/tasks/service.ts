@@ -2,7 +2,9 @@ import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, label, member, project, task, taskLabel, taskStatus, user } from '@/db';
 import { isCalendarDay } from '@/lib/dates';
+import type { TaskChangeKind } from '@/lib/notifications';
 import { newId } from '@/lib/ids';
+import { extractMentionIds } from '@/lib/mentions';
 import { byId, byKey, positionBetween, positionsForCount } from '@/lib/position';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import type { WorkspaceContext } from '@/lib/session';
@@ -10,6 +12,7 @@ import { recordActivity, type ActivityKind } from '@/server/activity/service';
 import { attachmentKeysForTasks, purgeObjects } from '@/server/attachments/cleanup';
 import { emitChange } from '@/server/changes/service';
 import { replaceTaskLabels } from '@/server/labels/service';
+import { notifyMentions, notifyTaskChange } from '@/server/notifications/changes';
 import { lastTaskPosition, lockColumns, nextTaskPosition } from '@/server/tasks/columns';
 
 const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const;
@@ -52,7 +55,7 @@ async function loadOwnedTask(ctx: WorkspaceContext, taskId: string) {
     .select({
       id: task.id, projectId: task.projectId, statusId: task.statusId,
       completedAt: task.completedAt, title: task.title, priority: task.priority,
-      assigneeId: task.assigneeId, dueDate: task.dueDate,
+      assigneeId: task.assigneeId, dueDate: task.dueDate, description: task.description,
       statusName: taskStatus.name,
     })
     .from(task)
@@ -186,6 +189,12 @@ export async function createTask(
         await tx.insert(taskLabel).values(labelIds.map((labelId) => ({ taskId: id, labelId })));
       }
       await recordActivity(ctx, { taskId: id, kind: 'created', to: parsed.data.title }, tx);
+      if (parsed.data.description) {
+        await notifyMentions(ctx, tx, { taskId: id, userIds: extractMentionIds(parsed.data.description), where: 'description' });
+      }
+      if (assigneeId && assigneeId !== ctx.userId) {
+        await notifyTaskChange(ctx, tx, { taskId: id, changes: ['assignee'] });
+      }
       await emitChange(ctx, { projectId: parsed.data.projectId }, tx);
       return ok({ id });
     });
@@ -212,6 +221,10 @@ type UpdatePlan = {
   owned: NonNullable<Awaited<ReturnType<typeof loadOwnedTask>>>;
   patch: Record<string, unknown>;
   entries: { kind: ActivityKind; from?: string | null; to?: string | null }[];
+  /** What recipients are told changed: the activity kinds plus description. */
+  changes: TaskChangeKind[];
+  /** The task's new status name, when it changes column. */
+  newStatusName: string | null;
 };
 
 /** Everything updateTask checks before writing. Reads only, so a failure changes nothing. */
@@ -261,7 +274,11 @@ async function planUpdate(ctx: WorkspaceContext, input: UpdateTaskInput): Promis
     entries.push({ kind: 'status', from: owned.statusName, to: newStatusName });
   }
 
-  return ok({ taskId: parsed.data.taskId, owned, patch, entries });
+  // Activity kinds that are also change kinds map 1:1; description has no activity row.
+  const changes: TaskChangeKind[] = entries.map((e) => e.kind as TaskChangeKind);
+  if (patch.description !== undefined && patch.description !== owned.description) changes.push('description');
+
+  return ok({ taskId: parsed.data.taskId, owned, patch, entries, changes, newStatusName });
 }
 
 /** The writes of one planned update, inside the caller's transaction. */
@@ -276,10 +293,40 @@ async function applyUpdate(ctx: WorkspaceContext, tx: Tx, plan: UpdatePlan): Pro
     patch.position = positionBetween(last, null);
   }
 
+  // The description as committed, locked: planUpdate's read can be stale, and two
+  // quick edits must not both diff against it and both notify, as for comments.
+  let committedDescription: string | null = null;
+  if (plan.changes.includes('description')) {
+    const [row] = await tx
+      .select({ description: task.description })
+      .from(task)
+      .where(eq(task.id, plan.taskId))
+      .for('update');
+    committedDescription = row?.description ?? null;
+  }
+
   await tx.update(task).set(patch).where(eq(task.id, plan.taskId));
   for (const entry of entries) {
     await recordActivity(ctx, { taskId: plan.taskId, ...entry }, tx);
   }
+  const reassigned = patch.assigneeId !== undefined && patch.assigneeId !== owned.assigneeId;
+  let mentioned: string[] = [];
+  if (plan.changes.includes('description')) {
+    // Only people this edit adds, as for comments.
+    const old = new Set(extractMentionIds(committedDescription ?? ''));
+    mentioned = await notifyMentions(ctx, tx, {
+      taskId: plan.taskId,
+      userIds: extractMentionIds(patch.description as string).filter((id) => !old.has(id)),
+      where: 'description',
+    });
+  }
+  await notifyTaskChange(ctx, tx, {
+    taskId: plan.taskId,
+    changes: plan.changes,
+    previousAssigneeId: reassigned ? owned.assigneeId : null,
+    ...(plan.newStatusName && plan.changes.includes('status') ? { status: plan.newStatusName } : {}),
+    mentioned: { ids: mentioned, covers: 'description' },
+  });
   return ok(null);
 }
 
@@ -310,6 +357,7 @@ export async function updateTaskAndLabels(
         if (labelIds) {
           const labelled = await replaceTaskLabels(ctx, tx, plan.data.taskId, labelIds);
           if (!labelled.ok) throw new RolledBack(labelled);
+          if (labelled.data.changed) await notifyTaskChange(ctx, tx, { taskId: plan.data.taskId, changes: ['labels'] });
         }
         await emitChange(ctx, { projectId: plan.data.owned.projectId }, tx);
       });
@@ -434,6 +482,7 @@ export async function moveTask(
           { taskId: parsed.data.taskId, kind: 'status', from: owned.statusName, to: status.name },
           tx,
         );
+        await notifyTaskChange(ctx, tx, { taskId: parsed.data.taskId, changes: ['status'], status: status.name });
       }
       await emitChange(ctx, { projectId: owned.projectId }, tx);
       return ok({ position });
