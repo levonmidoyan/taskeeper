@@ -9,7 +9,7 @@ import * as Label from '@/components/ui/label';
 import * as Switch from '@/components/ui/switch';
 import type { PushPrefs } from '@/lib/push';
 import { pushSupport, urlBase64ToUint8Array } from '@/lib/push-client';
-import { claimPushDevice, currentPushSubscription } from '@/lib/push-device';
+import { claimPushDevice, currentPushSubscription, pushRegistration } from '@/lib/push-device';
 import { settle } from '@/lib/settle';
 import {
   sendTestPushAction, subscribePushAction, unsubscribePushAction, updatePushPrefsAction,
@@ -62,7 +62,7 @@ export function PushPrefsForm({ current, publicKey }: { current: PushPrefs; publ
     if (!publicKey) return;
     setBusy(true);
     try {
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await pushRegistration();
       if (on) {
         // Asked from the tap: iOS refuses a permission prompt that no gesture started.
         if ((await Notification.requestPermission()) !== 'granted') return setDevice('denied');
