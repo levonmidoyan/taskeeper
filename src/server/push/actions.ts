@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import type { PushPrefs } from '@/lib/push';
 import { withAction, type Result } from '@/lib/result';
 import { requireUser } from '@/lib/session';
-import { subscribePush, unsubscribePush, updatePushPrefs } from './service';
+import { sendTestPush, subscribePush, unsubscribePush, updatePushPrefs } from './service';
 
 export async function subscribePushAction(subscription: unknown): Promise<Result<null>> {
   return withAction(async () =>
@@ -23,4 +23,8 @@ export async function updatePushPrefsAction(input: PushPrefs): Promise<Result<nu
     if (result.ok) revalidatePath('/settings/preferences');
     return result;
   });
+}
+
+export async function sendTestPushAction(): Promise<Result<{ sent: number; failed: number }>> {
+  return withAction(async () => sendTestPush(await requireUser()));
 }

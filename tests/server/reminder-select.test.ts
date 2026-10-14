@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
 import { notification, task, userSettings } from '@/db';
@@ -220,6 +220,15 @@ describe('claimNotifications', () => {
     expect(await claimNotifications(drafts)).toHaveLength(2);
     expect(await claimNotifications(drafts)).toEqual([]);
     expect(await db.select().from(notification)).toHaveLength(2);
+  });
+
+  it('returns each inserted row’s id and created_at stamp, for push', async () => {
+    const { ctx, taskId } = await setup();
+    await setTaskReminders(ctx, { taskId, offsets: [0] });
+    const claimed = await claimNotifications(await selectDueReminders(at('2026-10-10T06:00:00Z')));
+    expect(claimed).toHaveLength(1);
+    const [row] = await db.execute<{ id: string; stamp: string }>(sql`SELECT id, created_at::text AS stamp FROM notification`).then((r) => r.rows);
+    expect(claimed[0]).toEqual({ workspaceId: ctx.workspaceId, id: row.id, stamp: row.stamp });
   });
 
   it('does nothing for an empty list', async () => {

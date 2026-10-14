@@ -5,6 +5,7 @@ import { newId } from '@/lib/ids';
 import { PUSH_DEFAULTS, type PushPrefs } from '@/lib/push';
 import { err, ok, withAction, type Result } from '@/lib/result';
 import type { UserContext } from '@/lib/session';
+import { sendToSubscriptions } from './deliver';
 
 // PushSubscription.toJSON(); expirationTime is ignored (browsers send null).
 const subscriptionSchema = z.object({
@@ -72,5 +73,22 @@ export async function updatePushPrefs(ctx: UserContext, input: PushPrefs): Promi
     };
     await db.insert(userSettings).values({ userId: ctx.userId, ...set }).onConflictDoUpdate({ target: userSettings.userId, set });
     return ok(null);
+  });
+}
+
+/** "Push is working" to every device of the caller. */
+export async function sendTestPush(ctx: UserContext): Promise<Result<{ sent: number; failed: number }>> {
+  return withAction(async () => {
+    const subs = await db
+      .select({ id: pushSubscription.id, endpoint: pushSubscription.endpoint, p256dh: pushSubscription.p256dh, auth: pushSubscription.auth })
+      .from(pushSubscription)
+      .where(eq(pushSubscription.userId, ctx.userId));
+    if (subs.length === 0) return err('Turn on push on this device first.');
+    const result = await sendToSubscriptions(
+      subs,
+      { title: 'Push is working', body: 'Taskeeper notifications will show up like this.', url: '/', tag: 'push-test' },
+      'high',
+    );
+    return result.sent === 0 ? err('Could not reach your devices’ push service. Try again.') : ok(result);
   });
 }

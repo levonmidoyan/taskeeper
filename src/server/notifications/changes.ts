@@ -7,6 +7,8 @@ import type {
 } from '@/lib/notifications';
 import type { WorkspaceContext } from '@/lib/session';
 import type { Executor } from '@/server/activity/service';
+import type { PushRef } from '@/server/push/deliver';
+import { schedulePush } from '@/server/push/schedule';
 
 const COMMENT_EXCERPT = 120;
 
@@ -134,7 +136,7 @@ export async function notifyTaskChange(
   // assignedToYou: a later assignee change decides, so "assigned you" goes once
   // the task is someone else's. created_at is the statement's clock, not the
   // transaction's start: the bell's toast cutoff compares against it.
-  await tx.execute(sql`
+  const { rows } = await tx.execute<PushRef>(sql`
     INSERT INTO notification AS n (id, user_id, workspace_id, kind, task_id, actor_id, dedupe_key, data, created_at)
     VALUES ${values(targets.map((userId) => sql`(
       ${newId()}, ${userId}, ${ctx.workspaceId}, 'task_change', ${input.taskId}, ${ctx.userId},
@@ -150,7 +152,9 @@ export async function notifyTaskChange(
         || ${keepStored('status')}
         || ${keepStored('reaction')},
       created_at = clock_timestamp()
+    RETURNING n.id, n.created_at::text AS stamp
   `);
+  schedulePush(rows);
 }
 
 /**
@@ -185,7 +189,7 @@ export async function notifyMentions(
   };
   const json = JSON.stringify(data);
 
-  await tx.execute(sql`
+  const { rows } = await tx.execute<PushRef>(sql`
     INSERT INTO notification AS n (id, user_id, workspace_id, kind, task_id, actor_id, dedupe_key, data, created_at)
     VALUES ${values(ids.map((userId) => sql`(
       ${newId()}, ${userId}, ${ctx.workspaceId}, 'mention', ${input.taskId}, ${ctx.userId},
@@ -197,7 +201,9 @@ export async function notifyMentions(
         || jsonb_build_object('where', ${mergedChanges([], 'where')})
         || ${keepStored('comment')},
       created_at = clock_timestamp()
+    RETURNING n.id, n.created_at::text AS stamp
   `);
+  schedulePush(rows);
   return ids;
 }
 
@@ -224,7 +230,7 @@ export async function notifyProjectChange(
   const json = JSON.stringify(data);
   const undone = UNDOES[input.change];
 
-  await tx.execute(sql`
+  const { rows } = await tx.execute<PushRef>(sql`
     INSERT INTO notification AS n (id, user_id, workspace_id, kind, project_id, actor_id, dedupe_key, data, created_at)
     VALUES ${values(ids.map((userId) => sql`(
       ${newId()}, ${userId}, ${ctx.workspaceId}, 'project_change', ${input.projectId}, ${ctx.userId},
@@ -236,5 +242,7 @@ export async function notifyProjectChange(
         || jsonb_build_object('projectName', n.data->'projectName', 'changes', ${mergedChanges(undone ? [undone] : [])})
         || ${keepStored('newName')},
       created_at = clock_timestamp()
+    RETURNING n.id, n.created_at::text AS stamp
   `);
+  schedulePush(rows);
 }

@@ -3,6 +3,7 @@ import { db, notification, organization, user } from '@/db';
 import { EmailSendError, sendNotificationEmail } from '@/lib/email';
 import { REMINDER_CRON_HOURLY, type MailSender, type OutgoingMail } from '@/lib/reminders';
 import { emitChangeFor } from '@/server/changes/service';
+import { deliverPush } from '@/server/push/deliver';
 import { claimNotifications, selectDueDigests, selectDueReminders } from './select';
 
 const EMAIL_BATCH = 500;
@@ -117,9 +118,12 @@ export async function runReminders({
 
   // Recipients' bells live in the workspace layout, so tell those pages. Only
   // workspaces that got something new: repeats change nothing on screen.
-  for (const workspaceId of new Set(claimedIn)) {
+  for (const workspaceId of new Set(claimedIn.map((c) => c.workspaceId))) {
     await emitChangeFor(workspaceId, db);
   }
+
+  // Phones first: email can take minutes with the send gap; a push is one round trip.
+  await deliverPush(claimedIn);
 
   let emailed = 0;
   let failed = 0;
