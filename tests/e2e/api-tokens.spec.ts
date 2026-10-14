@@ -39,7 +39,7 @@ test('a token made in settings drives the API until it is revoked', async ({ pag
   expect(created.status()).toBe(201);
 
   await page.goto(`/${slug}/projects/${projectId}/list`);
-  await expect(page.getByText('Made by the API')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Made by the API', exact: true })).toBeVisible();
 
   await page.goto('/settings/api-tokens');
   await page.getByRole('button', { name: 'Revoke e2e' }).click();
