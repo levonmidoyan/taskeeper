@@ -1,7 +1,8 @@
 // Taskeeper service worker: web push, notification clicks, and an offline page for
 // navigations. Nothing else is cached; every other request goes to the network as usual.
-const CACHE = 'taskeeper-offline-v1';
-const OFFLINE_URL = '/offline';
+// Bump CACHE when offline.html changes, so installed workers fetch the new copy.
+const CACHE = 'taskeeper-offline-v2';
+const OFFLINE_URL = '/offline.html';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.add(new Request(OFFLINE_URL, { cache: 'reload' }))));
