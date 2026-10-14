@@ -7,6 +7,7 @@ import { CommandPalette } from '@/components/shell/CommandPalette';
 import { CreateTaskDialog } from '@/components/shell/CreateTaskDialog';
 import { GoToShortcuts } from '@/components/shell/GoToShortcuts';
 import { NotificationBell } from '@/components/shell/NotificationBell';
+import { PushDeviceClaim } from '@/components/shell/PushDeviceClaim';
 import { MobileNav, type RailProps } from '@/components/shell/Rail';
 import { ShortcutHelpDialog } from '@/components/shell/ShortcutHelpDialog';
 import { TaskNavShortcuts } from '@/components/shell/TaskNavShortcuts';
@@ -60,6 +61,7 @@ export function AppHeader({ unread, serverNow, sound, ...props }: RailProps & {
         onOpenChange={setCreating}
       />
       <TaskNavShortcuts />
+      <PushDeviceClaim />
       <GoToShortcuts workspaceSlug={props.workspaceSlug} />
       <ShortcutHelpDialog open={showingShortcuts} onOpenChange={setShowingShortcuts} />
     </header>

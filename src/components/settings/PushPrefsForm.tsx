@@ -9,6 +9,7 @@ import * as Label from '@/components/ui/label';
 import * as Switch from '@/components/ui/switch';
 import type { PushPrefs } from '@/lib/push';
 import { pushSupport, urlBase64ToUint8Array } from '@/lib/push-client';
+import { claimPushDevice, currentPushSubscription } from '@/lib/push-device';
 import { settle } from '@/lib/settle';
 import {
   sendTestPushAction, subscribePushAction, unsubscribePushAction, updatePushPrefsAction,
@@ -51,9 +52,9 @@ export function PushPrefsForm({ current, publicKey }: { current: PushPrefs; publ
       });
       if (support !== 'ok') return setDevice(support);
       if (Notification.permission === 'denied') return setDevice('denied');
-      const registration = await navigator.serviceWorker.getRegistration();
-      const subscription = await registration?.pushManager.getSubscription();
-      setDevice(subscription ? 'on' : 'off');
+      const subscription = await currentPushSubscription();
+      // Shown On only once it delivers to this account (it may be another account's).
+      setDevice(subscription && (await claimPushDevice(subscription)) ? 'on' : 'off');
     })();
   }, [publicKey]);
 
