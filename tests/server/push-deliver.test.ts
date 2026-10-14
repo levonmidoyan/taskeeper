@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 class FakeWebPushError extends Error {
   constructor(public statusCode: number) { super(`status ${statusCode}`); }
 }
-const sendNotification = vi.fn(async (..._args: unknown[]) => ({ statusCode: 201 }));
+const sendNotification = vi.fn<(...args: unknown[]) => Promise<{ statusCode: number }>>(async () => ({ statusCode: 201 }));
 vi.mock('web-push', () => ({ default: { sendNotification }, WebPushError: FakeWebPushError }));
 
 const afterCallbacks: Array<() => unknown> = [];

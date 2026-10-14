@@ -28,7 +28,7 @@ export function AppHeader({ unread, serverNow, sound, ...props }: RailProps & {
   useShortcut('general.help', () => setShowingShortcuts(true));
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-stroke-soft-200 bg-bg-white-0/85 px-3 backdrop-blur-md lg:gap-3 lg:px-6">
+    <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center pt-[env(safe-area-inset-top)] gap-2 border-b border-stroke-soft-200 bg-bg-white-0/85 px-3 backdrop-blur-md lg:gap-3 lg:px-6">
       <MobileNav {...props} />
       <div className="flex min-w-0 flex-1 justify-center max-sm:justify-end">
         <CommandPalette

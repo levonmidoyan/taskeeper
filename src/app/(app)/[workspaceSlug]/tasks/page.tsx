@@ -73,7 +73,7 @@ export default async function AllTasksPage({
   }
 
   return (
-    <main className={cn(layout === 'calendar' && 'flex h-[calc(100dvh-3.5rem)] flex-col')}>
+    <main className={cn(layout === 'calendar' && 'flex h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] flex-col')}>
       <header className="flex flex-wrap items-center gap-3 border-b border-stroke-soft-200 px-4 py-3 lg:px-6">
         <h1 className="min-w-0 flex-1 truncate text-label-lg text-text-strong-950">{resolved.view?.name ?? 'All tasks'}</h1>
         <div role="tablist" aria-label="Layout" className="flex items-center gap-1 rounded-10 bg-bg-weak-50 p-1">

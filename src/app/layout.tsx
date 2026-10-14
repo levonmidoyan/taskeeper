@@ -1,5 +1,6 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
+import { ServiceWorkerRegister } from '@/components/brand/ServiceWorkerRegister';
 import { TopLoadingBar } from '@/components/brand/TopLoadingBar';
 import { Providers } from '@/components/providers';
 import { ThemeProvider } from '@/components/theme-provider';
@@ -12,6 +13,16 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Taskeeper',
   description: 'Task management for small teams',
+  appleWebApp: { capable: true, title: 'Taskeeper', statusBarStyle: 'default' },
+};
+
+// Matches the app header (bg-white-0) in each scheme; cover lets the bars pad for the notch.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0e121b' },
+  ],
+  viewportFit: 'cover',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -22,6 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-dvh antialiased">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <TopLoadingBar />
+          <ServiceWorkerRegister />
           <Providers
             requireEmailVerification={requireEmailVerification()}
             google={googleCredentials() !== null}

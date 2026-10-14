@@ -52,7 +52,7 @@ export default async function ProjectCalendarPage({
 
   // Viewport minus the h-14 app header, so the grid fills the page.
   return (
-    <main className="flex h-[calc(100dvh-3.5rem)] flex-col">
+    <main className="flex h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] flex-col">
       <ProjectHeader
         name={project.name}
         basePath={basePath}
