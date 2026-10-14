@@ -9,7 +9,7 @@ import { getPushPrefs, subscribePush, unsubscribePush, updatePushPrefs } from '@
 beforeEach(resetDb);
 afterAll(closeDb);
 
-const sub = (endpoint = 'https://push.example.test/abc') => ({
+const sub = (endpoint = 'https://fcm.googleapis.com/fcm/send/abc') => ({
   endpoint, expirationTime: null, keys: { p256dh: 'p'.repeat(87), auth: 'a'.repeat(22) },
 });
 
@@ -41,6 +41,19 @@ describe('subscribePush', () => {
     const { ada } = await users();
     expect((await subscribePush(ada, { ...sub(), endpoint: 'http://x.test' }, null)).ok).toBe(false);
     expect((await subscribePush(ada, { endpoint: 'https://x.test' }, null)).ok).toBe(false);
+  });
+
+  it('only accepts known browser push services, so the server never posts to an arbitrary host', async () => {
+    const { ada } = await users();
+    for (const endpoint of ['https://169.254.169.254/latest', 'https://internal.example.com/x', 'https://fcm.googleapis.com.evil.test/x']) {
+      expect((await subscribePush(ada, sub(endpoint), null)).ok).toBe(false);
+    }
+    for (const endpoint of [
+      'https://fcm.googleapis.com/fcm/send/x', 'https://updates.push.services.mozilla.com/wpush/v2/x',
+      'https://web.push.apple.com/x', 'https://wns2-par02p.notify.windows.com/w/?token=x',
+    ]) {
+      expect((await subscribePush(ada, sub(endpoint), null)).ok).toBe(true);
+    }
   });
 });
 

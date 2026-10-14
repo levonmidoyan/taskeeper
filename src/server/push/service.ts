@@ -7,9 +7,19 @@ import { err, ok, withAction, type Result } from '@/lib/result';
 import type { UserContext } from '@/lib/session';
 import { sendToSubscriptions } from './deliver';
 
+// The browsers' push services. The server POSTs to a stored endpoint, so any other
+// host is refused: otherwise a user could aim those requests at internal addresses.
+const PUSH_HOSTS = ['fcm.googleapis.com', 'android.googleapis.com', 'updates.push.services.mozilla.com', 'web.push.apple.com'];
+const PUSH_HOST_SUFFIXES = ['.push.apple.com', '.notify.windows.com'];
+
+function isPushService(endpoint: string): boolean {
+  const { hostname } = new URL(endpoint);
+  return PUSH_HOSTS.includes(hostname) || PUSH_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
+}
+
 // PushSubscription.toJSON(); expirationTime is ignored (browsers send null).
 const subscriptionSchema = z.object({
-  endpoint: z.url().startsWith('https://').max(2048),
+  endpoint: z.url().startsWith('https://').max(2048).refine(isPushService),
   keys: z.object({ p256dh: z.string().min(1).max(256), auth: z.string().min(1).max(256) }),
 });
 
