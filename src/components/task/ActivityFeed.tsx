@@ -2,7 +2,7 @@
 
 import { IconTrash } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { ShortcutKeys } from '@/components/shell/ShortcutHint';
 import { CollapsibleSection } from '@/components/task/CollapsibleSection';
@@ -17,6 +17,7 @@ import * as SegmentedControl from '@/components/ui/segmented-control';
 import { useTaskSectionOpen } from '@/hooks/use-task-sections';
 import { describeActivity } from '@/lib/activity-text';
 import { formatInZone } from '@/lib/dates';
+import { LOCAL_ESCAPE_EVENT } from '@/lib/local-escape';
 import { settle } from '@/lib/settle';
 import { useShortcut } from '@/lib/shortcuts/provider';
 import { cn } from '@/utils/cn';
@@ -68,6 +69,9 @@ export function ActivityFeed({
   const [editDraft, setEditDraft] = useState('');
   const [tab, setTab] = useState<ActivityTab>('comments');
   const composerRef = useRef<HTMLFormElement>(null);
+  const editFormRef = useRef<HTMLFormElement>(null);
+  // The comment whose Edit button gets focus back once its edit ends.
+  const returnFocusTo = useRef<string | null>(null);
   const [, setSectionOpen] = useTaskSectionOpen('activity');
   // m: open the section if collapsed, leave History, and put the caret in the composer.
   useShortcut('detail.comment', () => {
@@ -122,6 +126,35 @@ export function ActivityFeed({
     setEditingId(entry.id);
   }
 
+  function finishEdit() {
+    returnFocusTo.current = editingId;
+    setEditingId(null);
+  }
+
+  // Inside a dialog, Escape reaches the dialog first; it hands it over by this event.
+  // The composer only claims it while open (see data-local-escape below).
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.addEventListener(LOCAL_ESCAPE_EVENT, resetComposer);
+    return () => el.removeEventListener(LOCAL_ESCAPE_EVENT, resetComposer);
+  }, []);
+
+  useEffect(() => {
+    const el = editFormRef.current;
+    if (!editingId || !el) return;
+    el.addEventListener(LOCAL_ESCAPE_EVENT, finishEdit);
+    return () => el.removeEventListener(LOCAL_ESCAPE_EVENT, finishEdit);
+  });
+
+  // Back to where the edit started, so the keyboard is not dropped on the body.
+  useEffect(() => {
+    if (editingId || !returnFocusTo.current) return;
+    const id = returnFocusTo.current;
+    returnFocusTo.current = null;
+    document.querySelector<HTMLElement>(`[data-edit-comment="${id}"]`)?.focus();
+  }, [editingId]);
+
   function onEdit(commentId: string) {
     startTransition(async () => {
       const result = await settle(updateCommentAction(workspaceSlug, { commentId, body: editDraft }));
@@ -129,7 +162,7 @@ export function ActivityFeed({
         toast.error(result.error);
         return;
       }
-      setEditingId(null);
+      finishEdit();
       router.refresh();
     });
   }
@@ -170,6 +203,7 @@ export function ActivityFeed({
         ref={composerRef}
         onSubmit={onSubmit}
         hidden={tab === 'history'}
+        data-local-escape={expanded ? '' : undefined}
         onFocus={(event) => {
           // Only the editor opens it: a focused quick reply would swap itself out
           // for Save and Cancel on mousedown, before its click lands.
@@ -185,6 +219,13 @@ export function ActivityFeed({
             event.preventDefault();
             event.stopPropagation();
             event.currentTarget.requestSubmit();
+          }
+        }}
+        onKeyDown={(event) => {
+          // Already handled when the slash menu or link field took it.
+          if (event.key === 'Escape' && expanded && !event.defaultPrevented) {
+            event.preventDefault();
+            resetComposer();
           }
         }}
         className="sticky -top-5 z-10 -mt-2 flex gap-3 bg-bg-white-0 pt-5 pb-3"
@@ -270,7 +311,14 @@ export function ActivityFeed({
                   </span>
                   <span className="ml-auto flex items-center gap-1">
                     {entry.authorId === currentUserId && editingId !== entry.id && (
-                      <Button.Root type="button" variant="neutral" mode="ghost" size="xxsmall" onClick={() => startEdit(entry)}>
+                      <Button.Root
+                        type="button"
+                        variant="neutral"
+                        mode="ghost"
+                        size="xxsmall"
+                        data-edit-comment={entry.id}
+                        onClick={() => startEdit(entry)}
+                      >
                         Edit
                       </Button.Root>
                     )}
@@ -293,13 +341,36 @@ export function ActivityFeed({
 
                 {editingId === entry.id ? (
                   <form
+                    ref={editFormRef}
+                    data-local-escape=""
                     onSubmit={(event) => { event.preventDefault(); onEdit(entry.id); }}
+                    onKeyDownCapture={(event) => {
+                      // Ahead of the editor, whose own Mod-Enter would add a line break first.
+                      if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        event.currentTarget.requestSubmit();
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      // Already handled when the slash menu or link field took it.
+                      if (event.key === 'Escape' && !event.defaultPrevented) {
+                        event.preventDefault();
+                        finishEdit();
+                      }
+                    }}
                     className="mt-2 flex flex-col gap-2"
                   >
-                    <RichTextField value={entry.body} label="Edit comment" members={members} onChange={setEditDraft} />
+                    <RichTextField
+                      value={entry.body}
+                      label="Edit comment"
+                      members={members}
+                      autoFocus
+                      onChange={setEditDraft}
+                    />
                     <div className="flex gap-2">
                       <Button.Root type="submit" size="xxsmall" disabled={pending}>Save</Button.Root>
-                      <Button.Root type="button" variant="neutral" mode="stroke" size="xxsmall" onClick={() => setEditingId(null)}>
+                      <Button.Root type="button" variant="neutral" mode="stroke" size="xxsmall" onClick={finishEdit}>
                         Cancel
                       </Button.Root>
                     </div>
