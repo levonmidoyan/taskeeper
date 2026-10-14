@@ -18,6 +18,12 @@ import { NotificationList } from './NotificationList';
 export function InboxList({ workspaceSlug, initialItems }: { workspaceSlug: string; initialItems: NotificationItem[] }) {
   const router = useRouter();
   const [items, setItems] = useState(initialItems);
+  // A fresh server list (live refresh, revalidation after an action) replaces the local one.
+  const [serverItems, setServerItems] = useState(initialItems);
+  if (serverItems !== initialItems) {
+    setServerItems(initialItems);
+    setItems(initialItems);
+  }
   const unread = items.some((i) => !i.readAt);
 
   async function markOne(item: NotificationItem) {
