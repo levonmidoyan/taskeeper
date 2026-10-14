@@ -69,10 +69,50 @@ test('the bottom bar never covers the last list row or the bulk bar', async ({ p
   await page.keyboard.press('Escape');
   await expect(page).not.toHaveURL(/[?&]task=/);
 
-  await page.getByLabel('Select Row 1', { exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Select Row 1', exact: true }).check();
   const bulk = page.getByRole('toolbar', { name: 'Bulk actions' });
   await expect(bulk).toBeVisible();
   const barBox = await page.getByRole('navigation', { name: 'Primary' }).boundingBox();
   const bulkBox = await bulk.boundingBox();
   expect(bulkBox!.y + bulkBox!.height).toBeLessThanOrEqual(barBox!.y);
+});
+
+/** Sets the open task's due date to today and waits for the save (as calendar.spec.ts). */
+async function dueToday(page: Page) {
+  const details = page.getByRole('dialog', { name: 'Task details' });
+  await details.getByLabel('Due date').click();
+  const saved = page.waitForResponse((r) => r.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Today', exact: true }).click();
+  await saved;
+  await expect(page.getByRole('button', { name: 'Today', exact: true })).toBeHidden();
+}
+
+test('board, calendar and task detail on a phone', async ({ page }) => {
+  await signUpWithWorkspace(page);
+  await newProject(page, 'Views');
+  await newTask(page, 'Card one');
+
+  await page.getByRole('tab', { name: 'Board' }).click();
+  await page.getByRole('button', { name: 'Move Card one' }).click();
+  await page.getByRole('menuitem', { name: 'Done' }).click();
+  await expect(page.getByRole('region', { name: 'Done' }).getByText('Card one')).toBeVisible();
+
+  // Task detail: fields come before the description on a phone.
+  await page.getByRole('region', { name: 'Done' }).getByText('Card one').click();
+  const details = page.getByRole('dialog', { name: 'Task details' });
+  const status = await details.getByLabel('Status').boundingBox();
+  const description = await details.getByText('Description', { exact: true }).first().boundingBox();
+  expect(status!.y).toBeLessThan(description!.y);
+
+  // Agenda: a task due today shows in the phone's list of days.
+  await dueToday(page);
+  await expect(details.getByLabel('Due date')).toContainText('Today');
+  await page.keyboard.press('Escape');
+  await expect(page).not.toHaveURL(/[?&]task=/);
+  await page.getByRole('tab', { name: 'Calendar' }).click();
+  // The card was moved to Done above, and the calendar shows open tasks by default.
+  await expect(page).toHaveURL(/\/calendar/);
+  await page.getByRole('toolbar', { name: 'Filters' }).getByRole('tab', { name: 'All', exact: true }).click();
+  await expect(page).toHaveURL(/[?&]state=all(&|$)/);
+  await expect(page.getByRole('list', { name: 'Tasks by day' }).getByText('Card one')).toBeVisible();
 });

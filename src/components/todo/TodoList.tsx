@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  closestCenter, DndContext, type DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors,
+  closestCenter, DndContext, type DragEndEvent, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors,
 } from '@dnd-kit/core';
 import {
   SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
@@ -40,7 +40,9 @@ export function TodoList({
   const confirm = useConfirm();
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    // Mouse + Touch, not Pointer: a PointerSensor also answers touch and starts a drag on every swipe (as on the board).
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
