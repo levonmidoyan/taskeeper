@@ -59,6 +59,19 @@ describe('editor Markdown round trip', () => {
     expect(open(readMarkdown(editor)).getText({ blockSeparator: '\n\n' })).toBe(text);
   });
 
+  it('keeps an attachment image as an image node and round-trips it', () => {
+    const markdown = 'see ![shot.png](/api/attachments/abc123) here';
+    const editor = open(markdown);
+    expect(JSON.stringify(editor.getJSON())).toContain('"type":"image"');
+    expect(readMarkdown(editor)).toBe(markdown);
+  });
+
+  it('makes no image node from pasted HTML with a remote image', () => {
+    const editor = open('');
+    editor.commands.setContent('<p><img src="https://x.com/a.png"></p>');
+    expect(JSON.stringify(editor.getJSON())).not.toContain('"type":"image"');
+  });
+
   it('turns a single newline into a hard break', () => {
     const editor = open('line one\nline two');
     expect(JSON.stringify(editor.getJSON())).toContain('hardBreak');

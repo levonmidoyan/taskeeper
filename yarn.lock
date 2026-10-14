@@ -4017,6 +4017,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@tiptap/extension-image@npm:3.31.3":
+  version: 3.31.3
+  resolution: "@tiptap/extension-image@npm:3.31.3"
+  peerDependencies:
+    "@tiptap/core": 3.31.3
+  checksum: 10c0/c7cf7bb8412558e52677115507ff960155c53808cddaddc707b0f4c24cbf2522d6d44c042cbfd150388b751b336835863995617e6dfbbdb7de7d78b2d6788680
+  languageName: node
+  linkType: hard
+
 "@tiptap/extension-italic@npm:3.31.3":
   version: 3.31.3
   resolution: "@tiptap/extension-italic@npm:3.31.3"
@@ -11024,6 +11033,7 @@ __metadata:
     "@tanstack/react-store": "npm:0.11.1"
     "@tanstack/react-table": "npm:9.2.4"
     "@tiptap/core": "npm:3.31.3"
+    "@tiptap/extension-image": "npm:3.31.3"
     "@tiptap/extension-list": "npm:3.31.3"
     "@tiptap/extension-mention": "npm:3.31.3"
     "@tiptap/extensions": "npm:3.31.3"

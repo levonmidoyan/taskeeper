@@ -9,9 +9,11 @@
  *   to be called with it (`this.parent?.(event)`), not `this.parent?.()`.
  */
 import type { AnyExtension, Editor } from '@tiptap/core';
+import Image from '@tiptap/extension-image';
 import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { Markdown } from '@tiptap/markdown';
 import StarterKit from '@tiptap/starter-kit';
+import { isAttachmentSrc } from '@/lib/inline-attachment';
 
 type Token = { type?: string; text?: string; raw?: string; block?: boolean; tokens?: Token[] };
 type MarkdownManagerInternals = {
@@ -81,6 +83,24 @@ const LiteralHtmlMarkdown = Markdown.extend({
   },
 });
 
+/**
+ * Images pasted into a field: only the app's own attachment route becomes an image node.
+ * A remote image would load in the editor (a tracking pixel), so it stays the literal
+ * Markdown it was typed as, and pasted HTML with a remote <img> brings no image.
+ */
+const AttachmentImage = Image.extend({
+  parseHTML() {
+    return [{ tag: 'img[src^="/api/attachments/"]' }];
+  },
+  // Typing ![alt](url) would make a node out of any URL; the literal text is kept instead.
+  addInputRules() {
+    return [];
+  },
+  parseMarkdown: (token, helpers) => (isAttachmentSrc(token.href)
+    ? helpers.createNode('image', { src: token.href, alt: token.text || null, title: token.title || null })
+    : helpers.createTextNode(token.raw ?? '')),
+}).configure({ inline: true, HTMLAttributes: { class: 'inline-attachment' } });
+
 export function markdownExtensions(): AnyExtension[] {
   return [
     StarterKit.configure({
@@ -90,6 +110,7 @@ export function markdownExtensions(): AnyExtension[] {
     }),
     TaskList,
     TaskItem.configure({ nested: true }),
+    AttachmentImage,
     // breaks: a single newline is a line break, as it was in the old plain text.
     LiteralHtmlMarkdown.configure({ markedOptions: { gfm: true, breaks: true } }),
   ];

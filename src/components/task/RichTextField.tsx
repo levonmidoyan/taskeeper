@@ -5,6 +5,7 @@ import {
   EditorBubbleMenu, EditorFormatBold, EditorFormatCode, EditorFormatItalic,
   EditorFormatStrike, EditorLinkControl, EditorProvider, loadMarkdown, readMarkdown,
 } from '@/components/kibo-ui/editor';
+import { createFilePasteExtension, type UploadFiles } from '@/components/kibo-ui/editor/file-paste';
 import { createMentionExtension, type MentionMember } from '@/components/kibo-ui/editor/mention';
 import { cn } from '@/utils/cn';
 
@@ -26,27 +27,40 @@ type RichTextFieldProps = {
   autoFocus?: boolean;
   /** Workspace members offered by the @ menu. Without it, @ is just a character. */
   members?: MentionMember[];
+  /** Uploads files pasted or dropped in. Without it, pasting a file does what the browser does. */
+  onUploadFiles?: UploadFiles;
+  /** How many of those uploads are still running, on every change. */
+  onUploadingChange?: (count: number) => void;
 };
 
 export function RichTextField({
   value, label, labelledBy, placeholder, onChange, onCommit, className, autoFocus, members,
+  onUploadFiles, onUploadingChange,
 }: RichTextFieldProps) {
   // Loading normalises Markdown (a single newline becomes a hard break), so "changed" is
   // judged against what the editor produced on load, never against the stored string —
   // otherwise opening an old task and tabbing away would rewrite its description.
   const baseline = useRef<string | null>(null);
   const membersRef = useRef(members ?? []);
+  const uploadRef = useRef(onUploadFiles);
+  const uploadingRef = useRef(onUploadingChange);
   useEffect(() => {
     membersRef.current = members ?? [];
+    uploadRef.current = onUploadFiles;
+    uploadingRef.current = onUploadingChange;
   });
   const hasMembers = members !== undefined;
   // Built once per field: EditorProvider rebuilds the editor when its extensions change.
+  // The @ menu and paste read the refs on keystrokes and pastes, never during render.
+  /* eslint-disable react-hooks/refs */
   const extensions = useMemo(
-    // The @ menu reads the ref on keystrokes, never during render.
-    // eslint-disable-next-line react-hooks/refs
-    () => (hasMembers ? [createMentionExtension(() => membersRef.current)] : undefined),
+    () => [
+      ...(hasMembers ? [createMentionExtension(() => membersRef.current)] : []),
+      createFilePasteExtension(() => uploadRef.current, (count) => uploadingRef.current?.(count)),
+    ],
     [hasMembers],
   );
+  /* eslint-enable react-hooks/refs */
 
   return (
     <EditorProvider

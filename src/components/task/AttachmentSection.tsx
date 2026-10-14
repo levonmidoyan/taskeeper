@@ -6,7 +6,6 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { ReadyAttachmentCard, UploadCard } from '@/components/task/AttachmentCard';
 import { CollapsibleSection } from '@/components/task/CollapsibleSection';
-import { AttachmentPreviewModal } from '@/components/task/AttachmentPreviewModal';
 import { AttachmentUploadModal } from '@/components/task/AttachmentUploadModal';
 import { useAttachmentUploads } from '@/components/task/use-attachment-uploads';
 import * as Button from '@/components/ui/button';
@@ -18,7 +17,7 @@ import { deleteAttachmentAction } from '@/server/attachments/actions';
 import { cn } from '@/utils/cn';
 
 export function AttachmentSection({
-  taskId, attachments, workspaceSlug, currentUserId, canModerate, timezone,
+  taskId, attachments, workspaceSlug, currentUserId, canModerate, timezone, onPreview,
 }: {
   taskId: string;
   attachments: AttachmentView[];
@@ -26,16 +25,14 @@ export function AttachmentSection({
   currentUserId: string;
   canModerate: boolean;
   timezone: string;
+  /** Opens the task's preview modal (owned by the detail view, which inline links share). */
+  onPreview: (attachmentId: string) => void;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
   const uploads = useAttachmentUploads(workspaceSlug, taskId);
   const [modalOpen, setModalOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
-  // Tracked by id so a refresh that adds or removes files keeps the same one open.
-  const [previewId, setPreviewId] = useState<string | null>(null);
-  const previewable = attachments.filter((a) => previewKind(a.fileName, a.contentType) !== null);
-  const previewIndex = previewable.findIndex((a) => a.id === previewId);
 
   // Completed uploads appear in `attachments` after the refresh, so the
   // section only shows the ones still in flight or failed.
@@ -117,18 +114,12 @@ export function AttachmentSection({
               timezone={timezone}
               canDelete={a.uploaderId === currentUserId || canModerate}
               onDelete={() => void onDelete(a)}
-              onPreview={previewKind(a.fileName, a.contentType) ? () => setPreviewId(a.id) : undefined}
+              onPreview={previewKind(a.fileName, a.contentType) ? () => onPreview(a.id) : undefined}
             />
           ))}
         </ul>
       )}
 
-      <AttachmentPreviewModal
-        attachments={previewable}
-        index={previewIndex === -1 ? null : previewIndex}
-        onIndexChange={(i) => setPreviewId(previewable[i].id)}
-        onClose={() => setPreviewId(null)}
-      />
       <AttachmentUploadModal taskId={taskId} open={modalOpen} onOpenChange={setModalOpen} uploads={uploads} />
     </CollapsibleSection>
   );

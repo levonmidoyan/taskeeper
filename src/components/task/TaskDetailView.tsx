@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { TextField } from '@/components/forms/TextField';
 import { ActivityFeed } from '@/components/task/ActivityFeed';
 import { AssigneePicker } from '@/components/task/AssigneePicker';
+import { AttachmentPreviewModal } from '@/components/task/AttachmentPreviewModal';
 import { AttachmentSection } from '@/components/task/AttachmentSection';
 import { DescriptionField } from '@/components/task/DescriptionField';
 import { DueDateField } from '@/components/task/DueDateField';
@@ -28,7 +29,9 @@ import * as Modal from '@/components/ui/modal';
 import * as Select from '@/components/ui/select';
 import { useServerValue } from '@/hooks/use-server-value';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { previewKind } from '@/lib/attachments';
 import { formatInZone } from '@/lib/dates';
+import { ATTACHMENT_PATH } from '@/lib/inline-attachment';
 import { settle } from '@/lib/settle';
 import { DETAIL_SELECTOR } from '@/lib/shortcuts/guards';
 import { useShortcut } from '@/lib/shortcuts/provider';
@@ -124,6 +127,26 @@ export function TaskDetailView({
   const [dueDate, setDueDate] = useServerValue(task.dueDate);
   // Controlled so s / p can open them from the keyboard.
   const [statusOpen, setStatusOpen] = useState(false);
+  // One preview for the Attachments cards and for files linked inline in the description
+  // and comments. Tracked by id so a refresh that adds or removes files keeps it open.
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const previewable = (attachments ?? []).filter((a) => previewKind(a.fileName, a.contentType) !== null);
+  const previewIndex = previewable.findIndex((a) => a.id === previewId);
+
+  // A plain click on an inline attachment link previews it when the modal can show it;
+  // anything else (another task's file, a zip, a modified click) stays a normal link.
+  function onInlineAttachmentClick(event: React.MouseEvent) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const link = (event.target as Element).closest('a');
+    // Links inside the editor do not navigate; a click there only places the caret.
+    if (!link || link.closest('[contenteditable="true"]')) return;
+    const href = link.getAttribute('href') ?? '';
+    if (!href.startsWith(ATTACHMENT_PATH)) return;
+    const id = href.slice(ATTACHMENT_PATH.length);
+    if (!previewable.some((a) => a.id === id)) return;
+    event.preventDefault();
+    setPreviewId(id);
+  }
   const [priorityOpen, setPriorityOpen] = useState(false);
   // Set when s / p opened the list. Radix hands focus back to the trigger on
   // close, where the next shortcut letter would pick an option by typeahead
@@ -442,8 +465,14 @@ export function TaskDetailView({
           </dl>
         </aside>
 
-        <div className="flex flex-col gap-5 p-5 lg:col-start-1 lg:row-start-2 lg:overflow-y-auto">
+        <div
+          onClick={onInlineAttachmentClick}
+          className="flex flex-col gap-5 p-5 lg:col-start-1 lg:row-start-2 lg:overflow-y-auto"
+        >
           <DescriptionField
+            taskId={task.id}
+            workspaceSlug={workspaceSlug}
+            canAttach={attachments !== null}
             value={task.description}
             members={members}
             currentUserId={currentUserId}
@@ -471,11 +500,13 @@ export function TaskDetailView({
               currentUserId={currentUserId}
               canModerate={canModerate}
               timezone={timezone}
+              onPreview={setPreviewId}
             />
           )}
 
           <ActivityFeed
             taskId={task.id}
+            canAttach={attachments !== null}
             feed={feed}
             members={members}
             workspaceSlug={workspaceSlug}
@@ -485,6 +516,13 @@ export function TaskDetailView({
           />
         </div>
       </div>
+
+      <AttachmentPreviewModal
+        attachments={previewable}
+        index={previewIndex === -1 ? null : previewIndex}
+        onIndexChange={(i) => setPreviewId(previewable[i].id)}
+        onClose={() => setPreviewId(null)}
+      />
     </>
   );
 }

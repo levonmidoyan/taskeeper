@@ -9,6 +9,7 @@ import { CollapsibleSection } from '@/components/task/CollapsibleSection';
 import { CommentReactions } from '@/components/task/CommentReactions';
 import { Markdown } from '@/components/task/Markdown';
 import { RichTextField } from '@/components/task/RichTextField';
+import { useAttachmentUploads } from '@/components/task/use-attachment-uploads';
 import { UserAvatar } from '@/components/auth/user/user-avatar';
 import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
@@ -40,6 +41,7 @@ const QUICK_REPLIES = ['Looks good!', 'Need help?', 'This is blocked…', 'Can y
 
 export function ActivityFeed({
   taskId,
+  canAttach,
   feed,
   members,
   workspaceSlug,
@@ -48,6 +50,8 @@ export function ActivityFeed({
   timezone,
 }: {
   taskId: string;
+  /** Storage is set up, so pasted or dropped files become attachments. */
+  canAttach: boolean;
   feed: FeedEntry[];
   /** Offered by the @ menu, and the names mention chips show. */
   members: MemberRow[];
@@ -67,6 +71,11 @@ export function ActivityFeed({
   const [focused, setFocused] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
+  const uploads = useAttachmentUploads(workspaceSlug, taskId);
+  const uploadFiles = canAttach ? uploads.upload : undefined;
+  // Running uploads in the composer and in the comment being edited.
+  const [composerUploads, setComposerUploads] = useState(0);
+  const [editUploads, setEditUploads] = useState(0);
   const [tab, setTab] = useState<ActivityTab>('comments');
   const composerRef = useRef<HTMLFormElement>(null);
   const editFormRef = useRef<HTMLFormElement>(null);
@@ -93,6 +102,7 @@ export function ActivityFeed({
   const expanded = focused || draft.trim() !== '';
 
   function resetComposer() {
+    setComposerUploads(0);
     setDraft('');
     setSeed('');
     setFocused(false);
@@ -100,6 +110,7 @@ export function ActivityFeed({
   }
 
   function startWith(text: string) {
+    setComposerUploads(0);
     setSeed(text);
     setDraft(text);
     setComposerKey((k) => k + 1);
@@ -109,6 +120,11 @@ export function ActivityFeed({
     event.preventDefault();
     const body = draft;
     if (!body.trim() || pending) return;
+    // Posting now would keep the text without the file it is waiting for.
+    if (composerUploads > 0) {
+      toast.message('Wait for uploads to finish.');
+      return;
+    }
 
     startTransition(async () => {
       const result = await settle(createCommentAction(workspaceSlug, { taskId, body }));
@@ -123,6 +139,7 @@ export function ActivityFeed({
 
   function startEdit(entry: { id: string; body: string }) {
     setEditDraft(entry.body);
+    setEditUploads(0);
     setEditingId(entry.id);
   }
 
@@ -156,6 +173,10 @@ export function ActivityFeed({
   }, [editingId]);
 
   function onEdit(commentId: string) {
+    if (editUploads > 0) {
+      toast.message('Wait for uploads to finish.');
+      return;
+    }
     startTransition(async () => {
       const result = await settle(updateCommentAction(workspaceSlug, { commentId, body: editDraft }));
       if (!result.ok) {
@@ -243,13 +264,15 @@ export function ActivityFeed({
               placeholder="Add a comment… Markdown and / commands work."
               autoFocus={seed !== ''}
               onChange={setDraft}
+              onUploadFiles={uploadFiles}
+              onUploadingChange={setComposerUploads}
               // The same roomy box whether empty or in use, so it does not jump on first keystroke.
               className={cn('[&_.md-content]:min-h-[100px]', !expanded && 'cursor-text hover:bg-bg-weak-50')}
             />
           </div>
           {expanded ? (
             <div className="flex items-center gap-2">
-              <Button.Root type="submit" size="xxsmall" disabled={pending || !draft.trim()}>
+              <Button.Root type="submit" size="xxsmall" disabled={pending || !draft.trim() || composerUploads > 0}>
                 Save
               </Button.Root>
               <Button.Root type="button" variant="neutral" mode="ghost" size="xxsmall" onClick={resetComposer}>
@@ -367,9 +390,11 @@ export function ActivityFeed({
                       members={members}
                       autoFocus
                       onChange={setEditDraft}
+                      onUploadFiles={uploadFiles}
+                      onUploadingChange={setEditUploads}
                     />
                     <div className="flex gap-2">
-                      <Button.Root type="submit" size="xxsmall" disabled={pending}>Save</Button.Root>
+                      <Button.Root type="submit" size="xxsmall" disabled={pending || editUploads > 0}>Save</Button.Root>
                       <Button.Root type="button" variant="neutral" mode="stroke" size="xxsmall" onClick={finishEdit}>
                         Cancel
                       </Button.Root>
