@@ -36,7 +36,7 @@ test('preferences: digest switch, sound switch and reminder hour persist', async
   await page.getByLabel('Play a sound').click();
   await page.getByLabel('Reminder time').click();
   await page.getByRole('option', { name: '00:00' }).click();
-  await page.getByRole('button', { name: 'Save' }).last().click();
+  await page.getByRole('button', { name: 'Save' }).nth(1).click(); // the reminders card; Push follows it
   await expect(page.getByText('Notification settings updated.')).toBeVisible();
 
   await page.reload();
@@ -56,7 +56,7 @@ test('a reminder set in the dialog reaches the bell after the cron runs', async 
   await page.goto('/settings/preferences');
   await page.getByLabel('Reminder time').click();
   await page.getByRole('option', { name: '00:00' }).click();
-  await page.getByRole('button', { name: 'Save' }).last().click();
+  await page.getByRole('button', { name: 'Save' }).nth(1).click();
   await expect(page.getByText('Notification settings updated.')).toBeVisible();
   await page.goBack();
 
