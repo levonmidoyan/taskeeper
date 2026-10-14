@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { CollapsibleSection } from '@/components/task/CollapsibleSection';
 import { DoneIcon, StrikeText } from '@/components/task/DoneMark';
 import * as Button from '@/components/ui/button';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { LOCAL_ESCAPE_EVENT } from '@/lib/local-escape';
 import { settle } from '@/lib/settle';
 import { doneToggleTarget } from '@/lib/task-done';
@@ -175,6 +176,7 @@ function SubtaskRow({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
+  const confirm = useConfirm();
 
   const done = subtask.completedAt !== null;
 
@@ -202,7 +204,8 @@ function SubtaskRow({
     router.push(`?${next.toString()}`, { scroll: false });
   }
 
-  function onDelete() {
+  async function onDelete() {
+    if (!(await confirm({ title: `Delete "${subtask.title}"?`, description: 'This can’t be undone.' }))) return;
     startTransition(async () => {
       const result = await settle(deleteTaskAction(workspaceSlug, { taskId: subtask.id }));
       if (!result.ok) toast.error(result.error);
