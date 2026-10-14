@@ -56,7 +56,8 @@ export async function readTextPreview(userId: string, attachmentId: string): Pro
     .where(and(eq(attachment.id, attachmentId), eq(attachment.status, 'ready')))
     .limit(1);
   if (!row) return { status: 'missing' };
-  if (previewKind(row.fileName, row.contentType) !== 'text') return { status: 'unsupported' };
+  const kind = previewKind(row.fileName, row.contentType);
+  if (kind !== 'text' && kind !== 'code') return { status: 'unsupported' };
 
   const bytes = await readObjectHead(row.key, TEXT_PREVIEW_BYTES);
   // A cut can land inside a multi-byte character; the decoder swaps it for U+FFFD.

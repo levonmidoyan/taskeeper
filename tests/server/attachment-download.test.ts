@@ -46,6 +46,16 @@ describe('resolveDownload', () => {
     expect(res.headers.get('content-type')).toBe('image/png');
   });
 
+  it('serves a video inline with its own type, so a <video> can play it', async () => {
+    const { ctx, taskId } = await setup();
+    const id = await upload(ctx, taskId, 'clip.mp4', 'video/mp4');
+
+    const res = await fetch((await resolveDownload(ctx.userId, id, { download: false }))!);
+
+    expect(res.headers.get('content-disposition')).toMatch(/^inline;/);
+    expect(res.headers.get('content-type')).toBe('video/mp4');
+  });
+
   it('forces attachment with ?download', async () => {
     const { ctx, taskId } = await setup();
     const id = await upload(ctx, taskId, 'shot.png', 'image/png');
