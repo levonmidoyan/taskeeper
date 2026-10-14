@@ -41,8 +41,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           >
             {children}
           </Providers>
-          {/* aria-live, and never steals focus. */}
-          <Toaster position="bottom-right" />
+          {/* aria-live, and never steals focus. The offset clears the phone's bottom bar (globals.css). */}
+          <Toaster position="bottom-right" offset={{ bottom: 'var(--toast-bottom)' }} mobileOffset={{ bottom: 'var(--toast-bottom)' }} />
         </ThemeProvider>
       </body>
     </html>

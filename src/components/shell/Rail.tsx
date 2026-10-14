@@ -6,7 +6,6 @@ import {
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useParams, usePathname, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
 import { UserButton } from '@/components/auth/user/user-button';
 import { NewProjectDialog } from '@/components/shell/NewProjectDialog';
 import { ProjectColorButton } from '@/components/shell/ProjectColorPicker';
@@ -234,11 +233,10 @@ export function Rail(props: Props) {
   );
 }
 
-export function MobileNav(props: Props) {
-  const [open, setOpen] = useState(false);
-
+/** The drawer; its open state lives in AppHeader so the bottom bar's Projects tab can open it too. */
+export function MobileNav({ open, onOpenChange, ...props }: Props & { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
-    <Drawer.Root open={open} onOpenChange={setOpen}>
+    <Drawer.Root open={open} onOpenChange={onOpenChange}>
       <Drawer.Trigger asChild>
         <CompactButton.Root
           variant="ghost"
@@ -253,7 +251,7 @@ export function MobileNav(props: Props) {
         <Drawer.Title className="sr-only">Workspace navigation</Drawer.Title>
         {/* Navigating closes the drawer: the pathname changes, and a click on any link
             inside bubbles here first. */}
-        <div className="h-full" onClickCapture={(e) => { if ((e.target as HTMLElement).closest('a')) setOpen(false); }}>
+        <div className="h-full" onClickCapture={(e) => { if ((e.target as HTMLElement).closest('a')) onOpenChange(false); }}>
           <RailBody {...props} />
         </div>
       </Drawer.Content>

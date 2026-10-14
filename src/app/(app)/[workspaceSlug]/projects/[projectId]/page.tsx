@@ -48,9 +48,9 @@ export default async function ProjectBoardPage({
   const filtered = isFiltered(resolved.filter, defaultState('board'));
   const canManage = ctx.role === 'owner' || ctx.role === 'admin';
 
-  // Viewport minus the h-14 app header, so the board scrolls inside itself.
+  // Viewport minus the app header (and the bottom bar below lg), so the board scrolls inside itself.
   return (
-    <main className="flex h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] flex-col">
+    <main className="flex h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] max-lg:h-[calc(100dvh-7rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col">
       <ProjectHeader
         name={project.name}
         basePath={basePath}

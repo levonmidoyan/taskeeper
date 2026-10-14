@@ -23,7 +23,7 @@ export default async function MyCalendarPage({
   const tasks = await listCalendarTasks(ctx, { from: days[0], to: days[days.length - 1], mine: true });
 
   return (
-    <main className="flex h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] flex-col">
+    <main className="flex h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] max-lg:h-[calc(100dvh-7rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col">
       <div className="px-4 pt-6 lg:px-8">
         <h1 className="text-title-h5 text-text-strong-950">My calendar</h1>
         <p className="mt-1 text-paragraph-sm text-text-sub-600">Tasks assigned to you, by due date.</p>
