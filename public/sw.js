@@ -49,7 +49,13 @@ self.addEventListener('notificationclick', (event) => {
     const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
     if (open) {
       await open.focus();
-      return open.navigate(url);
+      // navigate() rejects on a window this worker doesn't control (say, after a hard
+      // reload); then the tap opens the task in a new window instead of doing nothing.
+      try {
+        return await open.navigate(url);
+      } catch {
+        return self.clients.openWindow(url);
+      }
     }
     return self.clients.openWindow(url);
   })());
