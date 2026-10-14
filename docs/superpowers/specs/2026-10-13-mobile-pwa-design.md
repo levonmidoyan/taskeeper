@@ -53,10 +53,10 @@ drag on the calendar agenda, per-device kind toggles, install prompts beyond the
 `public/sw.js`, hand-written (no Serwist / next-pwa). Three handlers, nothing cached
 except the offline page:
 
-- `install`: caches `/offline` only; `skipWaiting()`.
+- `install`: caches `/offline.html` only; `skipWaiting()`.
 - `activate`: deletes old caches; `clients.claim()`.
 - `fetch`: navigations only (`request.mode === 'navigate'`): network first; on network
-  failure respond with the cached `/offline`. All other requests pass through untouched.
+  failure respond with the cached `/offline.html`. All other requests pass through untouched.
 - `push`: reads `{ title, body, url, tag }` JSON, `showNotification(title, { body, tag,
   data: { url }, icon, badge })`. `tag` is the notification id, so a merged update replaces
   the earlier banner.
@@ -69,8 +69,10 @@ production builds and `next start` only — not under `next dev`, so dev HMR is 
 `next.config.ts` serves `/sw.js` with `Cache-Control: no-cache` and
 `Content-Type: application/javascript`.
 
-`src/app/offline/page.tsx`: static page, "You're offline", Retry button
-(`location.reload()`). Outside the auth check.
+`public/offline.html`: self-contained (inline CSS, no `_next` assets, so a deploy never
+breaks the cached copy), "You're offline", Try again link (`location.reload()`). Bump the
+worker's `CACHE` name when it changes. A failed `navigate()` in `notificationclick` falls
+back to `openWindow(url)`.
 
 ## 3. Push data
 
@@ -124,7 +126,11 @@ existing reminder/change prefs:
 - **This device** switch. On: `Notification.requestPermission()` (from the tap),
   `pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })`, then the
   `subscribe` action. Off: `subscription.unsubscribe()` + `unsubscribe` action. State is read
-  from `pushManager.getSubscription()` on mount.
+  from `pushManager.getSubscription()` on mount, and an existing subscription is re-claimed
+  for the signed-in user before it shows On.
+- The device follows the account: every signed-in load re-claims an existing subscription
+  (`PushDeviceClaim`), and sign-out drops it on the server and in the browser first, so the
+  next person on a shared browser neither gets the previous account's pushes nor finds push on.
 - States with their own copy: not configured (no VAPID key), not supported, iOS not
   installed ("Add Taskeeper to your Home Screen first", detected by iOS UA +
   `!matchMedia('(display-mode: standalone)').matches`), permission denied ("Allow
