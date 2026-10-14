@@ -8,6 +8,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { googleCredentials, requireEmailVerification } from '@/lib/auth-config';
 import { REQUEST_PATH_HEADER, redirectToFromPath } from '@/lib/request-path';
 import { fontVariables } from './fonts';
+import { THEME_DARK, THEME_LIGHT } from './theme-colors';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -19,8 +20,8 @@ export const metadata: Metadata = {
 // Matches the app header (bg-white-0) in each scheme; cover lets the bars pad for the notch.
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#0e121b' },
+    { media: '(prefers-color-scheme: light)', color: THEME_LIGHT },
+    { media: '(prefers-color-scheme: dark)', color: THEME_DARK },
   ],
   viewportFit: 'cover',
 };

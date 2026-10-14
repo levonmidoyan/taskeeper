@@ -106,7 +106,7 @@ toggles only decide whether an existing row also pushes.
 ### 3.2 Server (`src/server/push/`)
 
 - `service.ts`:
-  - `subscribe(user, sub, userAgent)`: Zod-validated `{ endpoint (https URL), keys: { p256dh, auth } }`; upsert on
+  - `subscribe(user, sub, userAgent)`: Zod-validated `{ endpoint (https URL on a known browser push service: FCM, Mozilla, Apple, WNS), keys: { p256dh, auth } }`; upsert on
     `endpoint`, setting `user_id` to the caller (an endpoint moves with whoever signed in
     on that browser last).
   - `unsubscribe(user, endpoint)`: deletes the row only if it is the caller's.
@@ -147,8 +147,8 @@ The four notification insert sites return what they wrote:
 
 Every insert and every merge sets `created_at = clock_timestamp()`, so `(id, created_at)` is
 a version stamp for what this statement wrote. The three `changes.ts` functions hand their
-pairs to `schedulePush(pairs)` (`src/server/push/schedule.ts`), which collects pairs per
-request and registers one `after(() => deliverPush(collected))`. Outside a request scope
+pairs to `schedulePush(pairs)` (`src/server/push/schedule.ts`), which registers one
+`after(() => deliverPush(pairs))` per insert call (no per-request batching: team scale). Outside a request scope
 (seed, scripts) `schedulePush` does nothing.
 
 ### 4.2 Send, after the response
@@ -166,8 +166,9 @@ request and registers one `after(() => deliverPush(collected))`. Outside a reque
    - Text follows the bell's copy for each kind (e.g. title "Fix login", body "Anna changed
      status to Done"; mention "Anna mentioned you in a comment"; reminder "Due tomorrow";
      project change "Anna archived Website").
-   - `url`: the task page `/{slug}/tasks/{taskId}` when the row has a task; the project page
-     when it has a project that still exists; else `/{slug}/inbox`.
+   - `url`: the bell's link (`bellHref`), one rule everywhere: the task page when the row has
+     a task; the project page for a project change (settings/projects when archived); the
+     workspace home when the subject was deleted.
    - `tag`: the notification id. Payload under 3 KB (body truncated to 180 chars).
 4. Sends with `web-push` (`TTL: 86400`; `urgency: 'high'` for mention and reminder, `'normal'`
    otherwise), at most 6 in flight.
@@ -202,6 +203,7 @@ Tapping a notification does not mark it read. It reads as read the way bell item
 - Hidden while the on-screen keyboard is open (`visualViewport.height` below 75% of
   `innerHeight`), so it never covers a composer.
 - Touch targets at least 44 × 44 px.
+- Toaster and bulk bar are lifted above the bar below `lg`, so neither is covered.
 
 ### 5.2 Inbox page
 
@@ -214,10 +216,10 @@ instead of opening its popover; desktop keeps the popover.
 | View | Below `sm` (640 px) unless stated |
 |---|---|
 | Board | Columns `w-[85vw]`, horizontal `snap-x snap-mandatory`. Touch drag unchanged (250 ms / 5 px). Card menu gains **Move to…** listing the project's statuses; calls the existing status update. |
-| List | Stacked rows: title, StatusIcon, assignee avatar, due date; other columns hidden. Long-press (500 ms) enters selection mode, then taps toggle; bulk bar as today. |
-| Calendar | Renders `CalendarAgenda`: the visible month's days that have tasks, grouped by date, with the month navigation. No drag. `CalendarMonth` from `sm` up. A new `useMediaQuery` (`src/lib/use-media-query.ts`) picks one, so only one is mounted. |
+| List | Stacked rows: title, StatusIcon, assignee avatar, due date; other columns hidden. A checkbox per row (no long-press); bulk bar as today. |
+| Calendar | Renders `CalendarAgenda`: the visible month's days that have tasks, grouped by date, with the month navigation. No drag. `CalendarMonth` from `sm` up, through the existing CSS switch (`sm:hidden` / `hidden sm:flex`); no `useMediaQuery`. |
 | Summary | Single column. |
-| Task detail | Below `md`: the field panel (status, assignee, dates, labels) above the description. |
+| Task detail | Already stacked below `lg` (title, fields, then description); verified by e2e. |
 | To-do | `PointerSensor` replaced with Mouse (8 px) + Touch (250 ms / 5 px) + Keyboard sensors, like Board. |
 
 ## 6. Configuration and deploy
