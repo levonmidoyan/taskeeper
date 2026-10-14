@@ -121,6 +121,7 @@ export function DescriptionField({
             placeholder="Add details… Type / for headings, lists and more."
             autoFocus
             onChange={(markdown) => { draft.current = markdown; }}
+            className="[&_.md-content]:min-h-[100px]"
           />
           <div className="flex gap-2">
             <Button.Root type="button" size="xxsmall" onClick={save}>Save</Button.Root>
@@ -134,7 +135,7 @@ export function DescriptionField({
           ref={editButtonRef}
           type="button"
           onClick={startEdit}
-          className="rounded-10 px-3 py-2 text-left text-paragraph-sm text-text-soft-400 ring-1 ring-inset ring-stroke-soft-200 transition-colors duration-150 hover:bg-bg-weak-50"
+          className="flex min-h-[116px] items-start rounded-10 px-3 py-2 text-left text-paragraph-sm text-text-soft-400 ring-1 ring-inset ring-stroke-soft-200 transition-colors duration-150 hover:bg-bg-weak-50"
         >
           Add a description…
         </button>
@@ -148,7 +149,7 @@ export function DescriptionField({
             if (window.getSelection()?.toString()) return;
             startEdit();
           }}
-          className="-mx-3 cursor-text rounded-10 px-3 py-2 transition-colors duration-150 hover:bg-bg-weak-50"
+          className="-mx-3 min-h-[116px] cursor-text rounded-10 px-3 py-2 transition-colors duration-150 hover:bg-bg-weak-50"
         >
           <Markdown members={members} currentUserId={currentUserId}>{value}</Markdown>
         </div>

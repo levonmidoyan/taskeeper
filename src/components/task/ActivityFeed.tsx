@@ -202,8 +202,8 @@ export function ActivityFeed({
               placeholder="Add a comment… Markdown and / commands work."
               autoFocus={seed !== ''}
               onChange={setDraft}
-              // A one-line box until it is used; room to write once it is.
-              className={cn(!expanded && 'cursor-text hover:bg-bg-weak-50 [&_.md-content]:min-h-5')}
+              // The same roomy box whether empty or in use, so it does not jump on first keystroke.
+              className={cn('[&_.md-content]:min-h-[100px]', !expanded && 'cursor-text hover:bg-bg-weak-50')}
             />
           </div>
           {expanded ? (
@@ -306,7 +306,7 @@ export function ActivityFeed({
                   </form>
                 ) : (
                   <>
-                    <Markdown className="mt-1" members={members} currentUserId={currentUserId}>{entry.body}</Markdown>
+                    <Markdown className="mt-1 min-h-10" members={members} currentUserId={currentUserId}>{entry.body}</Markdown>
                     <CommentReactions
                       workspaceSlug={workspaceSlug}
                       commentId={entry.id}
