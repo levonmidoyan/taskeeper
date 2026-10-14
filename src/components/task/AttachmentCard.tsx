@@ -10,6 +10,7 @@ import { fileFormat, formatBytes, isInlineType } from '@/lib/attachments';
 import { formatDueDate, formatInZone, todayInZone } from '@/lib/dates';
 import type { UploadItem } from '@/lib/upload-queue';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 function FileGlyph({ fileName, contentType, thumbnail }: { fileName: string; contentType: string; thumbnail?: string }) {
   if (thumbnail && isInlineType(contentType) && contentType.startsWith('image/')) {
@@ -55,15 +56,19 @@ export function ReadyAttachmentCard({
         </p>
       </div>
       <div className="relative flex shrink-0 items-center gap-1">
-        <CompactButton.Root variant="ghost" size="large" asChild>
-          <a href={`${href}?download=1`} aria-label={`Download ${fileName}`}>
-            <CompactButton.Icon as={IconDownload} aria-hidden="true" />
-          </a>
-        </CompactButton.Root>
-        {canDelete && (
-          <CompactButton.Root variant="ghost" size="large" onClick={onDelete} aria-label={`Delete ${fileName}`}>
-            <CompactButton.Icon as={IconTrash} aria-hidden="true" />
+        <Hint label="Download">
+          <CompactButton.Root variant="ghost" size="large" asChild>
+            <a href={`${href}?download=1`} aria-label={`Download ${fileName}`}>
+              <CompactButton.Icon as={IconDownload} aria-hidden="true" />
+            </a>
           </CompactButton.Root>
+        </Hint>
+        {canDelete && (
+          <Hint label="Delete">
+            <CompactButton.Root variant="ghost" size="large" onClick={onDelete} aria-label={`Delete ${fileName}`}>
+              <CompactButton.Icon as={IconTrash} aria-hidden="true" />
+            </CompactButton.Root>
+          </Hint>
         )}
       </div>
     </li>
@@ -110,17 +115,23 @@ export function UploadCard({
           )}
         </div>
         {state === 'done' ? (
-          <CompactButton.Root variant="ghost" size="large" onClick={onRemove} aria-label={`Delete ${file.name}`}>
-            <CompactButton.Icon as={IconTrash} aria-hidden="true" />
-          </CompactButton.Root>
+          <Hint label="Delete">
+            <CompactButton.Root variant="ghost" size="large" onClick={onRemove} aria-label={`Delete ${file.name}`}>
+              <CompactButton.Icon as={IconTrash} aria-hidden="true" />
+            </CompactButton.Root>
+          </Hint>
         ) : failed ? (
-          <CompactButton.Root variant="ghost" size="large" onClick={onCancel} aria-label={`Dismiss ${file.name}`}>
-            <CompactButton.Icon as={IconTrash} className="text-error-base" aria-hidden="true" />
-          </CompactButton.Root>
+          <Hint label="Dismiss">
+            <CompactButton.Root variant="ghost" size="large" onClick={onCancel} aria-label={`Dismiss ${file.name}`}>
+              <CompactButton.Icon as={IconTrash} className="text-error-base" aria-hidden="true" />
+            </CompactButton.Root>
+          </Hint>
         ) : item.confirming ? null : (
-          <CompactButton.Root variant="ghost" size="large" onClick={onCancel} aria-label={`Cancel ${file.name}`}>
-            <CompactButton.Icon as={IconX} aria-hidden="true" />
-          </CompactButton.Root>
+          <Hint label="Cancel upload">
+            <CompactButton.Root variant="ghost" size="large" onClick={onCancel} aria-label={`Cancel ${file.name}`}>
+              <CompactButton.Icon as={IconX} aria-hidden="true" />
+            </CompactButton.Root>
+          </Hint>
         )}
       </div>
       {state === 'uploading' && (

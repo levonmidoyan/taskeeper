@@ -8,6 +8,7 @@ import * as Popover from '@/components/ui/popover';
 import { settle } from '@/lib/settle';
 import { setProjectColorAction } from '@/server/projects/actions';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 /** Row of color swatches, one of them checked. Arrow keys move between them, like a radio group. */
 export function ColorSwatches({
@@ -101,22 +102,27 @@ export function ProjectColorButton({
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger
-        aria-label={`Change color of ${project.name}`}
-        className={cn(
-          'group/dot flex size-6 shrink-0 items-center justify-center rounded-md transition-colors duration-150',
-          'hover:bg-bg-weak-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base',
-          className,
-        )}
-      >
-        <span
-          aria-hidden="true"
-          className={cn(
-            'size-2 rounded-[3px] transition-transform duration-150 group-hover/dot:scale-150',
-            dot,
-            active || open ? 'scale-125' : 'opacity-80',
-          )}
-        />
+      <Popover.Trigger asChild>
+        <Hint label="Change color">
+          <button
+            type="button"
+            aria-label={`Change color of ${project.name}`}
+            className={cn(
+              'group/dot flex size-6 shrink-0 items-center justify-center rounded-md transition-colors duration-150',
+              'hover:bg-bg-weak-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base',
+              className,
+            )}
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                'size-2 rounded-[3px] transition-transform duration-150 group-hover/dot:scale-150',
+                dot,
+                active || open ? 'scale-125' : 'opacity-80',
+              )}
+            />
+          </button>
+        </Hint>
       </Popover.Trigger>
       <Popover.Content side="right" align="start" showArrow={false} sideOffset={8} className="p-3">
         <p className="mb-2 text-label-xs text-text-sub-600">Color</p>

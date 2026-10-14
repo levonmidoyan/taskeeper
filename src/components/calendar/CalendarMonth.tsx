@@ -22,6 +22,7 @@ import { settle } from '@/lib/settle';
 import type { CalendarTask } from '@/server/tasks/calendar';
 import { updateTaskAction } from '@/server/tasks/actions';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 const VISIBLE_PER_DAY = 3;
 
@@ -141,21 +142,25 @@ export function CalendarMonth({
         <h2 className="text-label-lg text-text-strong-950">{monthLabel(month)}</h2>
         <div className="ml-auto flex items-center gap-1">
           {isShownMonth(previous) && (
-            <CompactButton.Root asChild variant="ghost" size="large">
-              <Link href={monthHref(previous)} aria-label="Previous month">
-                <CompactButton.Icon as={IconChevronLeft} />
-              </Link>
-            </CompactButton.Root>
+            <Hint label="Previous month">
+              <CompactButton.Root asChild variant="ghost" size="large">
+                <Link href={monthHref(previous)} aria-label="Previous month">
+                  <CompactButton.Icon as={IconChevronLeft} />
+                </Link>
+              </CompactButton.Root>
+            </Hint>
           )}
           <Button.Root asChild size="xsmall" variant="neutral" mode="stroke">
             <Link href={monthHref(today.slice(0, 7))}>Today</Link>
           </Button.Root>
           {isShownMonth(next) && (
-            <CompactButton.Root asChild variant="ghost" size="large">
-              <Link href={monthHref(next)} aria-label="Next month">
-                <CompactButton.Icon as={IconChevronRight} />
-              </Link>
-            </CompactButton.Root>
+            <Hint label="Next month">
+              <CompactButton.Root asChild variant="ghost" size="large">
+                <Link href={monthHref(next)} aria-label="Next month">
+                  <CompactButton.Icon as={IconChevronRight} />
+                </Link>
+              </CompactButton.Root>
+            </Hint>
           )}
         </div>
       </div>

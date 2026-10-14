@@ -11,6 +11,7 @@ import * as Modal from '@/components/ui/modal';
 import { fileFormat, formatBytes, previewKind } from '@/lib/attachments';
 import { codeLanguage, type CodeLanguage } from '@/lib/code-language';
 import type { AttachmentView } from '@/server/attachments/queries';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 function Loading() {
   return (
@@ -179,27 +180,35 @@ export function AttachmentPreviewModal({
               <div className="flex shrink-0 items-center gap-1">
                 {count > 1 && (
                   <>
-                    <CompactButton.Root variant="ghost" size="large" onClick={() => step(-1)} aria-label="Previous attachment">
-                      <CompactButton.Icon as={IconChevronLeft} aria-hidden="true" />
-                    </CompactButton.Root>
-                    <CompactButton.Root variant="ghost" size="large" onClick={() => step(1)} aria-label="Next attachment">
-                      <CompactButton.Icon as={IconChevronRight} aria-hidden="true" />
-                    </CompactButton.Root>
+                    <Hint label="Previous attachment">
+                      <CompactButton.Root variant="ghost" size="large" onClick={() => step(-1)} aria-label="Previous attachment">
+                        <CompactButton.Icon as={IconChevronLeft} aria-hidden="true" />
+                      </CompactButton.Root>
+                    </Hint>
+                    <Hint label="Next attachment">
+                      <CompactButton.Root variant="ghost" size="large" onClick={() => step(1)} aria-label="Next attachment">
+                        <CompactButton.Icon as={IconChevronRight} aria-hidden="true" />
+                      </CompactButton.Root>
+                    </Hint>
                   </>
                 )}
                 {/* Text and code are served for download only, so a new tab would just save them. */}
                 {!['text', 'code'].includes(previewKind(current.fileName, current.contentType) ?? '') && (
+                  <Hint label="Open in new tab">
+                    <CompactButton.Root variant="ghost" size="large" asChild>
+                      <a href={`/api/attachments/${current.id}`} target="_blank" rel="noopener" aria-label={`Open ${current.fileName} in a new tab`}>
+                        <CompactButton.Icon as={IconExternalLink} aria-hidden="true" />
+                      </a>
+                    </CompactButton.Root>
+                  </Hint>
+                )}
+                <Hint label="Download">
                   <CompactButton.Root variant="ghost" size="large" asChild>
-                    <a href={`/api/attachments/${current.id}`} target="_blank" rel="noopener" aria-label={`Open ${current.fileName} in a new tab`}>
-                      <CompactButton.Icon as={IconExternalLink} aria-hidden="true" />
+                    <a href={`/api/attachments/${current.id}?download=1`} aria-label={`Download ${current.fileName}`}>
+                      <CompactButton.Icon as={IconDownload} aria-hidden="true" />
                     </a>
                   </CompactButton.Root>
-                )}
-                <CompactButton.Root variant="ghost" size="large" asChild>
-                  <a href={`/api/attachments/${current.id}?download=1`} aria-label={`Download ${current.fileName}`}>
-                    <CompactButton.Icon as={IconDownload} aria-hidden="true" />
-                  </a>
-                </CompactButton.Root>
+                </Hint>
               </div>
             </Modal.Header>
             <div className="min-h-0 flex-1 bg-bg-weak-50">

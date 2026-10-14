@@ -13,6 +13,7 @@ import {
 } from './filter-chips';
 import { useFilterNav } from './FilterScope';
 import { FilterValuePicker } from './FilterValuePicker';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 export function FilterBar({
   defaultState,
@@ -73,10 +74,12 @@ export function FilterBar({
 
       <Popover.Root open={adding} onOpenChange={(open) => { setAdding(open); if (!open) setAddField(null); }}>
         <Popover.Trigger asChild>
-          <Button.Root variant="neutral" mode="ghost" size="xxsmall" title="Add filter (F)" aria-keyshortcuts="f">
-            <Button.Icon as={IconPlus} />
-            Filter
-          </Button.Root>
+          <Hint shortcut="general.filter">
+            <Button.Root variant="neutral" mode="ghost" size="xxsmall" aria-keyshortcuts="f">
+              <Button.Icon as={IconPlus} />
+              Filter
+            </Button.Root>
+          </Hint>
         </Popover.Trigger>
         <Popover.Content align="start" className="p-1">
           {addField ? (
@@ -144,14 +147,16 @@ function FilterChip({
       {field === 'due' ? (
         <span className="px-1 text-text-sub-600">{opLabel}</span>
       ) : (
-        <button
-          type="button"
-          onClick={() => onChange(toggleOp(field, filter))}
-          aria-label={`${fieldLabel(field)}: switch between including and excluding`}
-          className="px-1 text-text-sub-600 underline-offset-2 hover:underline"
-        >
-          {opLabel}
-        </button>
+        <Hint label="Switch between is and is not">
+          <button
+            type="button"
+            onClick={() => onChange(toggleOp(field, filter))}
+            aria-label={`${fieldLabel(field)}: switch between including and excluding`}
+            className="px-1 text-text-sub-600 underline-offset-2 hover:underline"
+          >
+            {opLabel}
+          </button>
+        </Hint>
       )}
       <Popover.Root>
         <Popover.Trigger asChild>
@@ -163,14 +168,16 @@ function FilterChip({
           <FilterValuePicker field={field} filter={filter} options={options} onChange={onChange} />
         </Popover.Content>
       </Popover.Root>
-      <button
-        type="button"
-        onClick={() => onChange(removeField(field, filter))}
-        aria-label={`Remove ${fieldLabel(field)} filter`}
-        className="flex h-full items-center rounded-r-lg px-1.5 text-text-soft-400 hover:text-text-strong-950"
-      >
-        <IconX className="size-3.5" aria-hidden="true" />
-      </button>
+      <Hint label="Remove filter">
+        <button
+          type="button"
+          onClick={() => onChange(removeField(field, filter))}
+          aria-label={`Remove ${fieldLabel(field)} filter`}
+          className="flex h-full items-center rounded-r-lg px-1.5 text-text-soft-400 hover:text-text-strong-950"
+        >
+          <IconX className="size-3.5" aria-hidden="true" />
+        </button>
+      </Hint>
     </div>
   );
 }

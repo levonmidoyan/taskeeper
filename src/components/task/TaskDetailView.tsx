@@ -40,6 +40,7 @@ import type { StatusRow } from '@/server/projects/queries';
 import { deleteTaskAction, updateTaskAction } from '@/server/tasks/actions';
 import type { LabelRow, Priority, TaskDetail } from '@/server/tasks/queries';
 import type { ReminderOffset } from '@/lib/reminders';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
 
@@ -225,9 +226,11 @@ export function TaskDetailView({
   const moreMenu = (
     <Dropdown.Root>
       <Dropdown.Trigger asChild>
-        <CompactButton.Root variant="ghost" size="large" aria-label="More actions">
-          <CompactButton.Icon as={IconDots} aria-hidden="true" />
-        </CompactButton.Root>
+        <Hint label="More actions">
+          <CompactButton.Root variant="ghost" size="large" aria-label="More actions">
+            <CompactButton.Icon as={IconDots} aria-hidden="true" />
+          </CompactButton.Root>
+        </Hint>
       </Dropdown.Trigger>
       <Dropdown.Content align="end" className="w-48">
         <Dropdown.Item onSelect={onDelete} className="text-error-base">
@@ -254,20 +257,26 @@ export function TaskDetailView({
       )}
 
       <div className="flex shrink-0 items-center gap-1">
-        <CompactButton.Root variant="ghost" size="large" onClick={copyLink} aria-label="Copy link">
-          <CompactButton.Icon as={IconLink} aria-hidden="true" />
-        </CompactButton.Root>
-        <CompactButton.Root variant="ghost" size="large" asChild>
-          <Link href={pageHref} aria-label="Open full page">
-            <CompactButton.Icon as={IconArrowUpRight} aria-hidden="true" />
-          </Link>
-        </CompactButton.Root>
+        <Hint label="Copy link">
+          <CompactButton.Root variant="ghost" size="large" onClick={copyLink} aria-label="Copy link">
+            <CompactButton.Icon as={IconLink} aria-hidden="true" />
+          </CompactButton.Root>
+        </Hint>
+        <Hint label="Open full page">
+          <CompactButton.Root variant="ghost" size="large" asChild>
+            <Link href={pageHref} aria-label="Open full page">
+              <CompactButton.Icon as={IconArrowUpRight} aria-hidden="true" />
+            </Link>
+          </CompactButton.Root>
+        </Hint>
         {moreMenu}
         <Modal.Close asChild>
-          <CompactButton.Root variant="ghost" size="large">
-            <CompactButton.Icon as={IconX} aria-hidden="true" />
-            <span className="sr-only">Close</span>
-          </CompactButton.Root>
+          <Hint label="Close">
+            <CompactButton.Root variant="ghost" size="large">
+              <CompactButton.Icon as={IconX} aria-hidden="true" />
+              <span className="sr-only">Close</span>
+            </CompactButton.Root>
+          </Hint>
         </Modal.Close>
       </div>
     </header>
@@ -283,9 +292,11 @@ export function TaskDetailView({
       />
 
       <div className="flex shrink-0 items-center gap-1">
-        <CompactButton.Root variant="ghost" size="large" onClick={copyLink} aria-label="Copy link">
-          <CompactButton.Icon as={IconLink} aria-hidden="true" />
-        </CompactButton.Root>
+        <Hint label="Copy link">
+          <CompactButton.Root variant="ghost" size="large" onClick={copyLink} aria-label="Copy link">
+            <CompactButton.Icon as={IconLink} aria-hidden="true" />
+          </CompactButton.Root>
+        </Hint>
         {moreMenu}
       </div>
     </header>

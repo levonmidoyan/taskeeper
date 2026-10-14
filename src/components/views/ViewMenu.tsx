@@ -13,6 +13,7 @@ import { deleteViewAction, duplicateViewAction, updateViewAction } from '@/serve
 import type { SavedView } from '@/server/views/queries';
 import { cn } from '@/utils/cn';
 import { SaveViewDialog } from './SaveViewDialog';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 export function ViewMenu({
   workspaceSlug,
@@ -74,16 +75,18 @@ export function ViewMenu({
     <>
       <Dropdown.Root onOpenChange={(open) => open && setShown(true)}>
         <Dropdown.Trigger asChild>
-          <CompactButton.Root
-            variant="ghost"
-            size="medium"
-            aria-label={`Actions for view ${view.name}`}
-            disabled={pending}
-            data-shown={shown || undefined}
-            className={cn(placement === 'rail' && 'size-6', className)}
-          >
-            <CompactButton.Icon as={IconDotsVertical} />
-          </CompactButton.Root>
+          <Hint label="View actions">
+            <CompactButton.Root
+              variant="ghost"
+              size="medium"
+              aria-label={`Actions for view ${view.name}`}
+              disabled={pending}
+              data-shown={shown || undefined}
+              className={cn(placement === 'rail' && 'size-6', className)}
+            >
+              <CompactButton.Icon as={IconDotsVertical} />
+            </CompactButton.Root>
+          </Hint>
         </Dropdown.Trigger>
         <Dropdown.Content
           align="end"

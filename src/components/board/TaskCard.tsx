@@ -1,7 +1,8 @@
 'use client';
 
-import { IconArrowsRightLeft } from '@tabler/icons-react';
+import { IconArrowsRightLeft, IconSubtask } from '@tabler/icons-react';
 import { KanbanCard } from '@/components/kibo-ui/kanban';
+import { Hint } from '@/components/shell/ShortcutHint';
 import { AssigneeAvatar } from '@/components/task/AssigneeAvatar';
 import { DueChip } from '@/components/task/DueChip';
 import { LabelChip } from '@/components/task/LabelChip';
@@ -33,14 +34,16 @@ export function TaskCard({
   const moveMenu = (
     <Dropdown.Root>
       <Dropdown.Trigger asChild>
-        <CompactButton.Root
-          variant="ghost"
-          size="medium"
-          aria-label={`Move ${task.title}`}
-          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100 max-sm:size-11"
-        >
-          <CompactButton.Icon as={IconArrowsRightLeft} />
-        </CompactButton.Root>
+        <Hint label="Move to…">
+          <CompactButton.Root
+            variant="ghost"
+            size="medium"
+            aria-label={`Move ${task.title}`}
+            className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100 max-sm:size-11"
+          >
+            <CompactButton.Icon as={IconArrowsRightLeft} />
+          </CompactButton.Root>
+        </Hint>
       </Dropdown.Trigger>
       <Dropdown.Content align="end">
         <Dropdown.Label>Move to</Dropdown.Label>
@@ -73,14 +76,30 @@ export function TaskCard({
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <PriorityChip priority={task.priority} />
-        <DueChip dueDate={task.dueDate} timezone={timezone} done={task.completedAt !== null} />
+        {task.priority !== 'none' && (
+          <Hint label="Priority">
+            <span className="inline-flex"><PriorityChip priority={task.priority} /></span>
+          </Hint>
+        )}
+        {task.dueDate && (
+          <Hint label="Due date">
+            <span className="inline-flex"><DueChip dueDate={task.dueDate} timezone={timezone} done={task.completedAt !== null} /></span>
+          </Hint>
+        )}
         {task.subtaskCount > 0 && (
-          <span className="tabular text-paragraph-xs text-text-sub-600">
-            {task.subtaskDoneCount}/{task.subtaskCount}
+          <Hint label={`${task.subtaskDoneCount} of ${task.subtaskCount} subtasks done`}>
+            <span className="tabular inline-flex items-center gap-1 text-paragraph-xs text-text-sub-600">
+              <IconSubtask className="size-3.5" aria-hidden="true" />
+              <span className="sr-only">Subtasks done: </span>
+              {task.subtaskDoneCount}/{task.subtaskCount}
+            </span>
+          </Hint>
+        )}
+        {task.assigneeName && (
+          <span className="ml-auto inline-flex">
+            <AssigneeAvatar name={task.assigneeName} image={task.assigneeImage} />
           </span>
         )}
-        {task.assigneeName && <AssigneeAvatar name={task.assigneeName} image={task.assigneeImage} className="ml-auto" />}
       </div>
     </KanbanCard>
   );

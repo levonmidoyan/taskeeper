@@ -11,6 +11,7 @@ import * as CompactButton from '@/components/ui/compact-button';
 import * as Modal from '@/components/ui/modal';
 import { settle } from '@/lib/settle';
 import { createProjectAction } from '@/server/projects/actions';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 export function NewProjectDialog({ workspaceSlug }: { workspaceSlug: string }) {
   const router = useRouter();
@@ -39,9 +40,11 @@ export function NewProjectDialog({ workspaceSlug }: { workspaceSlug: string }) {
   return (
     <Modal.Root open={open} onOpenChange={setOpen}>
       <Modal.Trigger asChild>
-        <CompactButton.Root variant="ghost" size="medium" aria-label="New project">
-          <CompactButton.Icon as={IconPlus} />
-        </CompactButton.Root>
+        <Hint label="New project">
+          <CompactButton.Root variant="ghost" size="medium" aria-label="New project">
+            <CompactButton.Icon as={IconPlus} />
+          </CompactButton.Root>
+        </Hint>
       </Modal.Trigger>
       <Modal.Content>
         <Modal.Header

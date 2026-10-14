@@ -7,6 +7,7 @@ import * as Button from '@/components/ui/button';
 import { Calendar } from '@/components/ui/datepicker';
 import * as Popover from '@/components/ui/popover';
 import { dateToDay, dayToDate, todayInZone } from '@/lib/dates';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 export function TodoDuePicker({
   title,
@@ -32,13 +33,18 @@ export function TodoDuePicker({
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger
-        aria-label={dueDate ? `Change due date of "${title}"` : `Set due date for "${title}"`}
-        className="inline-flex min-h-9 shrink-0 items-center rounded-lg px-2 text-text-soft-400 transition-colors duration-150 hover:bg-bg-weak-50 hover:text-text-strong-950 data-[state=open]:bg-bg-weak-50"
-      >
-        {dueDate
-          ? <DueChip dueDate={dueDate} timezone={timezone} done={done} />
-          : <IconCalendarPlus className="size-4" aria-hidden="true" />}
+      <Popover.Trigger asChild>
+        <Hint label={dueDate ? 'Change due date' : 'Set due date'}>
+          <button
+            type="button"
+            aria-label={dueDate ? `Change due date of "${title}"` : `Set due date for "${title}"`}
+            className="inline-flex min-h-9 shrink-0 items-center rounded-lg px-2 text-text-soft-400 transition-colors duration-150 hover:bg-bg-weak-50 hover:text-text-strong-950 data-[state=open]:bg-bg-weak-50"
+          >
+            {dueDate
+              ? <DueChip dueDate={dueDate} timezone={timezone} done={done} />
+              : <IconCalendarPlus className="size-4" aria-hidden="true" />}
+          </button>
+        </Hint>
       </Popover.Trigger>
       <Popover.Content align="end" sideOffset={8} showArrow={false} className="p-0">
         <div className="p-3">

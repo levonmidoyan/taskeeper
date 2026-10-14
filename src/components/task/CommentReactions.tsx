@@ -13,6 +13,7 @@ import {
 import { settle } from '@/lib/settle';
 import { setReactionAction } from '@/server/comments/actions';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 /**
  * A comment's reaction chips plus the button that adds one. Each click applies
@@ -81,15 +82,17 @@ export function CommentReactions({
 
         <Popover.Root open={open} onOpenChange={setOpen}>
           <Popover.Trigger asChild>
-            <CompactButton.Root
-              type="button"
-              variant="ghost"
-              size="medium"
-              aria-label="Add reaction"
-              className="text-text-soft-400"
-            >
-              <CompactButton.Icon as={IconMoodPlus} />
-            </CompactButton.Root>
+            <Hint label="Add reaction">
+              <CompactButton.Root
+                type="button"
+                variant="ghost"
+                size="medium"
+                aria-label="Add reaction"
+                className="text-text-soft-400"
+              >
+                <CompactButton.Icon as={IconMoodPlus} />
+              </CompactButton.Root>
+            </Hint>
           </Popover.Trigger>
           <Popover.Content align="start" showArrow={false} sideOffset={6} className="p-1.5">
             <div className="flex gap-0.5">

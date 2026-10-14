@@ -25,6 +25,7 @@ import type { MemberRow } from '@/server/labels/queries';
 import {
   createCommentAction, deleteCommentAction, updateCommentAction,
 } from '@/server/comments/actions';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 type ActivityTab = 'all' | 'comments' | 'history';
 
@@ -274,16 +275,18 @@ export function ActivityFeed({
                       </Button.Root>
                     )}
                     {(entry.authorId === currentUserId || canModerate) && (
-                      <CompactButton.Root
-                        type="button"
-                        variant="ghost"
-                        size="medium"
-                        aria-label={`Delete comment by ${entry.authorName}`}
-                        onClick={() => onDelete(entry.id)}
-                        className="hover:text-error-base"
-                      >
-                        <CompactButton.Icon as={IconTrash} />
-                      </CompactButton.Root>
+                      <Hint label="Delete comment">
+                        <CompactButton.Root
+                          type="button"
+                          variant="ghost"
+                          size="medium"
+                          aria-label={`Delete comment by ${entry.authorName}`}
+                          onClick={() => onDelete(entry.id)}
+                          className="hover:text-error-base"
+                        >
+                          <CompactButton.Icon as={IconTrash} />
+                        </CompactButton.Root>
+                      </Hint>
                     )}
                   </span>
                 </div>

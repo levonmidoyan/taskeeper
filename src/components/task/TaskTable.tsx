@@ -58,6 +58,7 @@ import { bulkDeleteTasksAction, bulkUpdateTasksAction } from '@/server/tasks/act
 import type { TaskRow } from '@/server/tasks/queries';
 import { formatDueDate, formatInZone, todayInZone } from '@/lib/dates';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 const features = tableFeatures({
   columnOrderingFeature,
@@ -670,26 +671,30 @@ export function TaskTable({
             <span>
               Page {pagination.pageIndex + 1} of {pageCount}
             </span>
-            <Button.Root
-              variant="neutral"
-              mode="stroke"
-              size="xxsmall"
-              aria-label="Previous page"
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.previousPage()}
-            >
-              <Button.Icon as={IconChevronLeft} />
-            </Button.Root>
-            <Button.Root
-              variant="neutral"
-              mode="stroke"
-              size="xxsmall"
-              aria-label="Next page"
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.nextPage()}
-            >
-              <Button.Icon as={IconChevronRight} />
-            </Button.Root>
+            <Hint label="Previous page">
+              <Button.Root
+                variant="neutral"
+                mode="stroke"
+                size="xxsmall"
+                aria-label="Previous page"
+                disabled={!table.getCanPreviousPage()}
+                onClick={() => table.previousPage()}
+              >
+                <Button.Icon as={IconChevronLeft} />
+              </Button.Root>
+            </Hint>
+            <Hint label="Next page">
+              <Button.Root
+                variant="neutral"
+                mode="stroke"
+                size="xxsmall"
+                aria-label="Next page"
+                disabled={!table.getCanNextPage()}
+                onClick={() => table.nextPage()}
+              >
+                <Button.Icon as={IconChevronRight} />
+              </Button.Root>
+            </Hint>
           </div>
         </nav>
       )}

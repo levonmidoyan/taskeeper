@@ -11,6 +11,7 @@ import { settle } from '@/lib/settle';
 import { createLabelAction, deleteLabelAction, setTaskLabelsAction } from '@/server/labels/actions';
 import type { LabelRow } from '@/server/tasks/queries';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 /** Attaches labels to an existing task, saving each change as it is made. */
 export function LabelPicker({
@@ -240,15 +241,17 @@ export function LabelSelect({
                   <IconTag className="size-4 shrink-0 text-text-soft-400" aria-hidden="true" />
                   <span className="truncate">{label.name}</span>
                 </span>
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  aria-label={`Delete label ${label.name}`}
-                  onClick={(event) => { event.stopPropagation(); onDelete(label.id); }}
-                  className="rounded-md p-1 text-text-soft-400 transition-colors duration-150 hover:text-error-base"
-                >
-                  <IconTrash className="size-4" aria-hidden="true" />
-                </button>
+                <Hint label="Delete label">
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    aria-label={`Delete label ${label.name}`}
+                    onClick={(event) => { event.stopPropagation(); onDelete(label.id); }}
+                    className="rounded-md p-1 text-text-soft-400 transition-colors duration-150 hover:text-error-base"
+                  >
+                    <IconTrash className="size-4" aria-hidden="true" />
+                  </button>
+                </Hint>
               </li>
             ))}
           </ul>

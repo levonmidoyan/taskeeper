@@ -24,6 +24,7 @@ import {
   createTaskAction, getCreateTaskOptionsAction, type CreateTaskOptions,
 } from '@/server/tasks/actions';
 import type { Priority } from '@/server/tasks/queries';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
 
@@ -71,16 +72,19 @@ export function CreateTaskDialog({
   return (
     <Modal.Root open={open} onOpenChange={onOpenChange}>
       <Modal.Trigger asChild>
-        <Button.Root
-          size="small"
-          disabled={disabled}
-          title={disabled ? 'Create a project first' : 'Create task (C)'}
-          aria-label="Create task"
-          className="shrink-0 max-sm:w-9 max-sm:px-0"
-        >
-          <Button.Icon as={IconPlus} />
-          <span className="max-sm:sr-only">Create</span>
-        </Button.Root>
+        <Hint shortcut="general.create">
+          <Button.Root
+            size="small"
+            disabled={disabled}
+            // A disabled button gets no hover events, so no Hint: the native title still shows.
+            title={disabled ? 'Create a project first' : undefined}
+            aria-label="Create task"
+            className="shrink-0 max-sm:w-9 max-sm:px-0"
+          >
+            <Button.Icon as={IconPlus} />
+            <span className="max-sm:sr-only">Create</span>
+          </Button.Root>
+        </Hint>
       </Modal.Trigger>
       <Modal.Content
         aria-describedby={undefined}
@@ -205,10 +209,12 @@ function CreateTaskForm({
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-stroke-soft-200 px-5 py-3">
         <Modal.Title>New task</Modal.Title>
         <Modal.Close asChild>
-          <CompactButton.Root variant="ghost" size="large">
-            <CompactButton.Icon as={IconX} aria-hidden="true" />
-            <span className="sr-only">Close</span>
-          </CompactButton.Root>
+          <Hint label="Close">
+            <CompactButton.Root variant="ghost" size="large">
+              <CompactButton.Icon as={IconX} aria-hidden="true" />
+              <span className="sr-only">Close</span>
+            </CompactButton.Root>
+          </Hint>
         </Modal.Close>
       </header>
 

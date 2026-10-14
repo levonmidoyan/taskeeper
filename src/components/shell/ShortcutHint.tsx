@@ -1,5 +1,6 @@
 'use client';
 
+import { forwardRef } from 'react';
 import * as Tooltip from '@/components/ui/tooltip';
 import { formatBinding } from '@/lib/shortcuts/keys';
 import { useIsMac } from '@/lib/shortcuts/provider';
@@ -27,22 +28,45 @@ export function ShortcutKeys({ id, kbdClassName }: { id: ShortcutId; kbdClassNam
 }
 
 /**
- * Jira-style hover hint naming the shortcut that does what the wrapped control
- * does. Hover only: a tooltip on focus would pop up each time a picker hands
- * focus back to its trigger, and the keyboard has the ? overlay.
+ * Hover hint naming what an icon-only control does, plus its shortcut when it has
+ * one. Hover only: a tooltip on focus would pop up each time a menu or picker hands
+ * focus back to its trigger, and screen readers already get the aria-label.
+ *
+ * Forwards props and ref, so it can sit between a Radix `asChild` trigger and its
+ * button. Put it inside Dropdown/Popover/Modal triggers, never around them: the outer
+ * trigger's props win, and a menu button must keep its own data-state.
  */
-export function ShortcutTooltip({ id, children }: { id: ShortcutId; children: React.ReactElement }) {
+export const Hint = forwardRef<
+  HTMLElement,
+  {
+    label?: React.ReactNode;
+    shortcut?: ShortcutId;
+    side?: 'top' | 'right' | 'bottom' | 'left';
+    children: React.ReactElement;
+  } & React.HTMLAttributes<HTMLElement>
+>(function Hint({ label, shortcut, side, children, onFocus, ...rest }, ref) {
   return (
-    <Tooltip.Provider delayDuration={500} disableHoverableContent>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild onFocus={(event) => event.preventDefault()}>
-          {children}
-        </Tooltip.Trigger>
-        <Tooltip.Content size="xsmall" className="flex items-center gap-2">
-          {shortcutById(id).label}
-          <ShortcutKeys id={id} kbdClassName="border-white/25 text-text-white-0" />
-        </Tooltip.Content>
-      </Tooltip.Root>
-    </Tooltip.Provider>
+    <Tooltip.Root>
+      <Tooltip.Trigger
+        asChild
+        ref={ref as React.Ref<HTMLButtonElement>}
+        {...(rest as React.HTMLAttributes<HTMLButtonElement>)}
+        onFocus={(event) => {
+          onFocus?.(event);
+          event.preventDefault();
+        }}
+      >
+        {children}
+      </Tooltip.Trigger>
+      <Tooltip.Content size="xsmall" side={side} className="flex items-center gap-2">
+        {label ?? (shortcut && shortcutById(shortcut).label)}
+        {shortcut && <ShortcutKeys id={shortcut} kbdClassName="border-white/25 text-text-white-0" />}
+      </Tooltip.Content>
+    </Tooltip.Root>
   );
+});
+
+/** Jira-style hover hint naming the shortcut that does what the wrapped control does. */
+export function ShortcutTooltip({ id, children }: { id: ShortcutId; children: React.ReactElement }) {
+  return <Hint shortcut={id}>{children}</Hint>;
 }

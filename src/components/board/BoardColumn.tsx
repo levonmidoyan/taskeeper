@@ -14,6 +14,7 @@ import * as CompactButton from '@/components/ui/compact-button';
 import { settle } from '@/lib/settle';
 import type { StatusRow } from '@/server/projects/queries';
 import { updateStatusAction } from '@/server/statuses/actions';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 export function BoardColumn({
   status,
@@ -134,16 +135,18 @@ function ColumnName({
     <>
       <h2 className="min-w-0 truncate text-label-sm text-text-strong-950">{status.name}</h2>
       {canEdit && (
-        <CompactButton.Root
-          variant="ghost"
-          size="medium"
-          aria-label={`Rename ${status.name}`}
-          disabled={pending}
-          onClick={() => setEditing(true)}
-          className="order-last ml-auto opacity-0 transition-opacity group-hover/header:opacity-100 focus-visible:opacity-100"
-        >
-          <CompactButton.Icon as={IconPencil} />
-        </CompactButton.Root>
+        <Hint label="Rename column">
+          <CompactButton.Root
+            variant="ghost"
+            size="medium"
+            aria-label={`Rename ${status.name}`}
+            disabled={pending}
+            onClick={() => setEditing(true)}
+            className="order-last ml-auto opacity-0 transition-opacity group-hover/header:opacity-100 focus-visible:opacity-100"
+          >
+            <CompactButton.Icon as={IconPencil} />
+          </CompactButton.Root>
+        </Hint>
       )}
     </>
   );

@@ -14,6 +14,7 @@ import type { StatusRow } from '@/server/projects/queries';
 import { createTaskAction, deleteTaskAction, updateTaskAction } from '@/server/tasks/actions';
 import type { TaskRow } from '@/server/tasks/queries';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 export function SubtaskSection({
   parent,
@@ -211,16 +212,18 @@ function SubtaskRow({
 
   return (
     <li className="group flex items-center gap-2 border-b border-stroke-soft-200 pr-2 last:border-b-0">
-      <button
-        type="button"
-        onClick={toggleDone}
-        disabled={pending}
-        aria-pressed={done}
-        aria-label={done ? `Mark "${subtask.title}" as not done` : `Mark "${subtask.title}" as done`}
-        className="inline-flex size-11 shrink-0 items-center justify-center text-text-soft-400 transition-colors duration-150 hover:text-text-strong-950 disabled:opacity-50"
-      >
-        <DoneIcon done={done} className="size-4" />
-      </button>
+      <Hint label={done ? 'Mark as not done' : 'Mark as done'}>
+        <button
+          type="button"
+          onClick={toggleDone}
+          disabled={pending}
+          aria-pressed={done}
+          aria-label={done ? `Mark "${subtask.title}" as not done` : `Mark "${subtask.title}" as done`}
+          className="inline-flex size-11 shrink-0 items-center justify-center text-text-soft-400 transition-colors duration-150 hover:text-text-strong-950 disabled:opacity-50"
+        >
+          <DoneIcon done={done} className="size-4" />
+        </button>
+      </Hint>
 
       <button
         type="button"
@@ -233,17 +236,19 @@ function SubtaskRow({
         <StrikeText done={done}>{subtask.title}</StrikeText>
       </button>
 
-      <button
-        type="button"
-        onClick={onDelete}
-        disabled={pending}
-        aria-label={`Delete "${subtask.title}"`}
-        // Always reachable by keyboard and on touch; only the hover styling is
-        // conditional, so the row stays quiet until pointed at.
-        className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-text-soft-400 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 hover:text-error-base disabled:opacity-50"
-      >
-        <IconTrash className="size-4" aria-hidden="true" />
-      </button>
+      <Hint label="Delete subtask">
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={pending}
+          aria-label={`Delete "${subtask.title}"`}
+          // Always reachable by keyboard and on touch; only the hover styling is
+          // conditional, so the row stays quiet until pointed at.
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-text-soft-400 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 hover:text-error-base disabled:opacity-50"
+        >
+          <IconTrash className="size-4" aria-hidden="true" />
+        </button>
+      </Hint>
     </li>
   );
 }

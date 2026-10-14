@@ -7,6 +7,7 @@ import * as CompactButton from '@/components/ui/compact-button';
 import { settle } from '@/lib/settle';
 import { setProjectStarAction } from '@/server/projects/actions';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 /** Stars a project for the current member. Flips at once; the rail catches up when the action revalidates. */
 export function StarButton({
@@ -33,15 +34,17 @@ export function StarButton({
   }
 
   return (
-    <CompactButton.Root
-      variant="ghost"
-      size="large"
-      onClick={toggle}
-      aria-pressed={shown}
-      aria-label={shown ? 'Unstar project' : 'Star project'}
-      className={cn(shown && 'text-warning-base hover:text-warning-base', className)}
-    >
-      <CompactButton.Icon as={shown ? IconStarFilled : IconStar} />
-    </CompactButton.Root>
+    <Hint label={shown ? 'Unstar project' : 'Star project'}>
+      <CompactButton.Root
+        variant="ghost"
+        size="large"
+        onClick={toggle}
+        aria-pressed={shown}
+        aria-label={shown ? 'Unstar project' : 'Star project'}
+        className={cn(shown && 'text-warning-base hover:text-warning-base', className)}
+      >
+        <CompactButton.Icon as={shown ? IconStarFilled : IconStar} />
+      </CompactButton.Root>
+    </Hint>
   );
 }
