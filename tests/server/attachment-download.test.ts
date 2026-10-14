@@ -6,7 +6,7 @@ import type { WorkspaceContext } from '@/lib/session';
 import { createProject } from '@/server/projects/service';
 import { createTask } from '@/server/tasks/service';
 import { confirmUpload, requestUpload } from '@/server/attachments/service';
-import { resolveDownload } from '@/server/attachments/download';
+import { TEXT_PREVIEW_BYTES, readTextPreview, resolveDownload } from '@/server/attachments/download';
 
 beforeEach(async () => {
   await resetDb();
@@ -97,5 +97,57 @@ describe('resolveDownload', () => {
   it('returns null for an unknown id', async () => {
     const { ctx } = await setup();
     expect(await resolveDownload(ctx.userId, 'nope', { download: false })).toBeNull();
+  });
+});
+
+describe('readTextPreview', () => {
+  async function uploadText(ctx: WorkspaceContext, taskId: string, fileName: string, contentType: string, text: string) {
+    const body = new TextEncoder().encode(text);
+    const req = await requestUpload(ctx, { taskId, fileName, contentType, size: body.length });
+    if (!req.ok) throw new Error(req.error);
+    await uploadTo(req.data.url, body, req.data.contentType);
+    await confirmUpload(ctx, { attachmentId: req.data.id });
+    return req.data.id;
+  }
+
+  it('returns the text of a text file to a member', async () => {
+    const { ctx, taskId } = await setup();
+    const id = await uploadText(ctx, taskId, 'notes.txt', 'text/plain', 'hello – world');
+
+    expect(await readTextPreview(ctx.userId, id)).toEqual({ status: 'ok', text: 'hello – world', truncated: false });
+  });
+
+  it('returns an svg as its source', async () => {
+    const { ctx, taskId } = await setup();
+    const id = await upload(ctx, taskId, 'logo.svg', 'image/svg+xml');
+
+    const result = await readTextPreview(ctx.userId, id);
+    expect(result).toMatchObject({ status: 'ok', text: '<svg xmlns="http://www.w3.org/2000/svg"/>' });
+  });
+
+  it('cuts a long file at the preview limit', async () => {
+    const { ctx, taskId } = await setup();
+    const id = await uploadText(ctx, taskId, 'big.log', 'text/plain', 'x'.repeat(TEXT_PREVIEW_BYTES + 10));
+
+    const result = await readTextPreview(ctx.userId, id);
+    expect(result.status).toBe('ok');
+    if (result.status !== 'ok') return;
+    expect(result.truncated).toBe(true);
+    expect(result.text).toHaveLength(TEXT_PREVIEW_BYTES);
+  });
+
+  it('refuses a type it cannot show as text', async () => {
+    const { ctx, taskId } = await setup();
+    const id = await upload(ctx, taskId, 'shot.png', 'image/png');
+    expect(await readTextPreview(ctx.userId, id)).toEqual({ status: 'unsupported' });
+  });
+
+  it('is missing for a member of another workspace', async () => {
+    const { ctx, taskId } = await setup();
+    const id = await uploadText(ctx, taskId, 'notes.txt', 'text/plain', 'secret');
+    const bob = await createUser('bob-tp@example.com');
+    await createWorkspace(bob.id, 'Bob Co', 'bob-tp');
+
+    expect(await readTextPreview(bob.id, id)).toEqual({ status: 'missing' });
   });
 });

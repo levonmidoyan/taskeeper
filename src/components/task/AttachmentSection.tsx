@@ -6,10 +6,12 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { ReadyAttachmentCard, UploadCard } from '@/components/task/AttachmentCard';
 import { CollapsibleSection } from '@/components/task/CollapsibleSection';
+import { AttachmentPreviewModal } from '@/components/task/AttachmentPreviewModal';
 import { AttachmentUploadModal } from '@/components/task/AttachmentUploadModal';
 import { useAttachmentUploads } from '@/components/task/use-attachment-uploads';
 import * as Button from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { previewKind } from '@/lib/attachments';
 import { settle } from '@/lib/settle';
 import type { AttachmentView } from '@/server/attachments/queries';
 import { deleteAttachmentAction } from '@/server/attachments/actions';
@@ -30,6 +32,10 @@ export function AttachmentSection({
   const uploads = useAttachmentUploads(workspaceSlug, taskId);
   const [modalOpen, setModalOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
+  // Tracked by id so a refresh that adds or removes files keeps the same one open.
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const previewable = attachments.filter((a) => previewKind(a.fileName, a.contentType) !== null);
+  const previewIndex = previewable.findIndex((a) => a.id === previewId);
 
   // Completed uploads appear in `attachments` after the refresh, so the
   // section only shows the ones still in flight or failed.
@@ -111,11 +117,18 @@ export function AttachmentSection({
               timezone={timezone}
               canDelete={a.uploaderId === currentUserId || canModerate}
               onDelete={() => void onDelete(a)}
+              onPreview={previewKind(a.fileName, a.contentType) ? () => setPreviewId(a.id) : undefined}
             />
           ))}
         </ul>
       )}
 
+      <AttachmentPreviewModal
+        attachments={previewable}
+        index={previewIndex === -1 ? null : previewIndex}
+        onIndexChange={(i) => setPreviewId(previewable[i].id)}
+        onClose={() => setPreviewId(null)}
+      />
       <AttachmentUploadModal taskId={taskId} open={modalOpen} onOpenChange={setModalOpen} uploads={uploads} />
     </CollapsibleSection>
   );

@@ -24,21 +24,29 @@ function FileGlyph({ fileName, contentType, thumbnail }: { fileName: string; con
 
 /** A saved attachment (File Upload 01, "completed"). The upload day reads relative, the exact time on hover. */
 export function ReadyAttachmentCard({
-  id, fileName, contentType, size, uploaderName, createdAt, timezone, canDelete, onDelete,
+  id, fileName, contentType, size, uploaderName, createdAt, timezone, canDelete, onDelete, onPreview,
 }: {
   id: string; fileName: string; contentType: string; size: number;
   uploaderName: string; createdAt: Date; timezone: string;
   canDelete: boolean; onDelete: () => void;
+  /** Given for files the preview modal can show; the card then opens it instead of a new tab. */
+  onPreview?: () => void;
 }) {
   const href = `/api/attachments/${id}`;
   return (
     <li className="group relative flex items-center gap-3 rounded-2xl bg-bg-white-0 p-4 ring-1 ring-inset ring-stroke-soft-200 transition-colors duration-150 hover:bg-bg-weak-50">
       <FileGlyph fileName={fileName} contentType={contentType} thumbnail={href} />
       <div className="min-w-0 flex-1">
-        {/* The stretched link makes the whole card open the file. */}
-        <a href={href} target="_blank" rel="noopener" className="block truncate text-label-sm text-text-strong-950 after:absolute after:inset-0">
-          {fileName}
-        </a>
+        {/* The stretched link or button makes the whole card open the file. */}
+        {onPreview ? (
+          <button type="button" onClick={onPreview} className="block w-full truncate text-left text-label-sm text-text-strong-950 after:absolute after:inset-0">
+            {fileName}
+          </button>
+        ) : (
+          <a href={href} target="_blank" rel="noopener" className="block truncate text-label-sm text-text-strong-950 after:absolute after:inset-0">
+            {fileName}
+          </a>
+        )}
         <p className="truncate text-paragraph-xs text-text-sub-600">
           {formatBytes(size)} · {uploaderName} ·{' '}
           <time dateTime={createdAt.toISOString()} title={formatInZone(createdAt, timezone)}>

@@ -34,13 +34,20 @@ test('attach a file, see it after reload, open it, delete it', async ({ page }) 
   await upload.getByRole('button', { name: 'Close' }).click();
 
   await page.reload();
-  const card = page.getByRole('link', { name: 'notes.txt', exact: true });
+  // A text file opens the preview modal, so its card is a button.
+  const card = page.getByRole('button', { name: 'notes.txt', exact: true });
   await expect(card).toBeVisible();
   // The upload day reads relative; the exact time sits in the tooltip.
   await expect(page.getByRole('listitem').filter({ has: card }).locator('time')).toHaveText('Today');
   // Activity opens on Comments; the attach/remove sentences are history.
   await page.getByRole('tab', { name: 'History' }).click();
   await expect(page.getByText('attached “notes.txt”')).toBeVisible();
+
+  await card.click();
+  const preview = page.getByRole('dialog', { name: 'notes.txt' });
+  await expect(preview.getByLabel('File contents')).toHaveText('hello attachments');
+  await preview.getByRole('button', { name: 'Close' }).click();
+  await expect(preview).toBeHidden();
 
   // The download link redirects to the bucket with the file as an attachment.
   const [download] = await Promise.all([
@@ -67,4 +74,21 @@ test('a file over 25 MB fails without uploading', async ({ page }) => {
 
   await expect(upload.getByText('Files can be up to 25 MB.')).toBeVisible();
   await expect(upload.getByRole('button', { name: 'Try Again' })).toHaveCount(0);
+});
+
+test('an image opens in the preview modal', async ({ page }) => {
+  await signUpWithTask(page);
+  await page.getByRole('button', { name: 'Needs files', exact: true }).click();
+  await page.getByRole('button', { name: 'Attach files' }).click();
+  const upload = page.getByRole('dialog', { name: 'Upload files' });
+  // A 1×1 transparent PNG.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  await upload.getByLabel('Choose files to attach').setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: png });
+  await expect(upload.getByText('Completed')).toBeVisible();
+  await upload.getByRole('button', { name: 'Close' }).click();
+
+  await page.getByRole('button', { name: 'dot.png', exact: true }).click();
+  const image = page.getByRole('dialog', { name: 'dot.png' }).getByRole('img', { name: 'dot.png' });
+  await expect(image).toBeVisible();
+  await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1);
 });

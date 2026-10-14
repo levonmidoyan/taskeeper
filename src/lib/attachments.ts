@@ -35,6 +35,34 @@ export function isInlineType(contentType: string): boolean {
   return INLINE_TYPES.has(contentType);
 }
 
+const TEXT_TYPES = new Set([
+  'application/json', 'application/xml', 'application/javascript', 'application/x-javascript',
+  'application/yaml', 'application/x-yaml', 'application/toml', 'application/sql',
+  'application/x-sh', 'application/x-httpd-php', 'image/svg+xml',
+]);
+
+const TEXT_EXTENSIONS = new Set([
+  'txt', 'md', 'markdown', 'csv', 'tsv', 'log', 'json', 'xml', 'yml', 'yaml', 'toml', 'ini', 'env',
+  'html', 'htm', 'css', 'scss', 'svg', 'sql', 'sh', 'bash',
+  'js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx', 'py', 'rb', 'php', 'go', 'rs', 'java', 'kt', 'swift',
+  'c', 'h', 'cpp', 'hpp', 'cs',
+]);
+
+export type PreviewKind = 'image' | 'pdf' | 'text';
+
+/**
+ * How the preview modal shows a file, or null when it cannot. Text is always
+ * shown as plain characters, never rendered, so SVG and HTML are safe here.
+ */
+export function previewKind(fileName: string, contentType: string): PreviewKind | null {
+  if (contentType === 'application/pdf') return 'pdf';
+  if (contentType.startsWith('image/') && isInlineType(contentType)) return 'image';
+  if (contentType.startsWith('text/') || TEXT_TYPES.has(contentType)) return 'text';
+  const dot = fileName.lastIndexOf('.');
+  const ext = dot >= 0 ? fileName.slice(dot + 1).toLowerCase() : '';
+  return TEXT_EXTENSIONS.has(ext) ? 'text' : null;
+}
+
 /** RFC 6266: an ASCII fallback for old clients plus the exact UTF-8 name. */
 export function contentDisposition(fileName: string, inline: boolean): string {
   const ascii = fileName.replace(/[^\x20-\x7e]|["\\']/g, '_');

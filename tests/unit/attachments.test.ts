@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MAX_ATTACHMENT_BYTES, attachmentKey, contentDisposition, fileFormat, formatBytes,
-  isInlineType, normalizeContentType, sanitizeFileName,
+  isInlineType, normalizeContentType, previewKind, sanitizeFileName,
 } from '@/lib/attachments';
 
 describe('sanitizeFileName', () => {
@@ -88,5 +88,35 @@ describe('fileFormat', () => {
   });
   it('badges PDFs by content type when extension is missing', () => {
     expect(fileFormat('export', 'application/pdf')).toEqual({ label: 'PDF', color: 'red' });
+  });
+});
+
+describe('previewKind', () => {
+  it('shows inline image types as images', () => {
+    expect(previewKind('a.png', 'image/png')).toBe('image');
+    expect(previewKind('a.webp', 'image/webp')).toBe('image');
+  });
+  it('shows a pdf as a pdf', () => {
+    expect(previewKind('a.pdf', 'application/pdf')).toBe('pdf');
+  });
+  it('shows text by type', () => {
+    expect(previewKind('notes', 'text/plain')).toBe('text');
+    expect(previewKind('data', 'application/json')).toBe('text');
+  });
+  it('shows text by extension when the browser sent no useful type', () => {
+    expect(previewKind('app.ts', 'application/octet-stream')).toBe('text');
+    expect(previewKind('README.MD', 'application/octet-stream')).toBe('text');
+    expect(previewKind('ci.yml', 'application/octet-stream')).toBe('text');
+  });
+  // SVG and HTML are never rendered; they show as their source.
+  it('shows svg and html as text', () => {
+    expect(previewKind('logo.svg', 'image/svg+xml')).toBe('text');
+    expect(previewKind('page.html', 'text/html')).toBe('text');
+  });
+  it('previews nothing else', () => {
+    expect(previewKind('a.zip', 'application/zip')).toBeNull();
+    expect(previewKind('a.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')).toBeNull();
+    expect(previewKind('a.tiff', 'image/tiff')).toBeNull();
+    expect(previewKind('blob', 'application/octet-stream')).toBeNull();
   });
 });
