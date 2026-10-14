@@ -27,6 +27,11 @@ export const userSettings = pgTable(
     changeNotify: boolean('change_notify').notNull().default(true),
     // Chime with those toasts.
     changeSound: boolean('change_sound').notNull().default(true),
+    // Web push per kind (src/lib/push.ts); apply to all the user's devices.
+    pushReminders: boolean('push_reminders').notNull().default(true),
+    pushMentions: boolean('push_mentions').notNull().default(true),
+    pushTaskChanges: boolean('push_task_changes').notNull().default(true),
+    pushProjectChanges: boolean('push_project_changes').notNull().default(false),
   },
   (t) => [check('user_settings_reminder_hour_ck', sql`${t.reminderHour} between 0 and 23`)],
 );
