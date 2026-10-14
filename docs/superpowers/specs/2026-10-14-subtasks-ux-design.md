@@ -39,9 +39,11 @@ only), nesting deeper than one level, subtasks as their own cards in board colum
 `task_parent_position_idx` on `(parentTaskId, subtaskPosition)`. Top-level tasks keep it
 `null`; every subtask has one.
 
-Migration backfill: for each parent, number its existing subtasks in their current displayed
-order (`position`, then `id`) with `positionsForCount`. Production needs `db:setup:prod` after
-deploy, as for earlier schema changes.
+Backfill: `src/db/sql/subtask-position-backfill.sql` (run by `db:setup` after `drizzle-kit push`,
+safe to rerun) copies `position` into `subtask_position` for subtasks that have none.
+`position` values are already valid fractional keys and sorting by them (then `id`) is today's
+displayed order, so the order is kept. Keys may tie across columns; reorder renumbers on a tie
+and reads tie-break by `id`. Production needs `db:setup:prod` after deploy.
 
 ### 2.2 Service (`src/server/tasks/service.ts`)
 
@@ -76,12 +78,11 @@ Server actions in `src/server/tasks/actions.ts` wrap each: `createSubtasksAction
 
 - `getTaskDetail`: subtasks ordered by `subtaskPosition`, `id`. When the task is itself a
   subtask, add `siblings: { id: string; title: string }[]` in the same order (includes self).
-- `listProjectTasks` (board): each row gains `subtasks: SubtaskLite[]`
-  (`id, title, completedAt, assigneeId, assigneeName, assigneeImage`), one extra query
-  `WHERE parentTaskId IN (ids) AND archivedAt IS NULL ORDER BY subtaskPosition, id`.
-- `listWorkspaceTasks` (list): when not in flat "include subtasks" mode, each parent on the
-  visible page gains `subtasks: TaskRow[]` (full rows with labels), same ordering.
-- REST read endpoints that list subtasks use the new order; no shape change.
+- `listProjectTasks(ctx, projectId, filter, { withSubtasks: true })` (board and project List
+  pages; Summary does not ask): each row gains `subtasks: TaskRow[]` (full rows with labels),
+  one extra query `WHERE parentTaskId IN (ids) AND archivedAt IS NULL ORDER BY subtaskPosition, id`.
+  Subtasks are not filtered by the view filter; their parent is.
+- The workspace "All tasks" page and the REST API are unchanged.
 
 ## 3. Parent's subtask list (detail view)
 
@@ -154,8 +155,11 @@ Empty state: the add row plus a muted hint "Break this task into steps."
 
 `src/components/board/TaskCard.tsx`:
 
-- The `2/5` badge becomes a button (`aria-expanded`) with a small progress ring. Click toggles
-  a checklist under the card meta.
+- The card body is one big drag/open `<button>`, so nothing interactive can nest in it.
+  `KanbanCard` gains a `footer` slot rendered after the button inside the card's `<li>`; when a
+  footer is given, the card chrome (background, ring, shadow, radius) moves to a wrapper around
+  button + footer. The footer holds a `2/5` toggle button (`aria-expanded`) with a small
+  progress ring, replacing the in-body badge, and the checklist under it.
 - Checklist shows up to 5 subtasks, then "+N more" which opens the parent. Each item: done
   toggle, truncated title (struck when done), assignee avatar if set. Title click opens the
   subtask via `?task=`.
@@ -173,8 +177,7 @@ Empty state: the add row plus a muted hint "Break this task into steps."
 - Table settings menu: Expand all / Collapse all. Expanded ids kept in client state.
 - Sorting applies to top-level rows; children stay under their parent in `subtaskPosition`
   order.
-- When the existing "include subtasks" flat mode is on, chevrons and child rows are hidden so
-  nothing shows twice.
+- Phone stacked rows (below `sm`) get the same chevron and indented child rows.
 - Keyboard `j`/`k` row navigation walks visible child rows too.
 
 ## 7. Convert task ↔ subtask
