@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { db, notification } from '@/db';
 import { DEFAULT_TIMEZONE } from '@/lib/dates';
 import { newId } from '@/lib/ids';
+import type { PushRef } from '@/server/push/deliver';
 import {
   DEFAULT_REMINDER_HOUR, DIGEST_TASK_CAP, digestKey, REMINDER_CRON_HOURLY, reminderKey,
   type DigestData, type NotificationData, type ReminderOffset,
@@ -149,13 +150,14 @@ export async function selectDueDigests(now: Date): Promise<NotificationDraft[]> 
   return [...groups.values()];
 }
 
-async function insertDrafts(drafts: NotificationDraft[]): Promise<string[]> {
-  const rows = await db
+export type ClaimedNotification = { workspaceId: string } & PushRef;
+
+async function insertDrafts(drafts: NotificationDraft[]): Promise<ClaimedNotification[]> {
+  return db
     .insert(notification)
     .values(drafts.map((d) => ({ id: newId(), ...d })))
     .onConflictDoNothing({ target: notification.dedupeKey })
-    .returning({ workspaceId: notification.workspaceId });
-  return rows.map((r) => r.workspaceId);
+    .returning({ workspaceId: notification.workspaceId, id: notification.id, stamp: sql<string>`${notification.createdAt}::text` });
 }
 
 /** Postgres foreign_key_violation, as raised directly or wrapped by drizzle. */
@@ -165,18 +167,18 @@ function isForeignKeyViolation(error: unknown): boolean {
 }
 
 /**
- * Inserts drafts whose key is new; returns the workspace of each one that was. A repeat run inserts
+ * Inserts drafts whose key is new; returns each row it inserted. A repeat run inserts
  * nothing. A task, user or workspace deleted since the select fails the whole
  * multi-row insert, so that case retries row by row and skips only the gone ones.
  */
-export async function claimNotifications(drafts: NotificationDraft[]): Promise<string[]> {
+export async function claimNotifications(drafts: NotificationDraft[]): Promise<ClaimedNotification[]> {
   if (drafts.length === 0) return [];
   try {
     return await insertDrafts(drafts);
   } catch (error) {
     if (!isForeignKeyViolation(error)) throw error;
   }
-  const inserted: string[] = [];
+  const inserted: ClaimedNotification[] = [];
   for (const draft of drafts) {
     try {
       inserted.push(...(await insertDrafts([draft])));

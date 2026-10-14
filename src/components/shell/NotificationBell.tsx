@@ -1,14 +1,14 @@
 'use client';
 
-import { IconBell, IconX } from '@tabler/icons-react';
+import { IconBell } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { addTransitionType, startTransition, useEffect, useRef, useState, ViewTransition } from 'react';
+import { addTransitionType, startTransition, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Popover from '@/components/ui/popover';
 import { playChime } from '@/lib/chime';
-import { BELL_CHANGE, BELL_CHANGE_CLASSES, BELL_EMPTY_CLASSES, bellTransitionName } from '@/lib/motion';
+import { BELL_CHANGE } from '@/lib/motion';
 import { bellHref, bellText, MAX_TOASTS, pickToasts } from '@/lib/notifications';
 import { settle } from '@/lib/settle';
 import {
@@ -16,6 +16,7 @@ import {
   markNotificationReadAction, unreadCountAction,
 } from '@/server/notifications/actions';
 import type { NotificationItem } from '@/server/notifications/queries';
+import { NotificationList } from './NotificationList';
 import { cn } from '@/utils/cn';
 
 /**
@@ -161,91 +162,60 @@ export function NotificationBell({ workspaceSlug, initialUnread, serverNow, soun
   }
 
   const label = unread > 0 ? `Notifications, ${unread} unread` : 'Notifications';
+  const badge = unread > 0 && (
+    <span
+      key={pop}
+      aria-hidden="true"
+      className={cn(
+        'tabular absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error-base px-1 text-[0.625rem] font-medium text-static-white',
+        pop > 0 && 'animate-badge-pop',
+      )}
+    >
+      {unread > 9 ? '9+' : unread}
+    </span>
+  );
 
   return (
-    <Popover.Root open={open} onOpenChange={onOpenChange}>
-      <Popover.Trigger asChild>
-        <CompactButton.Root variant="ghost" size="large" aria-label={label} className="relative">
+    <>
+      {/* Phones get the full Inbox page instead of a popover. */}
+      <CompactButton.Root asChild variant="ghost" size="large" className="relative sm:hidden">
+        <Link href={`/${workspaceSlug}/inbox`} aria-label={label}>
           <CompactButton.Icon as={IconBell} />
-          {unread > 0 && (
-            <span
-              key={pop}
-              aria-hidden="true"
-              className={cn(
-                'tabular absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error-base px-1 text-[0.625rem] font-medium text-static-white',
-                pop > 0 && 'animate-badge-pop',
-              )}
-            >
-              {unread > 9 ? '9+' : unread}
-            </span>
-          )}
-        </CompactButton.Root>
-      </Popover.Trigger>
-      <Popover.Content align="end" sideOffset={8} showArrow={false} className="w-80 p-0">
-        <div className="flex items-center justify-between border-b border-stroke-soft-200 px-4 py-3">
-          <span className="text-label-sm text-text-strong-950">Notifications</span>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={markAll}
-              disabled={unread === 0}
-              className="text-label-xs text-primary-base disabled:text-text-disabled-300"
-            >
-              Mark all read
-            </button>
-            <button
-              type="button"
-              onClick={clearAll}
-              disabled={!items?.length}
-              className="text-label-xs text-text-sub-600 hover:text-text-strong-950 disabled:text-text-disabled-300"
-            >
-              Clear all
-            </button>
+          {badge}
+        </Link>
+      </CompactButton.Root>
+      <Popover.Root open={open} onOpenChange={onOpenChange}>
+        <Popover.Trigger asChild>
+          <CompactButton.Root variant="ghost" size="large" aria-label={label} className="relative max-sm:hidden">
+            <CompactButton.Icon as={IconBell} />
+            {badge}
+          </CompactButton.Root>
+        </Popover.Trigger>
+        <Popover.Content align="end" sideOffset={8} showArrow={false} className="w-80 p-0">
+          <div className="flex items-center justify-between border-b border-stroke-soft-200 px-4 py-3">
+            <span className="text-label-sm text-text-strong-950">Notifications</span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={markAll}
+                disabled={unread === 0}
+                className="text-label-xs text-primary-base disabled:text-text-disabled-300"
+              >
+                Mark all read
+              </button>
+              <button
+                type="button"
+                onClick={clearAll}
+                disabled={!items?.length}
+                className="text-label-xs text-text-sub-600 hover:text-text-strong-950 disabled:text-text-disabled-300"
+              >
+                Clear all
+              </button>
+            </div>
           </div>
-        </div>
-        <ul className="max-h-96 overflow-y-auto p-1" aria-label="Notifications">
-          {items === null && <li className="px-3 py-6 text-center text-paragraph-sm text-text-sub-600">Loading…</li>}
-          {items?.length === 0 && (
-            <ViewTransition {...BELL_EMPTY_CLASSES}>
-              <li className="px-3 py-6 text-center text-paragraph-sm text-text-sub-600">Nothing yet.</li>
-            </ViewTransition>
-          )}
-          {items?.map((item) => {
-            const { title, detail } = bellText(item);
-            return (
-              <ViewTransition key={item.id} name={bellTransitionName(item.id)} {...BELL_CHANGE_CLASSES}>
-                <li className="group relative">
-                  <Link
-                    href={bellHref(workspaceSlug, item)}
-                    onClick={() => markOne(item)}
-                    className="flex items-start gap-2 rounded-lg p-2 pr-8 hover:bg-bg-weak-50"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={cn('mt-1.5 size-2 shrink-0 rounded-full', item.readAt ? 'bg-transparent' : 'bg-primary-base')}
-                    />
-                    <span className="min-w-0">
-                      <span className={cn('block truncate text-label-sm', item.readAt ? 'text-text-sub-600' : 'text-text-strong-950')}>
-                        {title}
-                      </span>
-                      <span className="block truncate text-paragraph-xs text-text-sub-600">{detail}</span>
-                    </span>
-                    {!item.readAt && <span className="sr-only">Unread</span>}
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => clearOne(item)}
-                    aria-label={`Clear notification: ${title}`}
-                    className="absolute right-1.5 top-2 flex size-5 items-center justify-center rounded-md text-text-soft-400 opacity-0 hover:bg-bg-soft-200 hover:text-text-strong-950 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
-                  >
-                    <IconX className="size-3.5" aria-hidden="true" />
-                  </button>
-                </li>
-              </ViewTransition>
-            );
-          })}
-        </ul>
-      </Popover.Content>
-    </Popover.Root>
+          <NotificationList workspaceSlug={workspaceSlug} items={items} onOpen={markOne} onClear={clearOne} className="max-h-96 overflow-y-auto" />
+        </Popover.Content>
+      </Popover.Root>
+    </>
   );
 }

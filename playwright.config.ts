@@ -17,7 +17,11 @@ export default defineConfig({
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: /mobile\.spec\.ts/ },
+    // Phone layout: iPhone 13 viewport and touch on Chromium (the only engine installed).
+    { name: 'mobile', use: { ...devices['iPhone 13'], browserName: 'chromium' }, testMatch: /mobile\.spec\.ts/ },
+  ],
   webServer: {
     command: 'yarn build && yarn start',
     url: 'http://localhost:3000',
@@ -42,6 +46,10 @@ export default defineConfig({
       PUSHER_KEY: '',
       PUSHER_SECRET: '',
       PUSHER_CLUSTER: '',
+      // Test-only key pair (not used anywhere else). Pushes go to a fake endpoint and fail quietly.
+      VAPID_PUBLIC_KEY: 'BLhuermiAhMdo2y0Ecu4whebAI4EcftExqOo1QK2yHbQNv9RssSQl_ArCXUytNkkVpmb2wo79IWoQ1a3EteU_bc',
+      VAPID_PRIVATE_KEY: 'p2AULJQIAjkW3FzV5xmPKecYcH2V-IfUOUzaieLdzOI',
+      VAPID_SUBJECT: 'mailto:e2e@example.com',
     },
   },
 });

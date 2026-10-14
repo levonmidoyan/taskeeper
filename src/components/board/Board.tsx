@@ -10,7 +10,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useOptimistic, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { BoardColumn } from '@/components/board/BoardColumn';
-import { columnId, isUnchanged, neighboursAfterMove } from '@/components/board/neighbours';
+import { appendTo, columnId, isUnchanged, neighboursAfterMove } from '@/components/board/neighbours';
 import { KanbanProvider } from '@/components/kibo-ui/kanban';
 import { useDragBusy } from '@/lib/live/use-drag-busy';
 import { TASK_OPEN } from '@/lib/motion';
@@ -154,6 +154,23 @@ export function Board({
     router.push(`?${next.toString()}`, { scroll: false, transitionTypes: [TASK_OPEN] });
   }
 
+  /** "Move to…" on a card: the end of another column, without a drag (phones, mainly). */
+  function moveTo(taskId: string, statusId: string) {
+    const target = appendTo(baseItems, taskId, statusId);
+    if (!target) return;
+    const statusName = statuses.find((s) => s.id === statusId)?.name ?? 'column';
+    const input = { taskId, ...target };
+    const index = baseItems.filter((i) => i.column === columnId(statusId)).length;
+    setAnnouncement(`Moved to ${statusName}.`);
+    startTransition(async () => {
+      applyMove({ taskId, statusId, index });
+      const result = await settle(moveTaskAction(workspaceSlug, input));
+      if (!result.ok) toast.error(result.error);
+      else if (hiddenStatusIds.includes(statusId)) toast(`Moved to ${statusName} — hidden by the current filter.`);
+      router.refresh();
+    });
+  }
+
   function onDragEnd(event: DragEndEvent, finalItems: BoardItem[]) {
     drag.end();
     setDragItems(null);
@@ -218,13 +235,16 @@ export function Board({
           drag.end();
           setDragItems(null);
         }}
-        // Horizontal scroll lives here, never on the page (v1 spec §6.4).
-        className="flex flex-1 gap-3 overflow-x-auto px-4 pt-4 pb-4 lg:px-6"
+        // Horizontal scroll lives here, never on the page (v1 spec §6.4). Phones snap to a
+        // column; proximity, not mandatory, which would fight dnd-kit's auto-scroll mid-drag.
+        className="flex flex-1 gap-3 overflow-x-auto px-4 pt-4 pb-4 lg:px-6 max-sm:snap-x max-sm:snap-proximity max-sm:scroll-px-4"
       >
         {(column) => (
           <BoardColumn
             key={column.id}
             status={column.status}
+            statuses={statuses}
+            onMoveTo={moveTo}
             count={items.filter((item) => item.column === column.id).length}
             workspaceSlug={workspaceSlug}
             timezone={timezone}

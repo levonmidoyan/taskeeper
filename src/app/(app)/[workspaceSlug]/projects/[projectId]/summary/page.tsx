@@ -57,7 +57,7 @@ export default async function ProjectSummaryPage({
         views={views}
       />
       <div className="mx-auto w-full max-w-400 px-4 py-6 lg:px-6">
-        <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {tiles.map(({ label, value, icon: Icon, tone }) => (
             <li
               key={label}

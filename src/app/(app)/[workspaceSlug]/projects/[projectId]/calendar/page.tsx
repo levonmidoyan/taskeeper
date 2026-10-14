@@ -50,9 +50,9 @@ export default async function ProjectCalendarPage({
   const options = { statuses: project.statuses, members, labels };
   const basePath = `/${workspaceSlug}/projects/${projectId}`;
 
-  // Viewport minus the h-14 app header, so the grid fills the page.
+  // Viewport minus the app header (and the bottom bar below lg), so the grid fills the page.
   return (
-    <main className="flex h-[calc(100dvh-3.5rem)] flex-col">
+    <main className="flex h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] max-lg:h-[calc(100dvh-7rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col">
       <ProjectHeader
         name={project.name}
         basePath={basePath}

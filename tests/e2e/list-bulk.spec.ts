@@ -33,9 +33,9 @@ function row(page: Page, title: string) {
 test('bulk-sets the status of the selected rows', async ({ page }) => {
   await signUpWithListTasks(page, ['Alpha', 'Beta', 'Gamma']);
 
-  await page.getByLabel('Select Alpha').check();
+  await page.getByRole('checkbox', { name: 'Select Alpha', exact: true }).check();
   // Shift-click selects the range from the anchor, Beta included.
-  await page.getByLabel('Select Gamma').click({ modifiers: ['Shift'] });
+  await page.getByRole('checkbox', { name: 'Select Gamma', exact: true }).click({ modifiers: ['Shift'] });
 
   const bar = page.getByRole('toolbar', { name: 'Bulk actions' });
   await expect(bar).toContainText('3 selected');
@@ -61,8 +61,8 @@ test('bulk-sets the status of the selected rows', async ({ page }) => {
 test('bulk-deletes the selected rows', async ({ page }) => {
   await signUpWithListTasks(page, ['Keep', 'Drop one', 'Drop two']);
 
-  await page.getByLabel('Select Drop one').check();
-  await page.getByLabel('Select Drop two').check();
+  await page.getByRole('checkbox', { name: 'Select Drop one', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Select Drop two', exact: true }).check();
 
   await page.getByRole('toolbar', { name: 'Bulk actions' }).getByRole('button', { name: 'Delete' }).click();
   const confirm = page.getByRole('alertdialog', { name: 'Delete 2 tasks?' });

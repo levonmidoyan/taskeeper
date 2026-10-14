@@ -28,17 +28,21 @@ type TaskLike = Pick<TaskSearchHit, 'id' | 'title' | 'projectName' | 'completed'
 export function CommandPalette({
   workspaceSlug,
   projects,
+  open,
+  onOpenChange,
   onNewTask,
   onShowShortcuts,
 }: {
   workspaceSlug: string;
   projects: ProjectSummary[];
+  /** Owned by AppHeader, so the bottom bar's Search tab opens it too. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onNewTask: () => void;
   onShowShortcuts: () => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
   const [term, setTerm] = useState('');
   const [recent, setRecent] = useState<RecentTask[]>([]);
   // Results remember the term they answer, so a slow response for an older
@@ -63,13 +67,13 @@ export function CommandPalette({
       // task detail is the exception: the palette opens over it.
       if (!open && [...document.querySelectorAll(OVERLAY_SELECTOR)].some((el) => !el.matches(DETAIL_SELECTOR))) return;
       e.preventDefault();
-      onOpenChange(!open);
+      change(!open);
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  useShortcut('general.search', () => setOpen(true), !open);
+  useShortcut('general.search', () => change(true), !open);
 
   useEffect(() => {
     if (!open) return;
@@ -95,8 +99,8 @@ export function CommandPalette({
     };
   }, [searchable, trimmed, workspaceSlug]);
 
-  function onOpenChange(next: boolean) {
-    setOpen(next);
+  function change(next: boolean) {
+    onOpenChange(next);
     if (next) return;
     // Start the next open fresh rather than showing this session's results.
     setTerm('');
@@ -105,14 +109,14 @@ export function CommandPalette({
   }
 
   function go(href: string) {
-    onOpenChange(false);
+    change(false);
     router.push(href);
   }
 
   function run(action: PaletteAction) {
     if (action.command) {
       pendingCommand.current = action.command;
-      onOpenChange(false);
+      change(false);
     } else if (action.href) {
       go(action.href);
     }
@@ -133,7 +137,7 @@ export function CommandPalette({
         type="button"
         aria-label="Search"
         aria-keyshortcuts={isMac ? 'Meta+K /' : 'Control+K /'}
-        onClick={() => setOpen(true)}
+        onClick={() => change(true)}
         className="flex h-9 w-full max-w-md items-center gap-2 rounded-10 bg-bg-white-0 px-2.5 text-paragraph-sm text-text-soft-400 ring-1 ring-inset ring-stroke-soft-200 transition hover:bg-bg-weak-50 max-sm:w-9 max-sm:justify-center max-sm:px-0"
       >
         <IconSearch aria-hidden="true" className="size-5 shrink-0" />
@@ -145,7 +149,7 @@ export function CommandPalette({
 
       <CommandMenu.Dialog
         open={open}
-        onOpenChange={onOpenChange}
+        onOpenChange={change}
         // Full screen on phones, like the other dialogs.
         overlayClassName="max-sm:p-0 max-sm:pt-0"
         className="max-sm:h-dvh max-sm:max-w-none max-sm:rounded-none"

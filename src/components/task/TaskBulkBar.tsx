@@ -40,7 +40,7 @@ export function TaskBulkBar({
     <div
       role="toolbar"
       aria-label="Bulk actions"
-      className="fixed inset-x-4 bottom-6 z-40 mx-auto flex w-fit max-w-[calc(100vw-2rem)] items-center gap-1 overflow-x-auto rounded-2xl bg-bg-strong-950 p-1.5 shadow-regular-md animate-in fade-in-0 slide-in-from-bottom-2"
+      className="fixed inset-x-4 bottom-6 z-40 max-lg:bottom-[calc(4.5rem+env(safe-area-inset-bottom))] mx-auto flex w-fit max-w-[calc(100vw-2rem)] items-center gap-1 overflow-x-auto rounded-2xl bg-bg-strong-950 p-1.5 shadow-regular-md animate-in fade-in-0 slide-in-from-bottom-2"
     >
       <span className="tabular shrink-0 px-2.5 text-label-sm text-text-white-0" aria-live="polite">
         {count} selected

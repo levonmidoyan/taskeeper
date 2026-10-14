@@ -32,7 +32,7 @@ describe('user timezone', () => {
     await updateUserTimezone({ userId: ada.id }, 'Asia/Tokyo');
 
     const rows = await db.select().from(userSettings).where(eq(userSettings.userId, ada.id));
-    expect(rows).toEqual([{ userId: ada.id, timezone: 'Asia/Tokyo', reminderHour: 9, digestEnabled: true, changeNotify: true, changeSound: true }]);
+    expect(rows).toEqual([{ userId: ada.id, timezone: 'Asia/Tokyo', reminderHour: 9, digestEnabled: true, changeNotify: true, changeSound: true, pushReminders: true, pushMentions: true, pushTaskChanges: true, pushProjectChanges: false }]);
   });
 
   it('null clears the override so the user follows the workspace again', async () => {

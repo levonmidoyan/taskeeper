@@ -12,7 +12,7 @@ export async function resetDb(): Promise<void> {
       workspace_change, notification, reminder, saved_view,
       attachment, todo, project_star, comment_reaction, comment, task_activity,
       task_label, task, task_status, label, project,
-      workspace_settings, user_settings, invitation, member, organization,
+      push_subscription, workspace_settings, user_settings, invitation, member, organization,
       session, account, verification, rate_limit, "user"
     RESTART IDENTITY CASCADE
   `);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  columnId, isUnchanged, neighboursAfterMove, statusIdOf,
+  appendTo, columnId, isUnchanged, neighboursAfterMove, statusIdOf,
 } from '@/components/board/neighbours';
 
 const todo = columnId('todo');
@@ -65,5 +65,23 @@ describe('isUnchanged', () => {
   it('ignores reorders elsewhere on the board', () => {
     const others = [item('a', todo), item('b', todo), item('c', todo), item('y', doing), item('x', doing)];
     expect(isUnchanged(board, others, 'b')).toBe(true);
+  });
+});
+
+describe('appendTo', () => {
+  const placed = [
+    { id: 'a', column: columnId('todo') },
+    { id: 'b', column: columnId('done') },
+    { id: 'c', column: columnId('done') },
+  ];
+
+  it('puts the card after the last card of the target column', () => {
+    expect(appendTo(placed, 'a', 'done')).toEqual({ statusId: 'done', beforeId: 'c', afterId: null });
+  });
+  it('an empty column has no neighbours', () => {
+    expect(appendTo(placed, 'b', 'review')).toEqual({ statusId: 'review', beforeId: null, afterId: null });
+  });
+  it('null when the card is already there', () => {
+    expect(appendTo(placed, 'b', 'done')).toBeNull();
   });
 });

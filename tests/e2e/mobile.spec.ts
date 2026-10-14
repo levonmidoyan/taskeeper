@@ -1,0 +1,118 @@
+import { expect, test, type Page } from '@playwright/test';
+
+async function signUpWithWorkspace(page: Page) {
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  await page.goto('/auth/sign-up');
+  await page.getByLabel('Name', { exact: true }).fill('Mobile Tester');
+  await page.getByLabel('Email', { exact: true }).fill(`mobile-${stamp}@example.com`);
+  await page.getByLabel('Password', { exact: true }).fill('correct-horse-battery');
+  await page.getByRole('button', { name: 'Sign Up' }).click();
+
+  await page.getByLabel('Workspace name').fill(`Mobile ${stamp}`);
+  await page.getByRole('button', { name: 'Create workspace' }).click();
+  await expect(page).toHaveURL(new RegExp(`/mobile-${stamp}$`));
+  return page.url();
+}
+
+async function newProject(page: Page, name: string) {
+  await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Projects' }).click();
+  await page.getByRole('button', { name: 'New project' }).click();
+  const dialog = page.getByRole('dialog', { name: 'New project' });
+  await dialog.getByLabel('Project name').fill(name);
+  await dialog.getByRole('button', { name: 'Create project' }).click();
+  await expect(page).toHaveURL(/\/projects\/[^/?]+/);
+}
+
+async function newTask(page: Page, title: string) {
+  await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'New task' }).click();
+  const dialog = page.getByRole('dialog', { name: 'New task' });
+  await dialog.getByLabel('Title').fill(title);
+  const submit = dialog.getByRole('button', { name: 'Create task' });
+  await expect(submit).toBeEnabled();
+  await submit.click();
+  await expect(dialog).toBeHidden();
+}
+
+test('bottom bar: navigation, new task, search, inbox', async ({ page }) => {
+  await signUpWithWorkspace(page);
+  const bar = page.getByRole('navigation', { name: 'Primary' });
+  await expect(bar).toBeVisible();
+
+  await newProject(page, 'Phone');
+  await newTask(page, 'Buy milk');
+
+  await bar.getByRole('link', { name: 'To-do' }).click();
+  await expect(page).toHaveURL(/\/todo$/);
+  await expect(bar.getByRole('link', { name: 'To-do' })).toHaveAttribute('aria-current', 'page');
+
+  await bar.getByRole('button', { name: 'Search' }).click();
+  await page.getByPlaceholder('Search tasks, projects and pages').fill('milk');
+  await expect(page.getByRole('option', { name: /Buy milk/ })).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  await bar.getByRole('link', { name: /Inbox/ }).click();
+  await expect(page.getByRole('heading', { name: 'Inbox' })).toBeVisible();
+  await expect(page.getByText('Nothing yet.')).toBeVisible();
+});
+
+test('the bottom bar never covers the last list row or the bulk bar', async ({ page }) => {
+  await signUpWithWorkspace(page);
+  await newProject(page, 'Long');
+  for (let i = 1; i <= 12; i++) await newTask(page, `Row ${i}`);
+  await page.getByRole('tab', { name: 'List' }).click();
+  await expect(page).toHaveURL(/\/list$/);
+  const last = page.getByRole('button', { name: 'Row 12', exact: true });
+  await last.scrollIntoViewIfNeeded();
+  await last.click();
+  await expect(page.getByRole('dialog', { name: 'Task details' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page).not.toHaveURL(/[?&]task=/);
+
+  await page.getByRole('checkbox', { name: 'Select Row 1', exact: true }).check();
+  const bulk = page.getByRole('toolbar', { name: 'Bulk actions' });
+  await expect(bulk).toBeVisible();
+  const barBox = await page.getByRole('navigation', { name: 'Primary' }).boundingBox();
+  const bulkBox = await bulk.boundingBox();
+  expect(bulkBox!.y + bulkBox!.height).toBeLessThanOrEqual(barBox!.y);
+});
+
+/** Sets the open task's due date to today and waits for the save (as calendar.spec.ts). */
+async function dueToday(page: Page) {
+  const details = page.getByRole('dialog', { name: 'Task details' });
+  await details.getByLabel('Due date').click();
+  const saved = page.waitForResponse((r) => r.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Today', exact: true }).click();
+  await saved;
+  await expect(page.getByRole('button', { name: 'Today', exact: true })).toBeHidden();
+}
+
+test('board, calendar and task detail on a phone', async ({ page }) => {
+  await signUpWithWorkspace(page);
+  await newProject(page, 'Views');
+  await newTask(page, 'Card one');
+
+  await page.getByRole('tab', { name: 'Board' }).click();
+  await page.getByRole('button', { name: 'Move Card one' }).click();
+  await page.getByRole('menuitem', { name: 'Done' }).click();
+  await expect(page.getByRole('region', { name: 'Done' }).getByText('Card one')).toBeVisible();
+
+  // Task detail: fields come before the description on a phone.
+  await page.getByRole('region', { name: 'Done' }).getByText('Card one').click();
+  const details = page.getByRole('dialog', { name: 'Task details' });
+  const status = await details.getByLabel('Status').boundingBox();
+  const description = await details.getByText('Description', { exact: true }).first().boundingBox();
+  expect(status!.y).toBeLessThan(description!.y);
+
+  // Agenda: a task due today shows in the phone's list of days.
+  await dueToday(page);
+  await expect(details.getByLabel('Due date')).toContainText('Today');
+  await page.keyboard.press('Escape');
+  await expect(page).not.toHaveURL(/[?&]task=/);
+  await page.getByRole('tab', { name: 'Calendar' }).click();
+  // The card was moved to Done above, and the calendar shows open tasks by default.
+  await expect(page).toHaveURL(/\/calendar/);
+  await page.getByRole('toolbar', { name: 'Filters' }).getByRole('tab', { name: 'All', exact: true }).click();
+  await expect(page).toHaveURL(/[?&]state=all(&|$)/);
+  await expect(page.getByRole('list', { name: 'Tasks by day' }).getByText('Card one')).toBeVisible();
+});

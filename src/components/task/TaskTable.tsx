@@ -26,6 +26,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Fragment, useMemo, useRef, useState, useTransition, ViewTransition, type MouseEvent } from 'react';
 import { toast } from 'sonner';
 import { UserView } from '@/components/auth/user/user-view';
+import { AssigneeAvatar } from '@/components/task/AssigneeAvatar';
 import { DueChip } from '@/components/task/DueChip';
 import { LabelChip } from '@/components/task/LabelChip';
 import { PriorityChip } from '@/components/task/Priority';
@@ -448,14 +449,43 @@ export function TaskTable({
         </div>
       ) : (
         <>
-          <div className="mb-3 flex justify-end">
+          {/* Columns and density only shape the table, which phones don't show. */}
+          <div className="mb-3 flex justify-end max-sm:hidden">
             <TaskTableSettings settings={settings} onChange={onSettingsChange} onReset={resetSettings} />
           </div>
           {/* The table scrolls sideways inside its own box on narrow screens, with
               Title pinned, so the page itself never scrolls horizontally. relative
               so absolute children (the sr-only header label) are clipped here too,
               not placed against the page. */}
-          <div className="relative overflow-x-auto">
+          {/* Phones: one stacked row per task (title, status, due, assignee), no columns.
+              No data-task-nav: the keyboard shortcuts walk the table's rows. */}
+          <ul className="flex flex-col gap-1 sm:hidden" aria-label="Tasks">
+            {rows.map((row) => {
+              const t = row.original;
+              const selected = selection.has(row.id);
+              const status = statusById.get(t.statusId);
+              return (
+                <li
+                  key={row.id}
+                  className={cn('flex items-center gap-3 rounded-xl px-3 py-1 ring-1 ring-inset ring-stroke-soft-200', selected && 'bg-primary-lighter')}
+                >
+                  <SelectBox label={`Select ${t.title}`} checked={selected} onClick={() => toggleRow(row.id, false)} />
+                  <button
+                    type="button"
+                    onClick={() => openTask(t.id)}
+                    aria-label={t.title}
+                    className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-left"
+                  >
+                    {status && <StatusIcon status={status} />}
+                    <span className="min-w-0 flex-1 truncate text-paragraph-sm text-text-strong-950">{t.title}</span>
+                    <DueChip dueDate={t.dueDate} timezone={timezone} done={t.completedAt !== null} />
+                    {t.assigneeName && <AssigneeAvatar name={t.assigneeName} image={t.assigneeImage} />}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="relative overflow-x-auto max-sm:hidden">
             {/* border-separate so the end cells can round: the header is a pill and
                 each row lights up as one on hover. Rows split by divider rows. */}
             <table className="w-full border-separate border-spacing-0 text-left">

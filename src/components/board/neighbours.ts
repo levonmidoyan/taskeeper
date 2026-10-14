@@ -33,3 +33,11 @@ export function isUnchanged<T extends Positioned>(before: T[], after: T[], taskI
   const b = neighboursAfterMove(after, taskId);
   return !!a && !!b && a.statusId === b.statusId && a.beforeId === b.beforeId && a.afterId === b.afterId;
 }
+
+/** "Move to…": the end of another column, in moveTaskAction's shape. Null when the card is already in it. */
+export function appendTo<T extends Positioned>(items: T[], taskId: string, statusId: string) {
+  const moved = items.find((i) => i.id === taskId);
+  if (!moved || moved.column === columnId(statusId)) return null;
+  const column = items.filter((i) => i.column === columnId(statusId) && i.id !== taskId);
+  return { statusId, beforeId: column[column.length - 1]?.id ?? null, afterId: null };
+}

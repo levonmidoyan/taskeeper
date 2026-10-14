@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useOptimistic, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { CalendarAgenda } from '@/components/calendar/CalendarAgenda';
 import { CalendarChip } from '@/components/calendar/CalendarChip';
 import {
   dayLabel, dropTarget, isShownMonth, monthLabel, monthWeeks, shiftMonth, weekdayLabels,
@@ -16,7 +17,6 @@ import {
 import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Popover from '@/components/ui/popover';
-import { formatDueDate } from '@/lib/dates';
 import { useDragBusy } from '@/lib/live/use-drag-busy';
 import { settle } from '@/lib/settle';
 import type { CalendarTask } from '@/server/tasks/calendar';
@@ -195,24 +195,7 @@ export function CalendarMonth({
       </DndContext>
 
       {/* Phone: the month's dated tasks as a list. */}
-      <ol className="flex flex-col gap-4 sm:hidden">
-        {weeks.flat().filter((d) => inMonth(d) && byDay.has(d)).map((day) => (
-          <li key={day}>
-            <h3 className={cn('mb-1 text-label-sm', day === today ? 'text-primary-base' : 'text-text-sub-600')}>
-              {formatDueDate(day, 'UTC', new Date(`${today}T12:00:00Z`))}
-            </h3>
-            <ul className="flex flex-col gap-1">
-              {byDay.get(day)!.map((t) => (
-                <li key={t.id}>
-                  <button type="button" onClick={() => open(t)} className="w-full truncate rounded-lg px-2 py-1.5 text-left text-paragraph-sm ring-1 ring-inset ring-stroke-soft-200">
-                    {t.title}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </li>
-        ))}
-      </ol>
+      <CalendarAgenda days={weeks.flat().filter(inMonth)} byDay={byDay} today={today} showProject={showProject} onOpen={open} />
 
       <div aria-live="polite" className="sr-only">{announcement}</div>
     </section>

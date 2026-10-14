@@ -34,7 +34,7 @@ export async function WorkspaceShell({
       <div className="flex min-h-dvh bg-bg-white-0">
         <RememberWorkspace slug={ctx.slug} />
         <Rail {...railProps} />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col max-lg:pb-[calc(3.5rem+env(safe-area-inset-bottom))]">
           <AppHeader {...railProps} unread={bell.unread} serverNow={bell.now} sound={prefs.changeSound} />
           {children}
         </div>
