@@ -40,11 +40,12 @@ describe('UI dependency rules (spec §9)', () => {
   it('keeps hex colours out of app code', () => {
     // Vendored Align/Kibo source keeps upstream's literal SVG fills and masks (spec §9).
     // Email templates get the Align palette as literal hex: mail clients
-    // understand neither CSS variables nor oklch.
+    // understand neither CSS variables nor oklch. The same goes for the browser chrome
+    // (theme-color meta, web app manifest), whose two colours live in one file.
     const vendored = [join('src', 'components', 'ui'), join('src', 'components', 'kibo-ui')];
-    const emails = [join('src', 'lib', 'email.tsx'), join('src', 'lib', 'reminder-email.tsx')];
+    const literalColours = [join('src', 'lib', 'email.tsx'), join('src', 'lib', 'reminder-email.tsx'), join('src', 'app', 'theme-colors.ts')];
     const appFiles = files.filter(
-      (f) => /\.tsx?$/.test(f) && !emails.includes(f) && !vendored.some((v) => f.startsWith(v)),
+      (f) => /\.tsx?$/.test(f) && !literalColours.includes(f) && !vendored.some((v) => f.startsWith(v)),
     );
     for (const file of appFiles) {
       expect(read(file), file).not.toMatch(/#[0-9a-fA-F]{3,8}\b(?![\w-])/);

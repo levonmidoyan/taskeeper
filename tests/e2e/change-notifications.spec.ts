@@ -152,3 +152,22 @@ test('clearing removes items from the bell, one or all, and they stay gone', asy
   await page.getByRole('button', { name: 'Notifications', exact: true }).click();
   await expect(page.getByRole('list', { name: 'Notifications' }).getByText('Nothing yet.')).toBeVisible();
 });
+
+test('the Inbox page picks up a notification that arrives while it is open', async ({ page, browser }) => {
+  const { bob } = await twoMembers(page, browser);
+  await createTask(page, 'Fix login');
+  const slug = new URL(page.url()).pathname.split('/')[1];
+  await page.goto(`/${slug}/inbox`);
+  await expect(page.getByRole('heading', { name: 'Inbox' })).toBeVisible();
+
+  await bob.reload();
+  await bob.getByRole('button', { name: 'Fix login', exact: true }).click();
+  const theirs = bob.getByRole('dialog', { name: 'Task details' });
+  await theirs.getByLabel('Title').fill('Fix login on Safari');
+  await theirs.getByLabel('Title').blur();
+  await bob.keyboard.press('Escape');
+  await expect(bob.getByRole('button', { name: 'Fix login on Safari', exact: true })).toBeVisible();
+
+  await refocus(page);
+  await expect(page.getByRole('main').getByRole('list', { name: 'Notifications' }).getByText('Bob changed title')).toBeVisible();
+});

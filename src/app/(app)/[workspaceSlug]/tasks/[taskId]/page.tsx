@@ -34,9 +34,9 @@ export default async function TaskPage({
   ]);
   if (!project) notFound();
 
-  // Viewport minus the h-14 app header, so each column scrolls inside itself.
+  // Viewport minus the app header (and the bottom bar below lg), so each column scrolls inside itself.
   return (
-    <main data-shortcut-scope="detail" className="flex h-[calc(100dvh-3.5rem)] flex-col">
+    <main data-shortcut-scope="detail" className="flex h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] max-lg:h-[calc(100dvh-7rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col">
       <TaskDetailView
         mode="page"
         // Remounted per task, so the title and description fields reset when

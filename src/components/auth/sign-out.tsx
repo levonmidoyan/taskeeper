@@ -3,6 +3,7 @@
 import { useAuth, useSignOut } from "@better-auth-ui/react"
 import { useEffect, useRef } from "react"
 import { Spinner } from "@/components/auth/ui/spinner"
+import { forgetPushDevice } from "@/lib/push-device"
 import { cn } from "@/utils/cn"
 
 export type SignOutProps = {
@@ -38,7 +39,8 @@ export function SignOut({ className }: SignOutProps) {
     if (hasSignedOut.current) return
     hasSignedOut.current = true
 
-    signOut()
+    // Off this account first: the next person on this browser must not get its pushes.
+    void forgetPushDevice().then(() => signOut())
   }, [signOut])
 
   return <Spinner className={cn("mx-auto my-auto", className)} />

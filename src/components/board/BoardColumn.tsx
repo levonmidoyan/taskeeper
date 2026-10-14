@@ -17,6 +17,8 @@ import { updateStatusAction } from '@/server/statuses/actions';
 
 export function BoardColumn({
   status,
+  statuses,
+  onMoveTo,
   count,
   workspaceSlug,
   timezone,
@@ -25,6 +27,9 @@ export function BoardColumn({
   onOpen,
 }: {
   status: StatusRow;
+  /** Every column, for a card's Move to… menu. */
+  statuses: StatusRow[];
+  onMoveTo: (taskId: string, statusId: string) => void;
   count: number;
   workspaceSlug: string;
   timezone: string;
@@ -36,7 +41,7 @@ export function BoardColumn({
   const id = columnId(status.id);
 
   return (
-    <KanbanBoard id={id} aria-label={status.name} className="w-[280px] shrink-0">
+    <KanbanBoard id={id} aria-label={status.name} className="w-[85vw] shrink-0 snap-start sm:w-[280px]">
       <KanbanHeader className="group/header flex items-center gap-2">
         {canEdit
           ? <StatusIconPicker workspaceSlug={workspaceSlug} status={status} />
@@ -59,7 +64,17 @@ export function BoardColumn({
           </li>
         }
       >
-        {(item) => <TaskCard key={item.id} task={item.task} timezone={timezone} openTaskId={openTaskId} onOpen={onOpen} />}
+        {(item) => (
+          <TaskCard
+            key={item.id}
+            task={item.task}
+            timezone={timezone}
+            openTaskId={openTaskId}
+            onOpen={onOpen}
+            statuses={statuses}
+            onMoveTo={onMoveTo}
+          />
+        )}
       </KanbanCards>
     </KanbanBoard>
   );

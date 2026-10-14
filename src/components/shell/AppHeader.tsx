@@ -1,10 +1,13 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
+import { BottomBar } from '@/components/shell/BottomBar';
 import { CommandPalette } from '@/components/shell/CommandPalette';
 import { CreateTaskDialog } from '@/components/shell/CreateTaskDialog';
 import { GoToShortcuts } from '@/components/shell/GoToShortcuts';
 import { NotificationBell } from '@/components/shell/NotificationBell';
+import { PushDeviceClaim } from '@/components/shell/PushDeviceClaim';
 import { MobileNav, type RailProps } from '@/components/shell/Rail';
 import { ShortcutHelpDialog } from '@/components/shell/ShortcutHelpDialog';
 import { TaskNavShortcuts } from '@/components/shell/TaskNavShortcuts';
@@ -25,15 +28,27 @@ export function AppHeader({ unread, serverNow, sound, ...props }: RailProps & {
   const [creating, setCreating] = useState(false);
   const canCreate = props.projects.length > 0;
   const [showingShortcuts, setShowingShortcuts] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  // Any navigation closes the drawer, links or not (New project lands on the new project).
+  const pathname = usePathname();
+  const [navPath, setNavPath] = useState(pathname);
+  if (navPath !== pathname) {
+    setNavPath(pathname);
+    setNavOpen(false);
+  }
   useShortcut('general.help', () => setShowingShortcuts(true));
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-stroke-soft-200 bg-bg-white-0/85 px-3 backdrop-blur-md lg:gap-3 lg:px-6">
-      <MobileNav {...props} />
+    <>
+    <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center pt-[env(safe-area-inset-top)] gap-2 border-b border-stroke-soft-200 bg-bg-white-0/85 px-3 backdrop-blur-md lg:gap-3 lg:px-6">
+      <MobileNav {...props} open={navOpen} onOpenChange={setNavOpen} />
       <div className="flex min-w-0 flex-1 justify-center max-sm:justify-end">
         <CommandPalette
           workspaceSlug={props.workspaceSlug}
           projects={props.projects}
+          open={searching}
+          onOpenChange={setSearching}
           onNewTask={() => { if (canCreate) setCreating(true); }}
           onShowShortcuts={() => setShowingShortcuts(true)}
         />
@@ -46,8 +61,19 @@ export function AppHeader({ unread, serverNow, sound, ...props }: RailProps & {
         onOpenChange={setCreating}
       />
       <TaskNavShortcuts />
+      <PushDeviceClaim />
       <GoToShortcuts workspaceSlug={props.workspaceSlug} />
       <ShortcutHelpDialog open={showingShortcuts} onOpenChange={setShowingShortcuts} />
     </header>
+    {/* A sibling, not a child: the header's backdrop blur would make it the fixed bar's containing block. */}
+    <BottomBar
+      workspaceSlug={props.workspaceSlug}
+      unread={unread}
+      canCreate={canCreate}
+      onProjects={() => setNavOpen(true)}
+      onNewTask={() => setCreating(true)}
+      onSearch={() => setSearching(true)}
+    />
+    </>
   );
 }

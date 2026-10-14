@@ -251,6 +251,16 @@
   }
 }
 
+/* Toasts clear the bottom tab bar, which shows below lg (BottomBar.tsx). */
+:root {
+  --toast-bottom: 24px;
+}
+@media (width < 64rem) {
+  :root {
+    --toast-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+}
+
 /* Numeric columns must not jitter as values change (v1 spec §6.2). */
 .tabular {
   font-variant-numeric: tabular-nums;

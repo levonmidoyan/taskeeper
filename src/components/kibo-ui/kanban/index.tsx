@@ -126,9 +126,14 @@ export type KanbanCardProps = {
   morphName?: string;
   /** Marks the card as a keyboard stop for task shortcuts (data-task-nav / data-nav-col). */
   navColumn?: string;
+  /**
+   * A control in the card's top-right corner (a menu button). A sibling of the card's
+   * button, never inside it: a button cannot hold another. Hidden while dragging.
+   */
+  action?: ReactNode;
 };
 
-export function KanbanCard({ id, name, children, className, onClick, transitionName, morphName, navColumn }: KanbanCardProps) {
+export function KanbanCard({ id, name, children, className, onClick, transitionName, morphName, navColumn, action }: KanbanCardProps) {
   const { attributes, listeners, setNodeRef, transition, transform, isDragging } = useSortable({
     id,
     transition: { duration: DURATION.base, easing: EASE_OUT_SOFT },
@@ -176,7 +181,7 @@ export function KanbanCard({ id, name, children, className, onClick, transitionN
     <li
       ref={setNodeRef}
       style={{ transition, transform: CSS.Translate.toString(transform) }}
-      className={cn(grow && 'animate-[vt-pop-in_180ms_cubic-bezier(0.22,1,0.36,1)_both]')}
+      className={cn(action && 'group relative', grow && 'animate-[vt-pop-in_180ms_cubic-bezier(0.22,1,0.36,1)_both]')}
     >
       {transitionName ? (
         // A teammate's move slides the whole card; only live refreshes are tagged, so my
@@ -184,6 +189,7 @@ export function KanbanCard({ id, name, children, className, onClick, transitionN
         // of its own when a card mounts.
         <ViewTransition name={transitionName} {...REMOTE_CHANGE}>{button}</ViewTransition>
       ) : button}
+      {action && !isDragging && <div className="absolute right-1.5 top-1.5">{action}</div>}
       {activeCardId === id && (
         <overlay.In>
           <div
