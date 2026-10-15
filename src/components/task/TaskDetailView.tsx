@@ -486,6 +486,8 @@ export function TaskDetailView({
               parent={task}
               subtasks={task.subtasks}
               statuses={statuses}
+              members={members}
+              timezone={timezone}
               projectId={projectId}
               workspaceSlug={workspaceSlug}
               pageBase={mode === 'page' ? tasksBase : undefined}
