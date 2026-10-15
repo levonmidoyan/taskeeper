@@ -24,6 +24,7 @@ import { PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
 import { ParentPickerDialog } from '@/components/task/ParentPickerDialog';
 import { SubtaskBanner } from '@/components/task/SubtaskBanner';
 import { SubtaskSection } from '@/components/task/SubtaskSection';
+import { MakeSubtaskLabel } from '@/components/task/TaskRowActions';
 import { useSetParent } from '@/components/task/use-set-parent';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Dropdown from '@/components/ui/dropdown';
@@ -283,11 +284,10 @@ export function TaskDetailView({
         ) : (
           <Dropdown.Item
             disabled={task.subtasks.length > 0}
-            title={task.subtasks.length > 0 ? 'Tasks with subtasks can’t become subtasks.' : undefined}
             onSelect={() => setPickParent(true)}
           >
             <Dropdown.ItemIcon as={IconSubtask} />
-            Make subtask of…
+            <MakeSubtaskLabel blocked={task.subtasks.length > 0} />
           </Dropdown.Item>
         )}
         <Dropdown.Separator className="my-1 h-px bg-stroke-soft-200" />

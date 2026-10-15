@@ -169,7 +169,7 @@ export async function reorderSubtaskAction(
 export async function setTaskParentAction(
   workspaceSlug: string,
   input: SetTaskParentInput,
-): Promise<Result<{ previousParentId: string | null }>> {
+): Promise<Result<{ previousParentId: string | null; previousKey: string | null }>> {
   return withAction(async () => {
     const result = await setTaskParent(await requireWorkspace(workspaceSlug), input);
     if (result.ok) revalidateWorkspace(workspaceSlug);

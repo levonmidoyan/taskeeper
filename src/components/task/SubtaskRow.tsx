@@ -146,7 +146,8 @@ export function SubtaskRow({
       style={{ transform: CSS.Translate.toString(transform), transition }}
       data-subtask-id={subtask.id}
       onKeyDown={(e) => {
-        if (!e.altKey || editing) return;
+        // Portalled menus (a row's dropdowns) bubble here through React, not the DOM.
+        if (!e.altKey || editing || !e.currentTarget.contains(e.target as Node)) return;
         if (e.key === 'ArrowUp' && !isFirst) { e.preventDefault(); onStep(-1); }
         if (e.key === 'ArrowDown' && !isLast) { e.preventDefault(); onStep(1); }
       }}

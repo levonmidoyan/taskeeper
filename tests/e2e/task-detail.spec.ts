@@ -88,6 +88,28 @@ test('the subtask field is always there, keeps focus, and pastes many lines afte
   await expect(titles).toHaveText(['One', 'Two', 'Three', 'Four']);
 });
 
+test('a one-line paste drops its list marker; Esc on a many-line paste inserts it at the cursor', async ({ page }) => {
+  const dialog = await signUpAndOpenTask(page, 'subtask-paste');
+  const input = dialog.getByPlaceholder('Add subtask…');
+  const paste = (text: string) => input.evaluate((el, t) => {
+    const data = new DataTransfer();
+    data.setData('text/plain', t);
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  }, text);
+
+  await input.focus();
+  await paste('- Buy milk');
+  await expect(input).toHaveValue('Buy milk');
+
+  await input.fill('Hello world');
+  await input.evaluate((el: HTMLInputElement) => el.setSelectionRange(6, 6));
+  await paste('a\nb');
+  await expect(dialog.getByText('Create 2 subtasks?')).toBeVisible();
+  await input.press('Escape');
+  await expect(input).toHaveValue('Hello a bworld');
+  await expect(dialog.getByText('Create 2 subtasks?')).toBeHidden();
+});
+
 test('a subtask renames in place; Escape reverts', async ({ page }) => {
   const dialog = await signUpAndOpenTask(page, 'subtask-rename');
   const input = dialog.getByPlaceholder('Add subtask…');

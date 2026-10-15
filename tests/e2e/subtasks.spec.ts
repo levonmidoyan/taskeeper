@@ -169,3 +169,31 @@ test('lifting a card with its checklist open keeps the cards below in place', as
   await page.mouse.up();
   expect(Math.abs(during.y - before.y)).toBeLessThan(2);
 });
+
+test('Alt+arrow inside a row’s menu does not move the row', async ({ page }) => {
+  const dialog = await signUpAndOpenTask(page, 'alt-menu');
+  await addSubtasks(page, ['One', 'Two']);
+  const titles = dialog.getByRole('list', { name: 'Subtasks' }).getByRole('button', { name: /^Rename/ });
+
+  await dialog.getByRole('listitem').filter({ hasText: 'Two' }).getByRole('button', { name: /^Status:/ }).click();
+  await expect(page.getByRole('menu')).toBeVisible();
+  let posted = false;
+  page.on('request', (r) => { if (r.method() === 'POST') posted = true; });
+  await page.keyboard.press('Alt+ArrowUp');
+  await page.waitForTimeout(500);
+  expect(posted).toBe(false);
+  await page.keyboard.press('Escape');
+  await expect(titles).toHaveText(['One', 'Two']);
+});
+
+test('the list says why a task with subtasks can’t become one', async ({ page }) => {
+  await signUpAndOpenTask(page, 'list-reason');
+  await addSubtasks(page, ['One']);
+  await page.keyboard.press('Escape');
+  await page.getByRole('tab', { name: 'List' }).click();
+
+  await page.getByRole('table').getByRole('button', { name: 'Actions for Launch' }).click();
+  const item = page.getByRole('menuitem', { name: /Make subtask of…/ });
+  await expect(item).toHaveAttribute('data-disabled', '');
+  await expect(item).toContainText('It has subtasks of its own');
+});

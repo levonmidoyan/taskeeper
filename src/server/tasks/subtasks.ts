@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, ne } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, isNull, lt, ne, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { db, project, task, taskStatus } from '@/db';
@@ -21,14 +21,16 @@ export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * key-share lock that inserting a child referencing it takes. False when the
  * parent is gone, archived, or no longer top-level: callers validate it before
  * the transaction, and a concurrent "make subtask of" may have nested it since.
+ * Otherwise its column as of now, which no one can change until commit.
  */
-export async function lockParent(tx: Tx, parentId: string): Promise<boolean> {
+export async function lockParent(tx: Tx, parentId: string): Promise<{ statusId: string } | false> {
   const [row] = await tx
-    .select({ parentId: task.parentTaskId, archivedAt: task.archivedAt })
+    .select({ parentId: task.parentTaskId, archivedAt: task.archivedAt, statusId: task.statusId })
     .from(task)
     .where(eq(task.id, parentId))
     .for('no key update');
-  return row !== undefined && row.parentId === null && row.archivedAt === null;
+  if (row === undefined || row.parentId !== null || row.archivedAt !== null) return false;
+  return { statusId: row.statusId };
 }
 
 /** The parent's last subtask key, or null when it has none. Read after lockParent. */
@@ -43,6 +45,27 @@ export async function lastSubtaskPosition(tx: Tx, parentId: string): Promise<str
 }
 
 const STALE_REORDER = 'The list changed while you were dragging. Try again.';
+// The column was read before the transaction and locked first; locking the new
+// one after the task's row could deadlock with a move that holds it.
+const MOVED_COLUMN = 'That task just moved to another column. Try again.';
+
+/**
+ * A key in the slot `restore` once held among the rows `scope` matches: just
+ * before whatever sorts at or after it now. Undo uses it to put a task back
+ * where it was rather than at the end. Null when `restore` is not a valid key.
+ */
+async function keyAt(tx: Tx, column: typeof task.position | typeof task.subtaskPosition, scope: SQL | undefined, restore: string): Promise<string | null> {
+  try {
+    positionBetween(restore, null);
+  } catch {
+    return null;
+  }
+  const [prev] = await tx.select({ p: column }).from(task)
+    .where(and(scope, lt(byKey(column), restore))).orderBy(desc(byKey(column))).limit(1);
+  const [next] = await tx.select({ p: column }).from(task)
+    .where(and(scope, gte(byKey(column), restore))).orderBy(byKey(column)).limit(1);
+  return positionBetween(prev?.p ?? null, next?.p ?? null);
+}
 const INVALID_MOVE = 'That move is not valid.';
 
 /** A top-level, unarchived task of this workspace in an active project, or null. */
@@ -89,7 +112,9 @@ export async function createSubtasks(
 
     return db.transaction(async (tx) => {
       if (!(await lockColumns(tx, [parent.statusId]))) return err('That column no longer exists.');
-      if (!(await lockParent(tx, parent.id))) return err('Parent task not found.');
+      const locked = await lockParent(tx, parent.id);
+      if (!locked) return err('Parent task not found.');
+      if (locked.statusId !== parent.statusId) return err(MOVED_COLUMN);
       const boardKeys = positionsAfter(await lastTaskPosition(tx, parent.projectId, parent.statusId), titles.length);
       const subKeys = positionsAfter(await lastSubtaskPosition(tx, parent.id), titles.length);
       const ids = titles.map(() => newId());
@@ -213,6 +238,8 @@ export async function reorderSubtask(
 const setParentSchema = z.object({
   taskId: z.string().min(1),
   parentTaskId: z.string().min(1).nullable(),
+  // An earlier call's previousKey, when undoing it: the slot to go back to.
+  restoreKey: z.string().min(1).max(200).nullable().optional(),
 });
 
 export type SetTaskParentInput = z.input<typeof setParentSchema>;
@@ -220,22 +247,25 @@ export type SetTaskParentInput = z.input<typeof setParentSchema>;
 /**
  * Makes a task a subtask of another (parentTaskId set) or promotes a subtask
  * to a top-level task (null). Depth stays one: the new parent must be
- * top-level and the task must have no subtasks of its own.
+ * top-level and the task must have no subtasks of its own. previousKey is the
+ * key of the slot it left (its board key when nested, its subtask key when
+ * promoted), for an undo to pass back as restoreKey.
  */
 export async function setTaskParent(
   ctx: WorkspaceContext,
   input: SetTaskParentInput,
-): Promise<Result<{ previousParentId: string | null }>> {
+): Promise<Result<{ previousParentId: string | null; previousKey: string | null }>> {
   return withAction(async () => {
     const parsed = setParentSchema.safeParse(input);
     if (!parsed.success) return err('That change is not valid.');
-    const { taskId, parentTaskId } = parsed.data;
+    const { taskId, parentTaskId, restoreKey } = parsed.data;
 
     const parentAlias = alias(task, 'old_parent');
     const [owned] = await db
       .select({
         id: task.id, projectId: task.projectId, statusId: task.statusId,
         parentId: task.parentTaskId, parentTitle: parentAlias.title,
+        position: task.position, subtaskPosition: task.subtaskPosition,
       })
       .from(task)
       .innerJoin(project, and(eq(project.id, task.projectId), isNull(project.archivedAt)))
@@ -243,7 +273,7 @@ export async function setTaskParent(
       .where(and(eq(task.id, taskId), eq(task.workspaceId, ctx.workspaceId), isNull(task.archivedAt)))
       .limit(1);
     if (!owned) return err('Task not found.');
-    if (owned.parentId === parentTaskId) return ok({ previousParentId: owned.parentId });
+    if (owned.parentId === parentTaskId) return ok({ previousParentId: owned.parentId, previousKey: null });
 
     let newParentTitle: string | null = null;
     if (parentTaskId) {
@@ -271,7 +301,9 @@ export async function setTaskParent(
           .limit(1);
         if (child) return err('Tasks with subtasks can’t become subtasks.');
         if (!(await lockParent(tx, parentTaskId))) return err('Parent task not found.');
-        const key = positionBetween(await lastSubtaskPosition(tx, parentTaskId), null);
+        const siblings = and(eq(task.parentTaskId, parentTaskId), isNull(task.archivedAt), ne(task.id, taskId));
+        const key = (restoreKey ? await keyAt(tx, task.subtaskPosition, siblings, restoreKey) : null)
+          ?? positionBetween(await lastSubtaskPosition(tx, parentTaskId), null);
         await tx.update(task)
           .set({ parentTaskId, subtaskPosition: key, updatedAt: new Date() })
           .where(eq(task.id, taskId));
@@ -279,15 +311,23 @@ export async function setTaskParent(
         // A fresh board key at the column's end: the old one was only ever
         // compared with siblings' keys and could tie with a board card's.
         if (!(await lockColumns(tx, [owned.statusId]))) return err('That column no longer exists.');
-        const last = await lastTaskPosition(tx, owned.projectId, owned.statusId);
+        const [row] = await tx.select({ statusId: task.statusId }).from(task).where(eq(task.id, taskId)).for('no key update');
+        if (!row) return err('Task not found.');
+        if (row.statusId !== owned.statusId) return err(MOVED_COLUMN);
+        const column = and(eq(task.projectId, owned.projectId), eq(task.statusId, owned.statusId), ne(task.id, taskId));
+        const position = (restoreKey ? await keyAt(tx, task.position, column, restoreKey) : null)
+          ?? positionBetween(await lastTaskPosition(tx, owned.projectId, owned.statusId), null);
         await tx.update(task)
-          .set({ parentTaskId: null, subtaskPosition: null, position: positionBetween(last, null), updatedAt: new Date() })
+          .set({ parentTaskId: null, subtaskPosition: null, position, updatedAt: new Date() })
           .where(eq(task.id, taskId));
       }
       await recordActivity(ctx, { taskId, kind: 'parent', from: owned.parentTitle, to: newParentTitle }, tx);
       await notifyTaskChange(ctx, tx, { taskId, changes: ['parent'] });
       await emitChange(ctx, { projectId: owned.projectId }, tx);
-      return ok({ previousParentId: owned.parentId });
+      return ok({
+        previousParentId: owned.parentId,
+        previousKey: parentTaskId ? owned.position : owned.subtaskPosition,
+      });
     });
   });
 }

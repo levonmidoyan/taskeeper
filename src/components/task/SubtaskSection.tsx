@@ -139,20 +139,40 @@ export function SubtaskSection({
     void addOne(title);
   }
 
+  // Where the paste would have gone, for Esc to put it there as one line.
+  const pasteRange = useRef<[number, number]>([0, 0]);
+
+  /** Typed-in text at the selection, kept within the field's 200 characters. */
+  function insertAt(input: HTMLInputElement, text: string, start: number, end: number) {
+    const room = Math.max(0, 200 - (input.value.length - (end - start)));
+    input.setRangeText(text.slice(0, room), start, end, 'end');
+  }
+
   function onPaste(event: React.ClipboardEvent<HTMLInputElement>) {
-    const lines = splitPastedLines(event.clipboardData.getData('text/plain'));
-    if (lines.length < 2) return;
+    const input = event.currentTarget;
+    const text = event.clipboardData.getData('text/plain');
+    const lines = splitPastedLines(text);
+    if (lines.length < 2) {
+      // One line: as typed, less any list marker ("- Buy milk" → "Buy milk").
+      if (lines.length === 1 && lines[0] !== text.trim()) {
+        event.preventDefault();
+        insertAt(input, lines[0], input.selectionStart ?? input.value.length, input.selectionEnd ?? input.value.length);
+      }
+      return;
+    }
     event.preventDefault();
     if (lines.length > MAX_SUBTASK_BATCH) {
       toast.error('Up to 50 at a time.');
       return;
     }
+    pasteRange.current = [input.selectionStart ?? input.value.length, input.selectionEnd ?? input.value.length];
     setPasted(lines);
   }
 
   function pasteAsOneLine() {
     if (!pasted || !inputRef.current) return;
-    inputRef.current.value = pasted.join(' ').slice(0, 200);
+    const [start, end] = pasteRange.current;
+    insertAt(inputRef.current, pasted.join(' '), start, end);
     setPasted(null);
   }
 

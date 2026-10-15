@@ -230,7 +230,7 @@ describe('setTaskParent', () => {
 
     const r = await setTaskParent(ctx, { taskId: loose, parentTaskId: parent });
 
-    expect(r).toEqual({ ok: true, data: { previousParentId: null } });
+    expect(r).toMatchObject({ ok: true, data: { previousParentId: null } });
     const detail = await getTaskDetail(ctx, parent);
     expect(detail!.subtasks.map((s) => s.title)).toEqual(['Existing', 'Loose']);
     expect(detail!.subtasks[1].statusId).toBe(statuses[1].id);
@@ -247,7 +247,7 @@ describe('setTaskParent', () => {
 
     const r = await setTaskParent(ctx, { taskId: child, parentTaskId: null });
 
-    expect(r).toEqual({ ok: true, data: { previousParentId: parent } });
+    expect(r).toMatchObject({ ok: true, data: { previousParentId: parent } });
     const top = await listProjectTasks(ctx, projectId);
     expect(top.map((t) => t.title)).toEqual(['Parent', 'Later', 'Child']);
     expect(new Set(top.map((t) => t.position)).size).toBe(3);
@@ -287,9 +287,88 @@ describe('setTaskParent', () => {
     const parent = await make(ctx, projectId, 'Parent');
     const child = await make(ctx, projectId, 'Child', { parentTaskId: parent });
     expect(await setTaskParent(ctx, { taskId: child, parentTaskId: parent }))
-      .toEqual({ ok: true, data: { previousParentId: parent } });
+      .toEqual({ ok: true, data: { previousParentId: parent, previousKey: null } });
     const acts = await db.select().from(taskActivity).where(eq(taskActivity.kind, 'parent'));
     expect(acts).toHaveLength(0);
+  });
+});
+
+describe('setTaskParent undo', () => {
+  it('puts a nested task back in its old board slot', async () => {
+    const { ctx, projectId } = await setup('u1@example.com', 'u1');
+    const parent = await make(ctx, projectId, 'Parent');
+    const middle = await make(ctx, projectId, 'Middle');
+    await make(ctx, projectId, 'Last');
+
+    const nested = await setTaskParent(ctx, { taskId: middle, parentTaskId: parent });
+    if (!nested.ok) throw new Error(nested.error);
+    const undo = await setTaskParent(ctx, { taskId: middle, parentTaskId: null, restoreKey: nested.data.previousKey });
+
+    expect(undo.ok).toBe(true);
+    const top = await listProjectTasks(ctx, projectId);
+    expect(top.map((t) => t.title)).toEqual(['Parent', 'Middle', 'Last']);
+    expect(new Set(top.map((t) => t.position)).size).toBe(3);
+  });
+
+  it('puts a promoted subtask back in its old place among its siblings', async () => {
+    const { ctx, projectId } = await setup('u2@example.com', 'u2');
+    const parent = await make(ctx, projectId, 'Parent');
+    await make(ctx, projectId, 'One', { parentTaskId: parent });
+    const two = await make(ctx, projectId, 'Two', { parentTaskId: parent });
+    await make(ctx, projectId, 'Three', { parentTaskId: parent });
+
+    const promoted = await setTaskParent(ctx, { taskId: two, parentTaskId: null });
+    if (!promoted.ok) throw new Error(promoted.error);
+    expect(promoted.data.previousKey).not.toBeNull();
+    await setTaskParent(ctx, { taskId: two, parentTaskId: parent, restoreKey: promoted.data.previousKey });
+
+    expect((await getTaskDetail(ctx, parent))!.subtasks.map((s) => s.title)).toEqual(['One', 'Two', 'Three']);
+  });
+
+  it('falls back to the end for a key that is not one', async () => {
+    const { ctx, projectId } = await setup('u3@example.com', 'u3');
+    const parent = await make(ctx, projectId, 'Parent');
+    const child = await make(ctx, projectId, 'Child', { parentTaskId: parent });
+    await make(ctx, projectId, 'Later');
+    expect((await setTaskParent(ctx, { taskId: child, parentTaskId: null, restoreKey: '!!' })).ok).toBe(true);
+    expect((await listProjectTasks(ctx, projectId)).map((t) => t.title)).toEqual(['Parent', 'Later', 'Child']);
+  });
+});
+
+describe('column re-read under the lock', () => {
+  /** Runs `call` while another transaction holds `id` mid-move to `statusId`, then commits the move. */
+  async function duringMove<T>(id: string, statusId: string, call: () => Promise<T>): Promise<T> {
+    let release!: () => void;
+    const held = new Promise<void>((r) => { release = r; });
+    let locked!: () => void;
+    const isLocked = new Promise<void>((r) => { locked = r; });
+    const mover = db.transaction(async (tx) => {
+      await tx.update(task).set({ statusId }).where(eq(task.id, id));
+      locked();
+      await held;
+    });
+    await isLocked;
+    const pending = call();
+    // Let the call read the old column and block on the row.
+    await new Promise((r) => setTimeout(r, 200));
+    release();
+    await mover;
+    return pending;
+  }
+
+  it('createSubtasks refuses when the parent changes column meanwhile', async () => {
+    const { ctx, projectId, statuses } = await setup('c1@example.com', 'c1');
+    const parent = await make(ctx, projectId, 'Parent');
+    const r = await duringMove(parent, statuses[1].id, () => createSubtasks(ctx, { parentTaskId: parent, titles: ['a', 'b'] }));
+    expect(r).toEqual({ ok: false, error: 'That task just moved to another column. Try again.' });
+  });
+
+  it('promote refuses when the subtask changes column meanwhile', async () => {
+    const { ctx, projectId, statuses } = await setup('c2@example.com', 'c2');
+    const parent = await make(ctx, projectId, 'Parent');
+    const child = await make(ctx, projectId, 'Child', { parentTaskId: parent });
+    const r = await duringMove(child, statuses[1].id, () => setTaskParent(ctx, { taskId: child, parentTaskId: null }));
+    expect(r).toEqual({ ok: false, error: 'That task just moved to another column. Try again.' });
   });
 });
 
@@ -341,7 +420,7 @@ describe('depth re-checked under the lock', () => {
     const c = await make(ctx, projectId, 'C');
     await db.update(task).set({ archivedAt: new Date() }).where(eq(task.id, c));
     expect(await db.transaction((tx) => lockParent(tx, c))).toBe(false);
-    expect(await db.transaction((tx) => lockParent(tx, b))).toBe(true);
+    expect(await db.transaction((tx) => lockParent(tx, b))).toEqual({ statusId: expect.any(String) });
   });
 
   it('never nests two levels when opposite conversions race', async () => {

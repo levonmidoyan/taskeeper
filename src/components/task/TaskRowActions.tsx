@@ -98,7 +98,7 @@ export function TaskRowActions({
         {onMakeSubtask && (
           <Dropdown.Item disabled={task.subtaskCount > 0} onSelect={onMakeSubtask}>
             <Dropdown.ItemIcon as={IconSubtask} />
-            Make subtask of…
+            <MakeSubtaskLabel blocked={task.subtaskCount > 0} />
           </Dropdown.Item>
         )}
         {onPromote && (
@@ -114,5 +114,15 @@ export function TaskRowActions({
         </Dropdown.Item>
       </Dropdown.Content>
     </Dropdown.Root>
+  );
+}
+
+/** "Make subtask of…", saying why when the task can't be one. */
+export function MakeSubtaskLabel({ blocked }: { blocked: boolean }) {
+  return (
+    <span className="flex flex-col">
+      Make subtask of…
+      {blocked && <span className="text-paragraph-xs text-text-soft-400">It has subtasks of its own</span>}
+    </span>
   );
 }
