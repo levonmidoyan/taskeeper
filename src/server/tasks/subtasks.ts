@@ -19,11 +19,16 @@ export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * subtasks run one at a time and each reads the keys the previous one left (as
  * lockColumns does for board columns). NO KEY UPDATE does not block the
  * key-share lock that inserting a child referencing it takes. False when the
- * parent is gone.
+ * parent is gone, archived, or no longer top-level: callers validate it before
+ * the transaction, and a concurrent "make subtask of" may have nested it since.
  */
 export async function lockParent(tx: Tx, parentId: string): Promise<boolean> {
-  const rows = await tx.select({ id: task.id }).from(task).where(eq(task.id, parentId)).for('no key update');
-  return rows.length > 0;
+  const [row] = await tx
+    .select({ parentId: task.parentTaskId, archivedAt: task.archivedAt })
+    .from(task)
+    .where(eq(task.id, parentId))
+    .for('no key update');
+  return row !== undefined && row.parentId === null && row.archivedAt === null;
 }
 
 /** The parent's last subtask key, or null when it has none. Read after lockParent. */
@@ -256,6 +261,15 @@ export async function setTaskParent(
 
     return db.transaction(async (tx) => {
       if (parentTaskId) {
+        // The moved task first, then the parent: a subtask created under this
+        // task meanwhile holds or waits on this row, so the check below sees it.
+        await tx.select({ id: task.id }).from(task).where(eq(task.id, taskId)).for('no key update');
+        const [child] = await tx
+          .select({ id: task.id })
+          .from(task)
+          .where(and(eq(task.parentTaskId, taskId), isNull(task.archivedAt)))
+          .limit(1);
+        if (child) return err('Tasks with subtasks can’t become subtasks.');
         if (!(await lockParent(tx, parentTaskId))) return err('Parent task not found.');
         const key = positionBetween(await lastSubtaskPosition(tx, parentTaskId), null);
         await tx.update(task)

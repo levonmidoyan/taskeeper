@@ -1,14 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
 import { createProject } from '@/server/projects/service';
 import { getProject } from '@/server/projects/queries';
 import { createTask, updateTask } from '@/server/tasks/service';
 import { getTaskDetail, listParentCandidates, listProjectTasks } from '@/server/tasks/queries';
-import { createSubtasks, reorderSubtask, setTaskParent } from '@/server/tasks/subtasks';
+import { createSubtasks, lockParent, reorderSubtask, setTaskParent } from '@/server/tasks/subtasks';
 import { task, taskActivity } from '@/db';
 import type { WorkspaceContext } from '@/lib/session';
 
@@ -326,5 +327,40 @@ describe('listProjectTasks withSubtasks', () => {
     const rows = await listProjectTasks(ctx, projectId, { priority: { op: 'is', values: ['high'] } }, { withSubtasks: true });
     expect(rows.map((r) => r.title)).toEqual(['Parent']);
     expect(rows[0].subtasks!.map((s) => s.title)).toEqual(['B', 'A']);
+  });
+});
+
+describe('depth re-checked under the lock', () => {
+  it('lockParent refuses a parent that has become a subtask or been archived', async () => {
+    const { ctx, projectId } = await setup('d1@example.com', 'd1');
+    const a = await make(ctx, projectId, 'A');
+    const b = await make(ctx, projectId, 'B');
+    // A turned into a subtask after a caller validated it as top-level.
+    await db.update(task).set({ parentTaskId: b, subtaskPosition: 'a0' }).where(eq(task.id, a));
+    expect(await db.transaction((tx) => lockParent(tx, a))).toBe(false);
+    const c = await make(ctx, projectId, 'C');
+    await db.update(task).set({ archivedAt: new Date() }).where(eq(task.id, c));
+    expect(await db.transaction((tx) => lockParent(tx, c))).toBe(false);
+    expect(await db.transaction((tx) => lockParent(tx, b))).toBe(true);
+  });
+
+  it('never nests two levels when opposite conversions race', async () => {
+    const { ctx, projectId } = await setup('d2@example.com', 'd2');
+    for (let i = 0; i < 5; i++) {
+      const x = await make(ctx, projectId, `X${i}`);
+      const a = await make(ctx, projectId, `A${i}`);
+      const b = await make(ctx, projectId, `B${i}`);
+      await Promise.all([
+        setTaskParent(ctx, { taskId: x, parentTaskId: a }),
+        setTaskParent(ctx, { taskId: a, parentTaskId: b }),
+      ]);
+      const parent = alias(task, 'p');
+      const nested = await db
+        .select({ id: task.id })
+        .from(task)
+        .innerJoin(parent, eq(parent.id, task.parentTaskId))
+        .where(isNotNull(parent.parentTaskId));
+      expect(nested).toEqual([]);
+    }
   });
 });
