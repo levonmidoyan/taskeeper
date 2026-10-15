@@ -36,7 +36,7 @@ export default async function ProjectBoardPage({
   const resolved = await resolveView(ctx, sp, { layout: 'board', projectId });
   if ('redirect' in resolved) redirect(resolved.redirect);
   const [tasks, members, labels, views] = await Promise.all([
-    listProjectTasks(ctx, projectId, resolved.filter),
+    listProjectTasks(ctx, projectId, resolved.filter, { withSubtasks: true }),
     listWorkspaceMembers(ctx),
     listLabels(ctx),
     listViews(ctx, { projectId }),

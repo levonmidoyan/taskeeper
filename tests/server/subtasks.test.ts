@@ -308,3 +308,23 @@ describe('listParentCandidates', () => {
     expect((await listParentCandidates(ctx, me, '')).map((h) => h.title)).toEqual(['Design hero', 'Unrelated']);
   });
 });
+
+describe('listProjectTasks withSubtasks', () => {
+  it('attaches unarchived subtasks in order, unfiltered, only when asked', async () => {
+    const { ctx, projectId } = await setup('l1@example.com', 'l1');
+    const parent = await make(ctx, projectId, 'Parent', { priority: 'high' });
+    const a = await make(ctx, projectId, 'A', { parentTaskId: parent });
+    const b = await make(ctx, projectId, 'B', { parentTaskId: parent });
+    const gone = await make(ctx, projectId, 'Gone', { parentTaskId: parent });
+    await db.update(task).set({ archivedAt: new Date() }).where(eq(task.id, gone));
+    await reorderSubtask(ctx, { taskId: b, beforeId: null, afterId: a });
+
+    const plain = await listProjectTasks(ctx, projectId);
+    expect(plain[0].subtasks).toBeUndefined();
+
+    // A filter that only the parent matches still brings its subtasks.
+    const rows = await listProjectTasks(ctx, projectId, { priority: { op: 'is', values: ['high'] } }, { withSubtasks: true });
+    expect(rows.map((r) => r.title)).toEqual(['Parent']);
+    expect(rows[0].subtasks!.map((s) => s.title)).toEqual(['B', 'A']);
+  });
+});

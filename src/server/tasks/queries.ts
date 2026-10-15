@@ -30,9 +30,11 @@ export type TaskRow = {
   labels: LabelRow[];
   subtaskCount: number;
   subtaskDoneCount: number;
+  /** The task's subtasks in order; only on lists that asked for them. */
+  subtasks?: TaskRow[];
 };
 
-type BaseRow = Omit<TaskRow, 'labels' | 'subtaskCount' | 'subtaskDoneCount'>;
+type BaseRow = Omit<TaskRow, 'labels' | 'subtaskCount' | 'subtaskDoneCount' | 'subtasks'>;
 
 const baseColumns = {
   id: task.id,
@@ -83,11 +85,12 @@ async function attachLabels(rows: BaseRow[]): Promise<TaskRow[]> {
   }));
 }
 
-/** Top-level tasks of one project, board order. Subtasks are loaded with their parent. */
+/** Top-level tasks of one project, board order; with `withSubtasks`, each carries its subtasks. */
 export async function listProjectTasks(
   ctx: WorkspaceContext,
   projectId: string,
   filter: TaskFilter = {},
+  opts: { withSubtasks?: boolean } = {},
 ): Promise<TaskRow[]> {
   const filters = await taskFilterSql(ctx, filter, 'project');
   const rows = await db
@@ -105,7 +108,24 @@ export async function listProjectTasks(
     )
     .orderBy(byKey(task.position), byId(task.id));
 
-  return attachLabels(rows);
+  const tasks = await attachLabels(rows);
+  if (!opts.withSubtasks || tasks.length === 0) return tasks;
+
+  // Unfiltered: a parent the filter kept shows all its steps.
+  const subRows = await db
+    .select({ ...baseColumns, parentId: task.parentTaskId })
+    .from(task)
+    .leftJoin(user, eq(user.id, task.assigneeId))
+    .where(and(
+      inArray(task.parentTaskId, tasks.map((t) => t.id)),
+      eq(task.workspaceId, ctx.workspaceId),
+      isNull(task.archivedAt),
+    ))
+    .orderBy(byKey(task.subtaskPosition), byId(task.id));
+  const subs = await attachLabels(subRows.map(({ parentId: _, ...r }) => r));
+  const byParent = new Map(tasks.map((t) => [t.id, [] as TaskRow[]]));
+  subRows.forEach((r, i) => byParent.get(r.parentId!)?.push(subs[i]));
+  return tasks.map((t) => ({ ...t, subtasks: byParent.get(t.id) ?? [] }));
 }
 
 export const WORKSPACE_TASK_LIMIT = 500;
