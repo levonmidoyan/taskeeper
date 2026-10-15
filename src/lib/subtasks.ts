@@ -1,5 +1,3 @@
-import { dropTarget } from '@/lib/todo-list';
-
 /** The most subtasks one paste or batch call may create. */
 export const MAX_SUBTASK_BATCH = 50;
 
@@ -14,11 +12,15 @@ export function splitPastedLines(text: string): string[] {
 }
 
 /** Move one place up or down: the same neighbour contract as a drag. Null at an end. */
+// No dnd-kit here (dropTarget's arrayMove): the server imports this file for
+// MAX_SUBTASK_BATCH, and dnd-kit pulls client-only React into route handlers.
 export function stepTarget(ids: string[], id: string, delta: -1 | 1) {
   const from = ids.indexOf(id);
-  const over = ids[from + delta];
-  if (from === -1 || over === undefined) return null;
-  return dropTarget(ids, id, over);
+  const to = from + delta;
+  if (from === -1 || to < 0 || to >= ids.length) return null;
+  const next = ids.filter((x) => x !== id);
+  next.splice(to, 0, id);
+  return { toIndex: to, beforeId: next[to - 1] ?? null, afterId: next[to + 1] ?? null };
 }
 
 export function progressPercent(done: number, total: number): number {
