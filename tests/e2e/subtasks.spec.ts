@@ -148,3 +148,24 @@ test('row fields change status, assignee and due date in place', async ({ page }
   await page.getByRole('menuitem', { name: 'Tomorrow' }).click();
   await expect(dialog.getByRole('button', { name: /^Due date: / })).toBeVisible();
 });
+
+test('lifting a card with its checklist open keeps the cards below in place', async ({ page }) => {
+  await signUpAndOpenTask(page, 'drag-expanded');
+  await addSubtasks(page, ['One', 'Two']);
+  await page.keyboard.press('Escape');
+  await createTask(page, 'Below');
+  const todo = page.getByRole('region', { name: 'Todo' });
+  await todo.getByRole('button', { name: 'Subtasks of Launch' }).click();
+  await expect(todo.getByRole('button', { name: 'One', exact: true })).toBeVisible();
+
+  const below = todo.getByRole('button', { name: 'Below', exact: true });
+  const before = (await below.boundingBox())!;
+  const box = (await todo.getByRole('button', { name: 'Launch', exact: true }).boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 20, box.y + box.height / 2, { steps: 5 });
+  await page.waitForTimeout(300);
+  const during = (await below.boundingBox())!;
+  await page.mouse.up();
+  expect(Math.abs(during.y - before.y)).toBeLessThan(2);
+});

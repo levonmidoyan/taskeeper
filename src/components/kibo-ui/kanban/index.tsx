@@ -192,7 +192,9 @@ export function KanbanCard({ id, name, children, className, onClick, transitionN
   const card = footer ? (
     <div className={cn(CARD_CHROME, isDragging && CARD_PLACEHOLDER)}>
       {button}
-      {!isDragging && footer}
+      {/* Hidden, not removed, while dragging: dnd-kit measured the card with it, so
+          the slot keeps that height and the cards below stay put. */}
+      <div className={cn(isDragging && 'invisible')}>{footer}</div>
     </div>
   ) : button;
 
