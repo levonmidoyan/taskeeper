@@ -122,7 +122,7 @@ export async function listProjectTasks(
       isNull(task.archivedAt),
     ))
     .orderBy(byKey(task.subtaskPosition), byId(task.id));
-  const subs = await attachLabels(subRows.map(({ parentId: _, ...r }) => r));
+  const subs = await attachLabels(subRows);
   const byParent = new Map(tasks.map((t) => [t.id, [] as TaskRow[]]));
   subRows.forEach((r, i) => byParent.get(r.parentId!)?.push(subs[i]));
   return tasks.map((t) => ({ ...t, subtasks: byParent.get(t.id) ?? [] }));
