@@ -112,3 +112,39 @@ test('the list expands a parent into indented subtask rows', async ({ page }) =>
   await table.getByRole('button', { name: 'Two', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Task details' }).getByLabel('Title')).toHaveValue('Two');
 });
+
+test('subtasks reorder by keyboard and the order survives a reload and a done toggle', async ({ page }) => {
+  const dialog = await signUpAndOpenTask(page, 'reorder');
+  await addSubtasks(page, ['One', 'Two', 'Three']);
+  const titles = dialog.getByRole('list', { name: 'Subtasks' }).getByRole('button', { name: /^Rename/ });
+
+  await dialog.getByRole('button', { name: 'Rename “Three”' }).focus();
+  const saved = page.waitForResponse((r) => r.request().method() === 'POST');
+  await page.keyboard.press('Alt+ArrowUp');
+  await saved;
+  await expect(titles).toHaveText(['One', 'Three', 'Two']);
+
+  await dialog.getByRole('button', { name: 'Mark “One” as done' }).click();
+  await expect(dialog.getByText('1/3')).toBeVisible();
+  await expect(titles).toHaveText(['One', 'Three', 'Two']);
+
+  await page.reload();
+  await expect(titles).toHaveText(['One', 'Three', 'Two']);
+});
+
+test('row fields change status, assignee and due date in place', async ({ page }) => {
+  const dialog = await signUpAndOpenTask(page, 'row-fields');
+  await addSubtasks(page, ['Step']);
+
+  await dialog.getByRole('button', { name: /^Status: / }).click();
+  await page.getByRole('menuitem', { name: 'In Progress' }).click();
+  await expect(dialog.getByRole('button', { name: 'Status: In Progress' })).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Assign “Step”' }).click();
+  await page.getByRole('option', { name: /Subtask Tester/ }).click();
+  await expect(dialog.getByRole('button', { name: 'Assignee: Subtask Tester' })).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Set due date' }).click();
+  await page.getByRole('menuitem', { name: 'Tomorrow' }).click();
+  await expect(dialog.getByRole('button', { name: /^Due date: / })).toBeVisible();
+});

@@ -235,7 +235,14 @@ export function SubtaskRow({
           </Dropdown.Content>
         </Dropdown.Root>
 
-        <AssigneePicker compact members={members} value={assigneeId} onChange={assign} />
+        <AssigneePicker
+          compact
+          members={members}
+          value={assigneeId}
+          onChange={assign}
+          // Named after the row while unassigned: a bare "Assign" repeats down the list.
+          label={assigneeId ? undefined : `Assign “${title}”`}
+        />
 
         <Dropdown.Root>
           <Dropdown.Trigger asChild>
