@@ -78,6 +78,10 @@ export function TaskDetailDialog(props: TaskDetailViewProps) {
         // in progress (the description's), stops there. So does one pressed just
         // as a layer opens on top (the palette, a picker): Radix moves Escape to
         // the new layer a render late, and until then it would close the task.
+        // A toast's action (Undo) is clicked over the dialog; it is not a click away.
+        onInteractOutside={(event) => {
+          if ((event.target as Element | null)?.closest?.('[data-sonner-toaster]')) event.preventDefault();
+        }}
         onEscapeKeyDown={(event) => {
           if (handleEditorEscape(event) || handOffEscape(event) || overlayAbove()) event.preventDefault();
         }}

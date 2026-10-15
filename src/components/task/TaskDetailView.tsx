@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  IconArrowUpRight, IconDots, IconLink, IconTrash, IconX,
+  IconArrowBarToUp, IconArrowUpRight, IconDots, IconLink, IconSubtask, IconTrash, IconX,
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -21,8 +21,10 @@ import { StatusIcon } from '@/components/task/StatusIcon';
 import { homeCrumb } from '@/components/shell/crumbs';
 import { ShortcutTooltip } from '@/components/shell/ShortcutHint';
 import { PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
+import { ParentPickerDialog } from '@/components/task/ParentPickerDialog';
 import { SubtaskBanner } from '@/components/task/SubtaskBanner';
 import { SubtaskSection } from '@/components/task/SubtaskSection';
+import { useSetParent } from '@/components/task/use-set-parent';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Dropdown from '@/components/ui/dropdown';
 import * as Label from '@/components/ui/label';
@@ -149,6 +151,8 @@ export function TaskDetailView({
     setPreviewId(id);
   }
   const [priorityOpen, setPriorityOpen] = useState(false);
+  const setParent = useSetParent(workspaceSlug);
+  const [pickParent, setPickParent] = useState(false);
   // Set when s / p opened the list. Radix hands focus back to the trigger on
   // close, where the next shortcut letter would pick an option by typeahead
   // (d → Done); the task itself takes focus instead.
@@ -271,6 +275,22 @@ export function TaskDetailView({
         </Hint>
       </Dropdown.Trigger>
       <Dropdown.Content align="end" className="w-48">
+        {task.parentId ? (
+          <Dropdown.Item onSelect={() => setParent(task.id, null, task.parentId, `“${task.title}” is now a task`)}>
+            <Dropdown.ItemIcon as={IconArrowBarToUp} />
+            Promote to task
+          </Dropdown.Item>
+        ) : (
+          <Dropdown.Item
+            disabled={task.subtasks.length > 0}
+            title={task.subtasks.length > 0 ? 'Tasks with subtasks can’t become subtasks.' : undefined}
+            onSelect={() => setPickParent(true)}
+          >
+            <Dropdown.ItemIcon as={IconSubtask} />
+            Make subtask of…
+          </Dropdown.Item>
+        )}
+        <Dropdown.Separator className="my-1 h-px bg-stroke-soft-200" />
         <Dropdown.Item onSelect={onDelete} className="text-error-base">
           <Dropdown.ItemIcon as={IconTrash} className="text-error-base" />
           Delete
@@ -531,6 +551,14 @@ export function TaskDetailView({
           />
         </div>
       </div>
+
+      <ParentPickerDialog
+        open={pickParent}
+        onOpenChange={setPickParent}
+        taskId={task.id}
+        workspaceSlug={workspaceSlug}
+        onPick={(p) => setParent(task.id, p.id, null, `“${task.title}” is now a subtask of “${p.title}”`)}
+      />
 
       <AttachmentPreviewModal
         attachments={previewable}

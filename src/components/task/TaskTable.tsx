@@ -32,7 +32,9 @@ import { LabelChip } from '@/components/task/LabelChip';
 import { PriorityChip } from '@/components/task/Priority';
 import { TaskBulkBar } from '@/components/task/TaskBulkBar';
 import type { TaskPatch } from '@/components/task/TaskFieldItems';
+import { ParentPickerDialog } from '@/components/task/ParentPickerDialog';
 import { TaskRowActions } from '@/components/task/TaskRowActions';
+import { useSetParent } from '@/components/task/use-set-parent';
 import { TaskTableSettings } from '@/components/task/TaskTableSettings';
 import { StatusIcon } from '@/components/task/StatusIcon';
 import * as Button from '@/components/ui/button';
@@ -340,6 +342,8 @@ export function TaskTable({
   // The current page only; selection can still span pages.
   const rows = table.getRowModel().rows;
   const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
+  const [parentFor, setParentFor] = useState<TaskRow | null>(null);
+  const setParent = useSetParent(workspaceSlug);
   // Rows deleted elsewhere drop out of the selection without an effect.
   const selectedIds = useMemo(
     () => data.filter((t) => selection.has(t.id)).map((t) => t.id),
@@ -646,6 +650,7 @@ export function TaskTable({
                         onOpen={() => openTask(row.original.id)}
                         onPatch={(patch) => applyPatch([row.original.id], patch)}
                         onDelete={() => deleteTasks([row.original.id])}
+                        onMakeSubtask={() => setParentFor(row.original)}
                       />
                     </td>
                   </tr>
@@ -708,6 +713,15 @@ export function TaskTable({
           onPatch={(patch) => applyPatch(selectedIds, patch)}
           onDelete={() => deleteTasks(selectedIds)}
           onClear={clearSelection}
+        />
+      )}
+      {parentFor && (
+        <ParentPickerDialog
+          open
+          onOpenChange={(open) => { if (!open) setParentFor(null); }}
+          taskId={parentFor.id}
+          workspaceSlug={workspaceSlug}
+          onPick={(p) => setParent(parentFor.id, p.id, null, `“${parentFor.title}” is now a subtask of “${p.title}”`)}
         />
       )}
     </div>

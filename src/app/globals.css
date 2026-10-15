@@ -128,6 +128,10 @@
  * pass through to the live page while an animation runs.
  */
 ::view-transition { pointer-events: none; }
+
+/* A modal dialog sets pointer-events: none on <body>; toasts (an Undo, say) stay
+   clickable over it. TaskDetailDialog ignores those clicks as "outside". */
+[data-sonner-toaster] { pointer-events: auto; }
 ::view-transition-old(root) { display: none; }
 ::view-transition-group(root) { animation: none; }
 ::view-transition-new(root) { animation: none; }

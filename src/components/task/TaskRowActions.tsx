@@ -1,6 +1,6 @@
 'use client';
 
-import { IconArrowUpRight, IconDots, IconLink, IconTrash } from '@tabler/icons-react';
+import { IconArrowBarToUp, IconArrowUpRight, IconDots, IconLink, IconSubtask, IconTrash } from '@tabler/icons-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { FIELD_LABEL, TaskFieldItems, type TaskField, type TaskPatch } from '@/components/task/TaskFieldItems';
@@ -20,6 +20,8 @@ export function TaskRowActions({
   onOpen,
   onPatch,
   onDelete,
+  onMakeSubtask,
+  onPromote,
 }: {
   task: TaskRow;
   statuses: StatusRow[];
@@ -28,6 +30,8 @@ export function TaskRowActions({
   onOpen: () => void;
   onPatch: (patch: TaskPatch) => void;
   onDelete: () => void;
+  onMakeSubtask?: () => void;
+  onPromote?: () => void;
 }) {
   // Controlled so a pick from the due-date calendar (not a menu item) closes it too.
   const [open, setOpen] = useState(false);
@@ -90,6 +94,19 @@ export function TaskRowActions({
             </Dropdown.Portal>
           </Dropdown.MenuSub>
         ))}
+        {(onMakeSubtask || onPromote) && <Dropdown.Separator className="my-1 h-px bg-stroke-soft-200" />}
+        {onMakeSubtask && (
+          <Dropdown.Item disabled={task.subtaskCount > 0} onSelect={onMakeSubtask}>
+            <Dropdown.ItemIcon as={IconSubtask} />
+            Make subtask of…
+          </Dropdown.Item>
+        )}
+        {onPromote && (
+          <Dropdown.Item onSelect={onPromote}>
+            <Dropdown.ItemIcon as={IconArrowBarToUp} />
+            Promote to task
+          </Dropdown.Item>
+        )}
         <Dropdown.Separator className="my-1 h-px bg-stroke-soft-200" />
         <Dropdown.Item onSelect={onDelete} className="text-error-base">
           <Dropdown.ItemIcon as={IconTrash} className="text-error-base" />

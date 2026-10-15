@@ -49,3 +49,31 @@ test('an opened subtask names its parent and steps between siblings', async ({ p
   await page.keyboard.press('u');
   await expect(dialog.getByLabel('Title')).toHaveValue('Launch');
 });
+
+test('a task becomes a subtask of another and back, with Undo', async ({ page }) => {
+  const dialog = await signUpAndOpenTask(page, 'convert', 'Launch');
+  await page.keyboard.press('Escape');
+  await createTask(page, 'Write copy');
+  await page.getByRole('button', { name: 'Write copy', exact: true }).click();
+
+  await dialog.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('menuitem', { name: 'Make subtask of…' }).click();
+  const picker = page.getByRole('dialog', { name: 'Make subtask of…' });
+  await picker.getByRole('combobox').fill('Lau');
+  await picker.getByRole('option', { name: 'Launch' }).click();
+
+  await expect(page.getByText('“Write copy” is now a subtask of “Launch”')).toBeVisible();
+  await expect(dialog.getByText('Subtask of')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(dialog.getByText('Subtask of')).toBeHidden();
+
+  // And promote from the parent's row menu.
+  await dialog.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('menuitem', { name: 'Make subtask of…' }).click();
+  await picker.getByRole('option', { name: 'Launch' }).click();
+  await dialog.getByRole('button', { name: 'Launch', exact: true }).click();
+  await dialog.getByRole('button', { name: 'More for “Write copy”' }).click();
+  await page.getByRole('menuitem', { name: 'Promote to task' }).click();
+  await expect(dialog.getByRole('button', { name: 'Rename “Write copy”' })).toBeHidden();
+});
