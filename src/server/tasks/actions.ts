@@ -12,6 +12,7 @@ import {
   bulkDeleteTasks, bulkUpdateTasks, createTask, deleteTask, moveTask, updateTask,
   type BulkUpdateTasksInput, type CreateTaskInput, type MoveTaskInput, type UpdateTaskInput,
 } from './service';
+import { createSubtasks, reorderSubtask, type CreateSubtasksInput, type ReorderSubtaskInput } from './subtasks';
 
 /**
  * Slug-taking wrappers only (Amendment A): every export here is a public HTTP
@@ -137,5 +138,27 @@ export async function getCreateTaskOptionsAction(
     ]);
     if (!detail) return err('Project not found.');
     return ok({ statuses: detail.statuses, members, labels, timezone: ctx.timezone });
+  });
+}
+
+export async function createSubtasksAction(
+  workspaceSlug: string,
+  input: CreateSubtasksInput,
+): Promise<Result<{ ids: string[] }>> {
+  return withAction(async () => {
+    const result = await createSubtasks(await requireWorkspace(workspaceSlug), input);
+    if (result.ok) revalidateWorkspace(workspaceSlug);
+    return result;
+  });
+}
+
+export async function reorderSubtaskAction(
+  workspaceSlug: string,
+  input: ReorderSubtaskInput,
+): Promise<Result<{ subtaskPosition: string }>> {
+  return withAction(async () => {
+    const result = await reorderSubtask(await requireWorkspace(workspaceSlug), input);
+    if (result.ok) revalidateWorkspace(workspaceSlug);
+    return result;
   });
 }

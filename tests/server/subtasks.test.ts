@@ -8,6 +8,7 @@ import { createProject } from '@/server/projects/service';
 import { getProject } from '@/server/projects/queries';
 import { createTask, updateTask } from '@/server/tasks/service';
 import { getTaskDetail } from '@/server/tasks/queries';
+import { createSubtasks, reorderSubtask } from '@/server/tasks/subtasks';
 import { task } from '@/db';
 import type { WorkspaceContext } from '@/lib/session';
 
@@ -112,5 +113,109 @@ describe('getTaskDetail siblings', () => {
     const detail = await getTaskDetail(ctx, b);
     expect(detail!.siblings).toEqual([{ id: a, title: 'A' }, { id: b, title: 'B' }]);
     expect((await getTaskDetail(ctx, parent))!.siblings).toEqual([]);
+  });
+});
+
+describe('createSubtasks', () => {
+  it('creates every title in order after existing subtasks', async () => {
+    const { ctx, projectId } = await setup('c1@example.com', 'c1');
+    const parent = await make(ctx, projectId, 'Parent');
+    await make(ctx, projectId, 'First', { parentTaskId: parent });
+
+    const r = await createSubtasks(ctx, { parentTaskId: parent, titles: ['  Two ', '', 'Three'] });
+
+    expect(r.ok && r.data.ids).toHaveLength(2);
+    const detail = await getTaskDetail(ctx, parent);
+    expect(detail!.subtasks.map((s) => s.title)).toEqual(['First', 'Two', 'Three']);
+  });
+
+  it('puts new subtasks in the parent’s column', async () => {
+    const { ctx, projectId, statuses } = await setup('c2@example.com', 'c2');
+    const parent = await make(ctx, projectId, 'Parent', { statusId: statuses[1].id });
+    await createSubtasks(ctx, { parentTaskId: parent, titles: ['A'] });
+    expect((await getTaskDetail(ctx, parent))!.subtasks[0].statusId).toBe(statuses[1].id);
+  });
+
+  it('rejects more than 50 titles and creates none', async () => {
+    const { ctx, projectId } = await setup('c3@example.com', 'c3');
+    const parent = await make(ctx, projectId, 'Parent');
+    const r = await createSubtasks(ctx, { parentTaskId: parent, titles: Array.from({ length: 51 }, (_, i) => `T${i}`) });
+    expect(r).toEqual({ ok: false, error: 'Up to 50 at a time.' });
+    expect((await getTaskDetail(ctx, parent))!.subtasks).toHaveLength(0);
+  });
+
+  it('rejects an all-blank batch', async () => {
+    const { ctx, projectId } = await setup('c4@example.com', 'c4');
+    const parent = await make(ctx, projectId, 'Parent');
+    expect((await createSubtasks(ctx, { parentTaskId: parent, titles: [' ', ''] })).ok).toBe(false);
+  });
+
+  it('refuses a subtask or foreign task as the parent', async () => {
+    const a = await setup('c5@example.com', 'c5');
+    const b = await setup('c6@example.com', 'c6');
+    const parent = await make(a.ctx, a.projectId, 'Parent');
+    const child = await make(a.ctx, a.projectId, 'Child', { parentTaskId: parent });
+    expect((await createSubtasks(a.ctx, { parentTaskId: child, titles: ['X'] })).ok).toBe(false);
+    expect((await createSubtasks(b.ctx, { parentTaskId: parent, titles: ['X'] })).ok).toBe(false);
+  });
+});
+
+describe('reorderSubtask', () => {
+  async function three(email: string, slug: string) {
+    const s = await setup(email, slug);
+    const parent = await make(s.ctx, s.projectId, 'Parent');
+    const a = await make(s.ctx, s.projectId, 'A', { parentTaskId: parent });
+    const b = await make(s.ctx, s.projectId, 'B', { parentTaskId: parent });
+    const c = await make(s.ctx, s.projectId, 'C', { parentTaskId: parent });
+    const order = async () => (await getTaskDetail(s.ctx, parent))!.subtasks.map((t) => t.title);
+    return { ...s, parent, a, b, c, order };
+  }
+
+  it('moves a subtask between two siblings', async () => {
+    const t = await three('r1@example.com', 'r1');
+    expect((await reorderSubtask(t.ctx, { taskId: t.c, beforeId: t.a, afterId: t.b })).ok).toBe(true);
+    expect(await t.order()).toEqual(['A', 'C', 'B']);
+  });
+
+  it('moves to either edge', async () => {
+    const t = await three('r2@example.com', 'r2');
+    await reorderSubtask(t.ctx, { taskId: t.c, beforeId: null, afterId: t.a });
+    expect(await t.order()).toEqual(['C', 'A', 'B']);
+    await reorderSubtask(t.ctx, { taskId: t.c, beforeId: t.b, afterId: null });
+    expect(await t.order()).toEqual(['A', 'B', 'C']);
+  });
+
+  it('refuses reversed neighbours as stale', async () => {
+    const t = await three('r3@example.com', 'r3');
+    const r = await reorderSubtask(t.ctx, { taskId: t.a, beforeId: t.c, afterId: t.b });
+    expect(r).toEqual({ ok: false, error: 'The list changed while you were dragging. Try again.' });
+  });
+
+  it('refuses a neighbour from another parent, or an archived one', async () => {
+    const t = await three('r4@example.com', 'r4');
+    const other = await make(t.ctx, t.projectId, 'Other');
+    const stranger = await make(t.ctx, t.projectId, 'Stranger', { parentTaskId: other });
+    expect(await reorderSubtask(t.ctx, { taskId: t.a, beforeId: stranger, afterId: null }))
+      .toEqual({ ok: false, error: 'That move is not valid.' });
+    await db.update(task).set({ archivedAt: new Date() }).where(eq(task.id, t.b));
+    expect(await reorderSubtask(t.ctx, { taskId: t.a, beforeId: t.b, afterId: null }))
+      .toEqual({ ok: false, error: 'That move is not valid.' });
+  });
+
+  it('refuses a top-level task', async () => {
+    const t = await three('r5@example.com', 'r5');
+    expect((await reorderSubtask(t.ctx, { taskId: t.parent, beforeId: null, afterId: null })).ok).toBe(false);
+  });
+
+  it('places between two siblings that share a key by renumbering', async () => {
+    const t = await three('r6@example.com', 'r6');
+    // Backfilled subtasks can tie: copy A's key onto B.
+    const [rowA] = await db.select({ p: task.subtaskPosition }).from(task).where(eq(task.id, t.a));
+    await db.update(task).set({ subtaskPosition: rowA.p }).where(eq(task.id, t.b));
+    const [lo, hi] = [t.a, t.b].sort(); // ties read in id (codepoint) order
+    const r = await reorderSubtask(t.ctx, { taskId: t.c, beforeId: lo, afterId: hi });
+    expect(r.ok).toBe(true);
+    const titles = await t.order();
+    expect(titles.indexOf('C')).toBe(1);
   });
 });
