@@ -223,6 +223,8 @@ export type TaskDetail = TaskRow & {
   parentId: string | null;
   parentTitle: string | null;
   subtasks: TaskRow[];
+  /** The parent's subtasks in order, this one included; empty for a top-level task. */
+  siblings: { id: string; title: string }[];
 };
 
 /**
@@ -263,7 +265,16 @@ export async function getTaskDetail(
         isNull(task.archivedAt),
       ),
     )
-    .orderBy(byKey(task.position), byId(task.id));
+    .orderBy(byKey(task.subtaskPosition), byId(task.id));
+
+  const parentId = rows[0].parentId;
+  const siblings = parentId
+    ? await db
+        .select({ id: task.id, title: task.title })
+        .from(task)
+        .where(and(eq(task.parentTaskId, parentId), eq(task.workspaceId, ctx.workspaceId), isNull(task.archivedAt)))
+        .orderBy(byKey(task.subtaskPosition), byId(task.id))
+    : [];
 
   return {
     ...withLabels,
@@ -271,6 +282,7 @@ export async function getTaskDetail(
     parentId: rows[0].parentId,
     parentTitle: rows[0].parentTitle,
     subtasks: await attachLabels(subtaskRows),
+    siblings,
   };
 }
 
