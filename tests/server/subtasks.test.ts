@@ -1,15 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace } from '../setup/factories';
 import { createProject } from '@/server/projects/service';
 import { getProject } from '@/server/projects/queries';
 import { createTask, updateTask } from '@/server/tasks/service';
-import { getTaskDetail } from '@/server/tasks/queries';
-import { createSubtasks, reorderSubtask } from '@/server/tasks/subtasks';
-import { task } from '@/db';
+import { getTaskDetail, listParentCandidates, listProjectTasks } from '@/server/tasks/queries';
+import { createSubtasks, reorderSubtask, setTaskParent } from '@/server/tasks/subtasks';
+import { task, taskActivity } from '@/db';
 import type { WorkspaceContext } from '@/lib/session';
 
 beforeEach(resetDb);
@@ -217,5 +217,94 @@ describe('reorderSubtask', () => {
     expect(r.ok).toBe(true);
     const titles = await t.order();
     expect(titles.indexOf('C')).toBe(1);
+  });
+});
+
+describe('setTaskParent', () => {
+  it('makes a task a subtask at the end of its new siblings, keeping its status', async () => {
+    const { ctx, projectId, statuses } = await setup('p1@example.com', 'p1');
+    const parent = await make(ctx, projectId, 'Parent');
+    await make(ctx, projectId, 'Existing', { parentTaskId: parent });
+    const loose = await make(ctx, projectId, 'Loose', { statusId: statuses[1].id });
+
+    const r = await setTaskParent(ctx, { taskId: loose, parentTaskId: parent });
+
+    expect(r).toEqual({ ok: true, data: { previousParentId: null } });
+    const detail = await getTaskDetail(ctx, parent);
+    expect(detail!.subtasks.map((s) => s.title)).toEqual(['Existing', 'Loose']);
+    expect(detail!.subtasks[1].statusId).toBe(statuses[1].id);
+    expect((await listProjectTasks(ctx, projectId)).map((t) => t.title)).toEqual(['Parent']);
+    const [act] = await db.select().from(taskActivity).where(and(eq(taskActivity.taskId, loose), eq(taskActivity.kind, 'parent')));
+    expect(act.toValue).toBe('Parent');
+  });
+
+  it('promotes a subtask to the end of its column and clears its subtask key', async () => {
+    const { ctx, projectId } = await setup('p2@example.com', 'p2');
+    const parent = await make(ctx, projectId, 'Parent');
+    const child = await make(ctx, projectId, 'Child', { parentTaskId: parent });
+    await make(ctx, projectId, 'Later');
+
+    const r = await setTaskParent(ctx, { taskId: child, parentTaskId: null });
+
+    expect(r).toEqual({ ok: true, data: { previousParentId: parent } });
+    const top = await listProjectTasks(ctx, projectId);
+    expect(top.map((t) => t.title)).toEqual(['Parent', 'Later', 'Child']);
+    expect(new Set(top.map((t) => t.position)).size).toBe(3);
+    const [row] = await db.select({ p: task.subtaskPosition }).from(task).where(eq(task.id, child));
+    expect(row.p).toBeNull();
+  });
+
+  it('refuses self, a subtask parent, another project, an archived parent, and a task with subtasks', async () => {
+    const { ctx, projectId } = await setup('p3@example.com', 'p3');
+    const other = await createProject(ctx, { name: 'Other' });
+    if (!other.ok) throw new Error('setup');
+    const a = await make(ctx, projectId, 'A');
+    const b = await make(ctx, projectId, 'B');
+    const bChild = await make(ctx, projectId, 'B child', { parentTaskId: b });
+    const elsewhere = await make(ctx, other.data.id, 'Elsewhere');
+    const archived = await make(ctx, projectId, 'Archived');
+    await db.update(task).set({ archivedAt: new Date() }).where(eq(task.id, archived));
+
+    expect((await setTaskParent(ctx, { taskId: a, parentTaskId: a })).ok).toBe(false);
+    expect((await setTaskParent(ctx, { taskId: a, parentTaskId: bChild })).ok).toBe(false);
+    expect((await setTaskParent(ctx, { taskId: a, parentTaskId: elsewhere })).ok).toBe(false);
+    expect((await setTaskParent(ctx, { taskId: a, parentTaskId: archived })).ok).toBe(false);
+    expect(await setTaskParent(ctx, { taskId: b, parentTaskId: a }))
+      .toEqual({ ok: false, error: 'Tasks with subtasks can’t become subtasks.' });
+  });
+
+  it('refuses another workspace’s task', async () => {
+    const a = await setup('p4@example.com', 'p4');
+    const b = await setup('p5@example.com', 'p5');
+    const mine = await make(a.ctx, a.projectId, 'Mine');
+    const theirs = await make(b.ctx, b.projectId, 'Theirs');
+    expect((await setTaskParent(a.ctx, { taskId: theirs, parentTaskId: mine })).ok).toBe(false);
+  });
+
+  it('is a no-op when the parent is unchanged', async () => {
+    const { ctx, projectId } = await setup('p6@example.com', 'p6');
+    const parent = await make(ctx, projectId, 'Parent');
+    const child = await make(ctx, projectId, 'Child', { parentTaskId: parent });
+    expect(await setTaskParent(ctx, { taskId: child, parentTaskId: parent }))
+      .toEqual({ ok: true, data: { previousParentId: parent } });
+    const acts = await db.select().from(taskActivity).where(eq(taskActivity.kind, 'parent'));
+    expect(acts).toHaveLength(0);
+  });
+});
+
+describe('listParentCandidates', () => {
+  it('offers top-level tasks of the same project matching the term, never self', async () => {
+    const { ctx, projectId } = await setup('pc1@example.com', 'pc1');
+    const other = await createProject(ctx, { name: 'Other' });
+    if (!other.ok) throw new Error('setup');
+    const me = await make(ctx, projectId, 'Design me');
+    const design = await make(ctx, projectId, 'Design hero');
+    await make(ctx, projectId, 'Design sub', { parentTaskId: design });
+    await make(ctx, other.data.id, 'Design elsewhere');
+    await make(ctx, projectId, 'Unrelated');
+
+    const hits = await listParentCandidates(ctx, me, 'design');
+    expect(hits).toEqual([{ id: design, title: 'Design hero' }]);
+    expect((await listParentCandidates(ctx, me, '')).map((h) => h.title)).toEqual(['Design hero', 'Unrelated']);
   });
 });

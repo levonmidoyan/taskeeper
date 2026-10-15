@@ -26,5 +26,7 @@ export function describeActivity(entry: Extract<FeedEntry, { type: 'activity' }>
       return `attached “${entry.to}”`;
     case 'attachment_removed':
       return `removed attachment “${entry.from}”`;
+    case 'parent':
+      return entry.to ? `made it a subtask of “${entry.to}”` : 'promoted it to a task';
   }
 }

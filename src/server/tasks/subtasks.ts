@@ -1,4 +1,5 @@
 import { and, desc, eq, gt, isNull, ne } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { db, project, task, taskStatus } from '@/db';
 import { newId } from '@/lib/ids';
@@ -8,6 +9,7 @@ import type { WorkspaceContext } from '@/lib/session';
 import { MAX_SUBTASK_BATCH } from '@/lib/subtasks';
 import { recordActivity } from '@/server/activity/service';
 import { emitChange } from '@/server/changes/service';
+import { notifyTaskChange } from '@/server/notifications/changes';
 import { lastTaskPosition, lockColumns } from '@/server/tasks/columns';
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -199,6 +201,79 @@ export async function reorderSubtask(
       // A reorder is not history, as for board drags.
       await emitChange(ctx, { projectId: owned.projectId }, tx);
       return ok({ subtaskPosition: key });
+    });
+  });
+}
+
+const setParentSchema = z.object({
+  taskId: z.string().min(1),
+  parentTaskId: z.string().min(1).nullable(),
+});
+
+export type SetTaskParentInput = z.input<typeof setParentSchema>;
+
+/**
+ * Makes a task a subtask of another (parentTaskId set) or promotes a subtask
+ * to a top-level task (null). Depth stays one: the new parent must be
+ * top-level and the task must have no subtasks of its own.
+ */
+export async function setTaskParent(
+  ctx: WorkspaceContext,
+  input: SetTaskParentInput,
+): Promise<Result<{ previousParentId: string | null }>> {
+  return withAction(async () => {
+    const parsed = setParentSchema.safeParse(input);
+    if (!parsed.success) return err('That change is not valid.');
+    const { taskId, parentTaskId } = parsed.data;
+
+    const parentAlias = alias(task, 'old_parent');
+    const [owned] = await db
+      .select({
+        id: task.id, projectId: task.projectId, statusId: task.statusId,
+        parentId: task.parentTaskId, parentTitle: parentAlias.title,
+      })
+      .from(task)
+      .innerJoin(project, and(eq(project.id, task.projectId), isNull(project.archivedAt)))
+      .leftJoin(parentAlias, eq(parentAlias.id, task.parentTaskId))
+      .where(and(eq(task.id, taskId), eq(task.workspaceId, ctx.workspaceId), isNull(task.archivedAt)))
+      .limit(1);
+    if (!owned) return err('Task not found.');
+    if (owned.parentId === parentTaskId) return ok({ previousParentId: owned.parentId });
+
+    let newParentTitle: string | null = null;
+    if (parentTaskId) {
+      if (parentTaskId === taskId) return err('A task can’t be its own subtask.');
+      const parent = await loadParent(ctx, parentTaskId);
+      if (!parent || parent.projectId !== owned.projectId) return err('Parent task not found.');
+      newParentTitle = parent.title;
+      const [child] = await db
+        .select({ id: task.id })
+        .from(task)
+        .where(and(eq(task.parentTaskId, taskId), isNull(task.archivedAt)))
+        .limit(1);
+      if (child) return err('Tasks with subtasks can’t become subtasks.');
+    }
+
+    return db.transaction(async (tx) => {
+      if (parentTaskId) {
+        if (!(await lockParent(tx, parentTaskId))) return err('Parent task not found.');
+        const key = positionBetween(await lastSubtaskPosition(tx, parentTaskId), null);
+        await tx.update(task)
+          .set({ parentTaskId, subtaskPosition: key, updatedAt: new Date() })
+          .where(eq(task.id, taskId));
+      } else {
+        // A fresh board key at the column's end: the old one was only ever
+        // compared with siblings' keys and could tie with a board card's.
+        if (!(await lockColumns(tx, [owned.statusId]))) return err('That column no longer exists.');
+        const last = await lastTaskPosition(tx, owned.projectId, owned.statusId);
+        await tx.update(task)
+          .set({ parentTaskId: null, subtaskPosition: null, position: positionBetween(last, null), updatedAt: new Date() })
+          .where(eq(task.id, taskId));
+      }
+      await recordActivity(ctx, { taskId, kind: 'parent', from: owned.parentTitle, to: newParentTitle }, tx);
+      await notifyTaskChange(ctx, tx, { taskId, changes: ['parent'] });
+      await emitChange(ctx, { projectId: owned.projectId }, tx);
+      return ok({ previousParentId: owned.parentId });
     });
   });
 }

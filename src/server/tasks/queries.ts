@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { comment, db, label, project, task, taskActivity, taskLabel, taskStatus, user } from '@/db';
 import { isOverdue } from '@/lib/dates';
@@ -473,4 +473,36 @@ export async function listRecentTasks(ctx: WorkspaceContext, limit = 30): Promis
     // A raw aggregate comes back from pg as a string, not through the column's mapper.
     touchedAt: new Date(touchedAt),
   }));
+}
+
+/**
+ * What "Make subtask of…" offers: top-level, unarchived tasks in the same
+ * project as `taskId`, never the task itself, title matching `term` (all when
+ * empty). Board order, capped at 20.
+ */
+export async function listParentCandidates(
+  ctx: WorkspaceContext,
+  taskId: string,
+  term: string,
+): Promise<{ id: string; title: string }[]> {
+  const [self] = await db
+    .select({ projectId: task.projectId })
+    .from(task)
+    .where(and(eq(task.id, taskId), eq(task.workspaceId, ctx.workspaceId)))
+    .limit(1);
+  if (!self) return [];
+  const trimmed = term.trim().slice(0, 100);
+  return db
+    .select({ id: task.id, title: task.title })
+    .from(task)
+    .where(and(
+      eq(task.projectId, self.projectId),
+      eq(task.workspaceId, ctx.workspaceId),
+      isNull(task.parentTaskId),
+      isNull(task.archivedAt),
+      ne(task.id, taskId),
+      trimmed ? ilike(task.title, likePattern(trimmed)) : undefined,
+    ))
+    .orderBy(byKey(task.position), byId(task.id))
+    .limit(20);
 }

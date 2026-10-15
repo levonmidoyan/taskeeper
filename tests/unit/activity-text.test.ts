@@ -44,4 +44,10 @@ describe('describeActivity', () => {
     expect(describeActivity(activity({ kind: 'attachment_removed', from: 'spec.pdf' })))
       .toBe('removed attachment “spec.pdf”');
   });
+
+  it('describes a parent change', () => {
+    expect(describeActivity(activity({ kind: 'parent', from: null, to: 'Launch' }))).toBe('made it a subtask of “Launch”');
+    expect(describeActivity(activity({ kind: 'parent', from: 'Launch', to: null }))).toBe('promoted it to a task');
+    expect(describeActivity(activity({ kind: 'parent', from: 'Old', to: 'New' }))).toBe('made it a subtask of “New”');
+  });
 });
