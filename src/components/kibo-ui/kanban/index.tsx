@@ -131,9 +131,22 @@ export type KanbanCardProps = {
    * button, never inside it: a button cannot hold another. Hidden while dragging.
    */
   action?: ReactNode;
+  /**
+   * Interactive content under the card body (the card itself is one button, so
+   * nothing clickable can live inside it). With a footer the card's chrome
+   * moves to a wrapper around both.
+   */
+  footer?: ReactNode;
 };
 
-export function KanbanCard({ id, name, children, className, onClick, transitionName, morphName, navColumn, action }: KanbanCardProps) {
+const CARD_CHROME =
+  'rounded-10 bg-bg-white-0 shadow-regular-xs ring-1 ring-inset ring-stroke-soft-200 transition-shadow duration-150 hover:shadow-regular-sm';
+// The slot the card will land in: same size, content hidden but still named for
+// assistive tech.
+const CARD_PLACEHOLDER =
+  'pointer-events-none bg-primary-lighter shadow-none ring-0 outline-1 -outline-offset-1 outline-dashed outline-primary-base';
+
+export function KanbanCard({ id, name, children, className, onClick, transitionName, morphName, navColumn, action, footer }: KanbanCardProps) {
   const { attributes, listeners, setNodeRef, transition, transform, isDragging } = useSortable({
     id,
     transition: { duration: DURATION.base, easing: EASE_OUT_SOFT },
@@ -157,10 +170,9 @@ export function KanbanCard({ id, name, children, className, onClick, transitionN
       data-task-nav={navColumn !== undefined ? id : undefined}
       data-nav-col={navColumn}
       className={cn(
-        'w-full cursor-grab rounded-10 bg-bg-white-0 p-3 text-left shadow-regular-xs ring-1 ring-inset ring-stroke-soft-200 transition-shadow duration-150 hover:shadow-regular-sm active:cursor-grabbing',
-        // The slot the card will land in: same size, content hidden but still named
-        // for assistive tech.
-        isDragging && 'pointer-events-none bg-primary-lighter shadow-none ring-0 outline-1 -outline-offset-1 outline-dashed outline-primary-base',
+        'w-full cursor-grab rounded-10 p-3 text-left active:cursor-grabbing',
+        !footer && CARD_CHROME,
+        !footer && isDragging && CARD_PLACEHOLDER,
         className,
       )}
     >
@@ -177,6 +189,13 @@ export function KanbanCard({ id, name, children, className, onClick, transitionN
     </button>
   );
 
+  const card = footer ? (
+    <div className={cn(CARD_CHROME, isDragging && CARD_PLACEHOLDER)}>
+      {button}
+      {!isDragging && footer}
+    </div>
+  ) : button;
+
   return (
     <li
       ref={setNodeRef}
@@ -187,8 +206,8 @@ export function KanbanCard({ id, name, children, className, onClick, transitionN
         // A teammate's move slides the whole card; only live refreshes are tagged, so my
         // own drops stay with dnd-kit. Inside the <li>, so it never starts a transition
         // of its own when a card mounts.
-        <ViewTransition name={transitionName} {...REMOTE_CHANGE}>{button}</ViewTransition>
-      ) : button}
+        <ViewTransition name={transitionName} {...REMOTE_CHANGE}>{card}</ViewTransition>
+      ) : card}
       {action && !isDragging && <div className="absolute right-1.5 top-1.5">{action}</div>}
       {activeCardId === id && (
         <overlay.In>

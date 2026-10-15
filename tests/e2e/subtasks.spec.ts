@@ -77,3 +77,21 @@ test('a task becomes a subtask of another and back, with Undo', async ({ page })
   await page.getByRole('menuitem', { name: 'Promote to task' }).click();
   await expect(dialog.getByRole('button', { name: 'Rename “Write copy”' })).toBeHidden();
 });
+
+test('a board card expands its subtasks; ticking one updates the count without opening the card', async ({ page }) => {
+  const dialog = await signUpAndOpenTask(page, 'board-checklist');
+  await addSubtasks(page, ['One', 'Two']);
+  await page.keyboard.press('Escape');
+  await expect(page).not.toHaveURL(/[?&]task=/);
+
+  const toggle = page.getByRole('button', { name: 'Subtasks of Launch' });
+  await expect(toggle).toHaveText(/0\/2/);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await page.getByRole('button', { name: 'Mark “One” as done' }).click();
+  await expect(toggle).toHaveText(/1\/2/);
+  await expect(page).not.toHaveURL(/[?&]task=/);
+
+  await page.getByRole('button', { name: 'Two', exact: true }).click();
+  await expect(dialog.getByLabel('Title')).toHaveValue('Two');
+});

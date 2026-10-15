@@ -1,6 +1,7 @@
 'use client';
 
-import { IconArrowsRightLeft, IconSubtask } from '@tabler/icons-react';
+import { IconArrowsRightLeft } from '@tabler/icons-react';
+import { CardSubtasks } from '@/components/board/CardSubtasks';
 import { KanbanCard } from '@/components/kibo-ui/kanban';
 import { Hint } from '@/components/shell/ShortcutHint';
 import { AssigneeAvatar } from '@/components/task/AssigneeAvatar';
@@ -21,6 +22,9 @@ export function TaskCard({
   onOpen,
   statuses,
   onMoveTo,
+  workspaceSlug,
+  expanded,
+  onToggleSubtasks,
 }: {
   task: TaskRow;
   timezone: string;
@@ -28,6 +32,9 @@ export function TaskCard({
   onOpen: (id: string) => void;
   statuses: StatusRow[];
   onMoveTo: (taskId: string, statusId: string) => void;
+  workspaceSlug: string;
+  expanded: boolean;
+  onToggleSubtasks: (id: string) => void;
 }) {
   // Move to… without a drag: a long press is hard to find on a phone, and impossible
   // to aim across columns that don't fit on its screen.
@@ -65,6 +72,16 @@ export function TaskCard({
       morphName={taskMorphName(task.id, openTaskId)}
       navColumn={task.statusId}
       action={moveMenu}
+      footer={task.subtaskCount > 0 ? (
+        <CardSubtasks
+          task={task}
+          statuses={statuses}
+          workspaceSlug={workspaceSlug}
+          expanded={expanded}
+          onToggle={() => onToggleSubtasks(task.id)}
+          onOpen={onOpen}
+        />
+      ) : undefined}
     >
       {/* pr clears the Move to… button in the corner. */}
       <p className="pr-7 text-paragraph-sm text-text-strong-950 max-sm:pr-10">{task.title}</p>
@@ -84,15 +101,6 @@ export function TaskCard({
         {task.dueDate && (
           <Hint label="Due date">
             <span className="inline-flex"><DueChip dueDate={task.dueDate} timezone={timezone} done={task.completedAt !== null} /></span>
-          </Hint>
-        )}
-        {task.subtaskCount > 0 && (
-          <Hint label={`${task.subtaskDoneCount} of ${task.subtaskCount} subtasks done`}>
-            <span className="tabular inline-flex items-center gap-1 text-paragraph-xs text-text-sub-600">
-              <IconSubtask className="size-3.5" aria-hidden="true" />
-              <span className="sr-only">Subtasks done: </span>
-              {task.subtaskDoneCount}/{task.subtaskCount}
-            </span>
           </Hint>
         )}
         {task.assigneeName && (

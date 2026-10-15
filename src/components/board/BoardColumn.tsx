@@ -26,6 +26,8 @@ export function BoardColumn({
   canEdit,
   openTaskId,
   onOpen,
+  expandedIds,
+  onToggleSubtasks,
 }: {
   status: StatusRow;
   /** Every column, for a card's Move to… menu. */
@@ -38,6 +40,9 @@ export function BoardColumn({
   /** ?task=, so that card gives its morph name to the modal. */
   openTaskId: string | null;
   onOpen: (id: string) => void;
+  /** Cards whose subtask checklist is open; kept by the board so a refresh keeps it. */
+  expandedIds: ReadonlySet<string>;
+  onToggleSubtasks: (id: string) => void;
 }) {
   const id = columnId(status.id);
 
@@ -74,6 +79,9 @@ export function BoardColumn({
             onOpen={onOpen}
             statuses={statuses}
             onMoveTo={onMoveTo}
+            workspaceSlug={workspaceSlug}
+            expanded={expandedIds.has(item.id)}
+            onToggleSubtasks={onToggleSubtasks}
           />
         )}
       </KanbanCards>
