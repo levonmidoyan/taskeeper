@@ -36,10 +36,15 @@ export function TaskTableSettings({
   settings,
   onChange,
   onReset,
+  onExpandAll,
+  onCollapseAll,
 }: {
   settings: TableSettings;
   onChange: (patch: Partial<TableSettings>) => void;
   onReset: () => void;
+  /** Given when some row has subtasks: open or close every parent's subtask rows. */
+  onExpandAll?: () => void;
+  onCollapseAll?: () => void;
 }) {
   const [dragging, setDragging] = useState(false);
   const drag = useDragBusy('table-columns');
@@ -82,6 +87,20 @@ export function TaskTableSettings({
         // Escape mid-drag cancels the drag; it must not also close the popover.
         onEscapeKeyDown={(event) => { if (dragging) event.preventDefault(); }}
       >
+        {onExpandAll && onCollapseAll && (
+          <section className="flex flex-col gap-2">
+            <h3 className="text-label-xs text-text-sub-600">Subtasks</h3>
+            <div className="flex gap-2">
+              <Button.Root variant="neutral" mode="stroke" size="xxsmall" className="flex-1" onClick={onExpandAll}>
+                Expand all
+              </Button.Root>
+              <Button.Root variant="neutral" mode="stroke" size="xxsmall" className="flex-1" onClick={onCollapseAll}>
+                Collapse all
+              </Button.Root>
+            </div>
+          </section>
+        )}
+
         <section className="flex flex-col gap-2">
           <h3 className="text-label-xs text-text-sub-600">Columns</h3>
           <ul className="flex flex-col gap-0.5">

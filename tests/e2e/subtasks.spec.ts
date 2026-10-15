@@ -95,3 +95,20 @@ test('a board card expands its subtasks; ticking one updates the count without o
   await page.getByRole('button', { name: 'Two', exact: true }).click();
   await expect(dialog.getByLabel('Title')).toHaveValue('Two');
 });
+
+test('the list expands a parent into indented subtask rows', async ({ page }) => {
+  await signUpAndOpenTask(page, 'list-children');
+  await addSubtasks(page, ['One', 'Two']);
+  await page.keyboard.press('Escape');
+  await page.getByRole('tab', { name: 'List' }).click();
+
+  const chevron = page.getByRole('table').getByRole('button', { name: 'Subtasks of Launch' });
+  await chevron.click();
+  await expect(chevron).toHaveAttribute('aria-expanded', 'true');
+  const table = page.getByRole('table');
+  await expect(table.getByRole('button', { name: 'One', exact: true })).toBeVisible();
+  await expect(table.getByRole('button', { name: 'Two', exact: true })).toBeVisible();
+
+  await table.getByRole('button', { name: 'Two', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Task details' }).getByLabel('Title')).toHaveValue('Two');
+});
