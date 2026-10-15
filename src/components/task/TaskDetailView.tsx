@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  IconArrowUpRight, IconChevronLeft, IconDots, IconLink, IconTrash, IconX,
+  IconArrowUpRight, IconDots, IconLink, IconTrash, IconX,
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -21,6 +21,7 @@ import { StatusIcon } from '@/components/task/StatusIcon';
 import { homeCrumb } from '@/components/shell/crumbs';
 import { ShortcutTooltip } from '@/components/shell/ShortcutHint';
 import { PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
+import { SubtaskBanner } from '@/components/task/SubtaskBanner';
 import { SubtaskSection } from '@/components/task/SubtaskSection';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Dropdown from '@/components/ui/dropdown';
@@ -163,11 +164,25 @@ export function TaskDetailView({
   const projectHref = `/${workspaceSlug}/projects/${projectId}`;
   const pageHref = `${tasksBase}/${task.id}`;
 
-  function openParent() {
+  function goTo(id: string) {
+    if (mode === 'page') {
+      router.push(`${tasksBase}/${id}`);
+      return;
+    }
     const next = new URLSearchParams(searchParams);
-    next.set('task', task.parentId!);
+    next.set('task', id);
     router.push(`?${next.toString()}`, { scroll: false });
   }
+  const openParent = () => goTo(task.parentId!);
+
+  const siblingIndex = task.siblings.findIndex((s) => s.id === task.id);
+  useShortcut('detail.prevSibling', () => {
+    if (siblingIndex > 0) goTo(task.siblings[siblingIndex - 1].id);
+  }, task.parentId !== null);
+  useShortcut('detail.nextSibling', () => {
+    if (siblingIndex >= 0 && siblingIndex < task.siblings.length - 1) goTo(task.siblings[siblingIndex + 1].id);
+  }, task.parentId !== null);
+  useShortcut('detail.parent', openParent, task.parentId !== null);
 
   function close() {
     const next = new URLSearchParams(searchParams);
@@ -266,18 +281,7 @@ export function TaskDetailView({
 
   const header = mode === 'modal' ? (
     <header className="flex shrink-0 items-center justify-between gap-3 border-b border-stroke-soft-200 px-5 py-3">
-      {task.parentId ? (
-        <button
-          type="button"
-          onClick={openParent}
-          className="-ml-1 inline-flex min-w-0 items-center gap-1 rounded-lg px-1 py-1 text-paragraph-xs text-text-sub-600 transition-colors duration-150 hover:text-text-strong-950"
-        >
-          <IconChevronLeft className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="truncate">{task.parentTitle}</span>
-        </button>
-      ) : (
-        <span className="text-paragraph-xs text-text-sub-600">Task</span>
-      )}
+      <span className="text-paragraph-xs text-text-sub-600">{task.parentId ? 'Subtask' : 'Task'}</span>
 
       <div className="flex shrink-0 items-center gap-1">
         <Hint label="Copy link">
@@ -328,6 +332,15 @@ export function TaskDetailView({
   return (
     <>
       {header}
+      {task.parentId && (
+        <SubtaskBanner
+          parentTitle={task.parentTitle ?? 'Parent task'}
+          siblings={task.siblings}
+          currentId={task.id}
+          onGo={goTo}
+          onParent={openParent}
+        />
+      )}
 
       {/* One scrolling column on small screens (title, fields, content);
           from lg the content and the fields sidebar scroll independently. */}

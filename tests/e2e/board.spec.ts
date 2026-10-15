@@ -156,7 +156,7 @@ test('a subtask can be added from the task dialog and opened in place', async ({
   // Opening is explicit; the opened subtask names its parent.
   await dialog.getByRole('button', { name: 'Open “Write the copy”' }).click();
   await expect(page.getByLabel('Title')).toHaveValue('Write the copy');
-  await expect(dialog.getByRole('link', { name: 'Drag me' }).or(dialog.getByRole('button', { name: 'Drag me', exact: true }))).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Drag me', exact: true })).toBeVisible();
   await expect(dialog.getByPlaceholder('Add subtask…')).toBeHidden();
 
   await dialog.getByRole('button', { name: 'Drag me', exact: true }).click();

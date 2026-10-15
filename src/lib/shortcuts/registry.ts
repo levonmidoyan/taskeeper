@@ -34,6 +34,9 @@ export const SHORTCUTS = [
   { id: 'detail.labels', keys: ['l'], scope: 'detail', group: 'Task', label: 'Add labels' },
   { id: 'detail.due', keys: ['d'], scope: 'detail', group: 'Task', label: 'Set due date' },
   { id: 'detail.comment', keys: ['m'], scope: 'detail', group: 'Task', label: 'Comment' },
+  { id: 'detail.prevSibling', keys: ['['], scope: 'detail', group: 'Task', label: 'Previous subtask (on a subtask)' },
+  { id: 'detail.nextSibling', keys: [']'], scope: 'detail', group: 'Task', label: 'Next subtask (on a subtask)' },
+  { id: 'detail.parent', keys: ['u'], scope: 'detail', group: 'Task', label: 'Go to parent task (on a subtask)' },
 
   { id: 'goto.home', keys: ['g h'], scope: 'global', group: 'Go to', label: 'For you' },
   { id: 'goto.todo', keys: ['g t'], scope: 'global', group: 'Go to', label: 'My To-do' },
