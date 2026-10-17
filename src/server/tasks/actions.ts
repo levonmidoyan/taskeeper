@@ -6,12 +6,16 @@ import { err, ok, withAction, type Result } from '@/lib/result';
 import { listLabels, listWorkspaceMembers, type MemberRow } from '@/server/labels/queries';
 import { getProject, type StatusRow } from '@/server/projects/queries';
 import {
-  listRecentTasks, searchTasks, type LabelRow, type RecentTask, type TaskSearchHit,
+  listParentCandidates, listRecentTasks, searchTasks, type LabelRow, type RecentTask, type TaskSearchHit,
 } from './queries';
 import {
   bulkDeleteTasks, bulkUpdateTasks, createTask, deleteTask, moveTask, updateTask,
   type BulkUpdateTasksInput, type CreateTaskInput, type MoveTaskInput, type UpdateTaskInput,
 } from './service';
+import {
+  createSubtasks, reorderSubtask, setTaskParent,
+  type CreateSubtasksInput, type ReorderSubtaskInput, type SetTaskParentInput,
+} from './subtasks';
 
 /**
  * Slug-taking wrappers only (Amendment A): every export here is a public HTTP
@@ -138,4 +142,46 @@ export async function getCreateTaskOptionsAction(
     if (!detail) return err('Project not found.');
     return ok({ statuses: detail.statuses, members, labels, timezone: ctx.timezone });
   });
+}
+
+export async function createSubtasksAction(
+  workspaceSlug: string,
+  input: CreateSubtasksInput,
+): Promise<Result<{ ids: string[] }>> {
+  return withAction(async () => {
+    const result = await createSubtasks(await requireWorkspace(workspaceSlug), input);
+    if (result.ok) revalidateWorkspace(workspaceSlug);
+    return result;
+  });
+}
+
+export async function reorderSubtaskAction(
+  workspaceSlug: string,
+  input: ReorderSubtaskInput,
+): Promise<Result<{ subtaskPosition: string }>> {
+  return withAction(async () => {
+    const result = await reorderSubtask(await requireWorkspace(workspaceSlug), input);
+    if (result.ok) revalidateWorkspace(workspaceSlug);
+    return result;
+  });
+}
+
+export async function setTaskParentAction(
+  workspaceSlug: string,
+  input: SetTaskParentInput,
+): Promise<Result<{ previousParentId: string | null; previousKey: string | null }>> {
+  return withAction(async () => {
+    const result = await setTaskParent(await requireWorkspace(workspaceSlug), input);
+    if (result.ok) revalidateWorkspace(workspaceSlug);
+    return result;
+  });
+}
+
+/** Read-only: the "Make subtask of…" picker's options. */
+export async function parentCandidatesAction(
+  workspaceSlug: string,
+  taskId: string,
+  term: string,
+): Promise<Result<{ id: string; title: string }[]>> {
+  return withAction(async () => ok(await listParentCandidates(await requireWorkspace(workspaceSlug), taskId, term)));
 }

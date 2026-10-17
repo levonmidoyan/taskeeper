@@ -14,6 +14,7 @@ import { emitChange } from '@/server/changes/service';
 import { replaceTaskLabels } from '@/server/labels/service';
 import { notifyMentions, notifyTaskChange } from '@/server/notifications/changes';
 import { lastTaskPosition, lockColumns, nextTaskPosition } from '@/server/tasks/columns';
+import { lastSubtaskPosition, lockParent } from '@/server/tasks/subtasks';
 
 const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const;
 
@@ -134,7 +135,8 @@ export async function createTask(
     if (assigneeId && !(await memberName(ctx, assigneeId))) return err('That person is not in this workspace.');
 
     // A subtask lives on its parent's board, so the parent must be in the same
-    // project — which also keeps it inside this workspace.
+    // project — which also keeps it inside this workspace — and top-level:
+    // subtasks are one level deep.
     const parentTaskId = parsed.data.parentTaskId ?? null;
     if (parentTaskId) {
       const [parent] = await db
@@ -145,6 +147,7 @@ export async function createTask(
             eq(task.id, parentTaskId),
             eq(task.projectId, parsed.data.projectId),
             eq(task.workspaceId, ctx.workspaceId),
+            isNull(task.parentTaskId),
           ),
         )
         .limit(1);
@@ -167,6 +170,11 @@ export async function createTask(
       // column append one after another instead of sharing a key.
       if (!(await lockColumns(tx, [statusId]))) return err(COLUMN_GONE);
       const last = await lastTaskPosition(tx, parsed.data.projectId, statusId);
+      let subtaskPosition: string | null = null;
+      if (parentTaskId) {
+        if (!(await lockParent(tx, parentTaskId))) return err('Parent task not found.');
+        subtaskPosition = positionBetween(await lastSubtaskPosition(tx, parentTaskId), null);
+      }
 
       await tx.insert(task).values({
         id,
@@ -177,6 +185,7 @@ export async function createTask(
         title: parsed.data.title,
         statusId,
         parentTaskId,
+        subtaskPosition,
         position: positionBetween(last, null),
         createdBy: ctx.userId,
         description: parsed.data.description,

@@ -10,6 +10,7 @@ import { STATUS_ICON_KEYS, type StatusIconKey } from '@/lib/status-icons';
 import type { StatusRow } from '@/server/projects/queries';
 import { updateStatusAction } from '@/server/statuses/actions';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 const OPTIONS: (StatusIconKey | null)[] = [null, ...STATUS_ICON_KEYS];
 
@@ -54,16 +55,21 @@ export function StatusIconPicker({
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger
-        aria-label={`Change icon of ${status.name}`}
-        disabled={disabled}
-        className={cn(
-          'flex size-6 shrink-0 items-center justify-center rounded-md transition-colors duration-150',
-          'hover:bg-bg-soft-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base',
-          'disabled:pointer-events-none disabled:opacity-50',
-        )}
-      >
-        <StatusIcon status={{ ...status, icon: shown }} />
+      <Popover.Trigger asChild>
+        <Hint label="Change icon">
+          <button
+            type="button"
+            aria-label={`Change icon of ${status.name}`}
+            disabled={disabled}
+            className={cn(
+              'flex size-6 shrink-0 items-center justify-center rounded-md transition-colors duration-150',
+              'hover:bg-bg-soft-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base',
+              'disabled:pointer-events-none disabled:opacity-50',
+            )}
+          >
+            <StatusIcon status={{ ...status, icon: shown }} />
+          </button>
+        </Hint>
       </Popover.Trigger>
       <Popover.Content align="start" showArrow={false} sideOffset={6} className="p-3">
         <p className="mb-2 text-label-xs text-text-sub-600">Icon</p>

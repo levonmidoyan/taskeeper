@@ -65,23 +65,70 @@ test('the description is a preview until clicked; Save keeps, Cancel and Escape 
   await expect(dialog.getByTestId('description-preview')).toHaveText('First draft, final');
 });
 
-test('the subtask input appears on request and Escape puts the button back', async ({ page }) => {
+test('the subtask field is always there, keeps focus, and pastes many lines after a confirm', async ({ page }) => {
   const dialog = await signUpAndOpenTask(page, 'subtask-input');
-  const input = dialog.getByPlaceholder('Add a subtask…');
+  const input = dialog.getByPlaceholder('Add subtask…');
 
-  await expect(input).toBeHidden();
-  await dialog.getByRole('button', { name: 'Add subtask' }).click();
-  await expect(input).toBeFocused();
+  await expect(input).toBeVisible();
+  await expect(dialog.getByText('Break this task into steps.')).toBeVisible();
   await input.fill('One');
   await input.press('Enter');
-  await expect(dialog.getByRole('button', { name: 'One', exact: true })).toBeVisible();
-  // Still open, ready for the next one.
+  await expect(dialog.getByRole('button', { name: 'Rename “One”' })).toBeVisible();
   await expect(input).toBeFocused();
 
+  await input.evaluate((el, text) => {
+    const data = new DataTransfer();
+    data.setData('text/plain', text);
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  }, '- Two\n- Three\n\n- Four');
+  await expect(dialog.getByText('Create 3 subtasks?')).toBeVisible();
+  await input.press('Enter');
+  await expect(dialog.getByText('1/4').or(dialog.getByText('0/4'))).toBeVisible();
+  const titles = dialog.getByRole('list', { name: 'Subtasks' }).getByRole('button', { name: /^Rename/ });
+  await expect(titles).toHaveText(['One', 'Two', 'Three', 'Four']);
+});
+
+test('a one-line paste drops its list marker; Esc on a many-line paste inserts it at the cursor', async ({ page }) => {
+  const dialog = await signUpAndOpenTask(page, 'subtask-paste');
+  const input = dialog.getByPlaceholder('Add subtask…');
+  const paste = (text: string) => input.evaluate((el, t) => {
+    const data = new DataTransfer();
+    data.setData('text/plain', t);
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  }, text);
+
+  await input.focus();
+  await paste('- Buy milk');
+  await expect(input).toHaveValue('Buy milk');
+
+  await input.fill('Hello world');
+  await input.evaluate((el: HTMLInputElement) => el.setSelectionRange(6, 6));
+  await paste('a\nb');
+  await expect(dialog.getByText('Create 2 subtasks?')).toBeVisible();
   await input.press('Escape');
+  await expect(input).toHaveValue('Hello a bworld');
+  await expect(dialog.getByText('Create 2 subtasks?')).toBeHidden();
+});
+
+test('a subtask renames in place; Escape reverts', async ({ page }) => {
+  const dialog = await signUpAndOpenTask(page, 'subtask-rename');
+  const input = dialog.getByPlaceholder('Add subtask…');
+  await input.fill('Draft');
+  await input.press('Enter');
+
+  await dialog.getByRole('button', { name: 'Rename “Draft”' }).click();
+  const edit = dialog.getByRole('textbox', { name: 'Subtask title' });
+  await edit.fill('Final');
+  await edit.press('Escape');
   await expect(dialog).toBeVisible();
-  await expect(input).toBeHidden();
-  await expect(dialog.getByRole('button', { name: 'Add subtask' })).toBeFocused();
+  await expect(dialog.getByRole('button', { name: 'Rename “Draft”' })).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Rename “Draft”' }).click();
+  await dialog.getByRole('textbox', { name: 'Subtask title' }).fill('Final');
+  await dialog.getByRole('textbox', { name: 'Subtask title' }).press('Enter');
+  await expect(dialog.getByRole('button', { name: 'Rename “Final”' })).toBeVisible();
+  await page.reload();
+  await expect(dialog.getByRole('button', { name: 'Rename “Final”' })).toBeVisible();
 });
 
 test('sections collapse and stay collapsed on the next task', async ({ page }) => {

@@ -1,8 +1,9 @@
 'use client';
 
-import { IconCheck, IconChevronDown, IconSearch, IconUserOff } from '@tabler/icons-react';
+import { IconCheck, IconChevronDown, IconSearch, IconUser, IconUserOff } from '@tabler/icons-react';
 import { Command } from 'cmdk';
 import { useState } from 'react';
+import { UserAvatar } from '@/components/auth/user/user-avatar';
 import { UserView } from '@/components/auth/user/user-view';
 import * as Popover from '@/components/ui/popover';
 import { selectVariants } from '@/components/ui/select';
@@ -23,11 +24,17 @@ export function AssigneePicker({
   members,
   value,
   onChange,
+  compact = false,
+  label,
 }: {
   id?: string;
   members: MemberRow[];
   value: string | null;
   onChange: (userId: string | null) => void;
+  /** Avatar-only trigger, for dense rows. */
+  compact?: boolean;
+  /** Accessible name of the compact trigger. */
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
   const selected = members.find((m) => m.userId === value) ?? null;
@@ -39,25 +46,41 @@ export function AssigneePicker({
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger id={id} className={triggerRoot()}>
-        {selected ? (
-          <>
-            <UserView user={selected} hideSubtitle avatarClassName="size-5 text-[0.5625rem]" />
-          </>
-        ) : (
-          <>
-            <IconUserOff className="size-5 shrink-0 text-text-soft-400" aria-hidden="true" />
-            <span className="text-text-sub-600">Unassigned</span>
-          </>
-        )}
-        <IconChevronDown className={triggerArrow()} aria-hidden="true" />
-      </Popover.Trigger>
+      {compact ? (
+        <Popover.Trigger
+          id={id}
+          aria-label={label ?? (selected ? `Assignee: ${selected.name}` : 'Assign')}
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-text-soft-400 transition-colors duration-150 hover:text-text-strong-950"
+        >
+          {selected ? (
+            <UserAvatar user={selected} aria-hidden="true" className="size-6 text-[0.625rem]" />
+          ) : (
+            <span className="inline-flex size-6 items-center justify-center rounded-full border border-dashed border-stroke-sub-300">
+              <IconUser className="size-3.5" aria-hidden="true" />
+            </span>
+          )}
+        </Popover.Trigger>
+      ) : (
+        <Popover.Trigger id={id} className={triggerRoot()}>
+          {selected ? (
+            <>
+              <UserView user={selected} hideSubtitle avatarClassName="size-5 text-[0.5625rem]" />
+            </>
+          ) : (
+            <>
+              <IconUserOff className="size-5 shrink-0 text-text-soft-400" aria-hidden="true" />
+              <span className="text-text-sub-600">Unassigned</span>
+            </>
+          )}
+          <IconChevronDown className={triggerArrow()} aria-hidden="true" />
+        </Popover.Trigger>
+      )}
 
       <Popover.Content
-        align="start"
+        align={compact ? 'end' : 'start'}
         sideOffset={8}
         showArrow={false}
-        className="w-[var(--radix-popover-trigger-width)] min-w-64 p-0"
+        className={cn(compact ? 'w-64' : 'w-[var(--radix-popover-trigger-width)] min-w-64', 'p-0')}
       >
         <Command label="Assignee">
           <div className="flex items-center gap-2 border-b border-stroke-soft-200 px-3">

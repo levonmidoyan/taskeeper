@@ -18,6 +18,7 @@ import {
 import type { NotificationItem } from '@/server/notifications/queries';
 import { NotificationList } from './NotificationList';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 /**
  * Header bell. The count arrives server-rendered with the shell and is
@@ -178,18 +179,22 @@ export function NotificationBell({ workspaceSlug, initialUnread, serverNow, soun
   return (
     <>
       {/* Phones get the full Inbox page instead of a popover. */}
-      <CompactButton.Root asChild variant="ghost" size="large" className="relative sm:hidden">
-        <Link href={`/${workspaceSlug}/inbox`} aria-label={label}>
-          <CompactButton.Icon as={IconBell} />
-          {badge}
-        </Link>
-      </CompactButton.Root>
-      <Popover.Root open={open} onOpenChange={onOpenChange}>
-        <Popover.Trigger asChild>
-          <CompactButton.Root variant="ghost" size="large" aria-label={label} className="relative max-sm:hidden">
+      <Hint label="Notifications">
+        <CompactButton.Root asChild variant="ghost" size="large" className="relative sm:hidden">
+          <Link href={`/${workspaceSlug}/inbox`} aria-label={label}>
             <CompactButton.Icon as={IconBell} />
             {badge}
-          </CompactButton.Root>
+          </Link>
+        </CompactButton.Root>
+      </Hint>
+      <Popover.Root open={open} onOpenChange={onOpenChange}>
+        <Popover.Trigger asChild>
+          <Hint label="Notifications">
+            <CompactButton.Root variant="ghost" size="large" aria-label={label} className="relative max-sm:hidden">
+              <CompactButton.Icon as={IconBell} />
+              {badge}
+            </CompactButton.Root>
+          </Hint>
         </Popover.Trigger>
         <Popover.Content align="end" sideOffset={8} showArrow={false} className="w-80 p-0">
           <div className="flex items-center justify-between border-b border-stroke-soft-200 px-4 py-3">

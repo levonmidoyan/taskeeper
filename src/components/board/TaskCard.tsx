@@ -1,7 +1,9 @@
 'use client';
 
 import { IconArrowsRightLeft } from '@tabler/icons-react';
+import { CardSubtasks } from '@/components/board/CardSubtasks';
 import { KanbanCard } from '@/components/kibo-ui/kanban';
+import { Hint } from '@/components/shell/ShortcutHint';
 import { AssigneeAvatar } from '@/components/task/AssigneeAvatar';
 import { DueChip } from '@/components/task/DueChip';
 import { LabelChip } from '@/components/task/LabelChip';
@@ -20,6 +22,9 @@ export function TaskCard({
   onOpen,
   statuses,
   onMoveTo,
+  workspaceSlug,
+  expanded,
+  onToggleSubtasks,
 }: {
   task: TaskRow;
   timezone: string;
@@ -27,20 +32,25 @@ export function TaskCard({
   onOpen: (id: string) => void;
   statuses: StatusRow[];
   onMoveTo: (taskId: string, statusId: string) => void;
+  workspaceSlug: string;
+  expanded: boolean;
+  onToggleSubtasks: (id: string) => void;
 }) {
   // Move to… without a drag: a long press is hard to find on a phone, and impossible
   // to aim across columns that don't fit on its screen.
   const moveMenu = (
     <Dropdown.Root>
       <Dropdown.Trigger asChild>
-        <CompactButton.Root
-          variant="ghost"
-          size="medium"
-          aria-label={`Move ${task.title}`}
-          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100 max-sm:size-11"
-        >
-          <CompactButton.Icon as={IconArrowsRightLeft} />
-        </CompactButton.Root>
+        <Hint label="Move to…">
+          <CompactButton.Root
+            variant="ghost"
+            size="medium"
+            aria-label={`Move ${task.title}`}
+            className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100 max-sm:size-11"
+          >
+            <CompactButton.Icon as={IconArrowsRightLeft} />
+          </CompactButton.Root>
+        </Hint>
       </Dropdown.Trigger>
       <Dropdown.Content align="end">
         <Dropdown.Label>Move to</Dropdown.Label>
@@ -62,6 +72,17 @@ export function TaskCard({
       morphName={taskMorphName(task.id, openTaskId)}
       navColumn={task.statusId}
       action={moveMenu}
+      footer={task.subtaskCount > 0 ? (
+        <CardSubtasks
+          task={task}
+          statuses={statuses}
+          workspaceSlug={workspaceSlug}
+          expanded={expanded}
+          openTaskId={openTaskId}
+          onToggle={() => onToggleSubtasks(task.id)}
+          onOpen={onOpen}
+        />
+      ) : undefined}
     >
       {/* pr clears the Move to… button in the corner. */}
       <p className="pr-7 text-paragraph-sm text-text-strong-950 max-sm:pr-10">{task.title}</p>
@@ -73,14 +94,21 @@ export function TaskCard({
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <PriorityChip priority={task.priority} />
-        <DueChip dueDate={task.dueDate} timezone={timezone} done={task.completedAt !== null} />
-        {task.subtaskCount > 0 && (
-          <span className="tabular text-paragraph-xs text-text-sub-600">
-            {task.subtaskDoneCount}/{task.subtaskCount}
+        {task.priority !== 'none' && (
+          <Hint label="Priority">
+            <span className="inline-flex"><PriorityChip priority={task.priority} /></span>
+          </Hint>
+        )}
+        {task.dueDate && (
+          <Hint label="Due date">
+            <span className="inline-flex"><DueChip dueDate={task.dueDate} timezone={timezone} done={task.completedAt !== null} /></span>
+          </Hint>
+        )}
+        {task.assigneeName && (
+          <span className="ml-auto inline-flex">
+            <AssigneeAvatar name={task.assigneeName} image={task.assigneeImage} />
           </span>
         )}
-        {task.assigneeName && <AssigneeAvatar name={task.assigneeName} image={task.assigneeImage} className="ml-auto" />}
       </div>
     </KanbanCard>
   );

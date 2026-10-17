@@ -6,6 +6,7 @@ import { FIELD_LABEL, TaskFieldItems, type TaskField, type TaskPatch } from '@/c
 import * as Dropdown from '@/components/ui/dropdown';
 import type { StatusRow } from '@/server/projects/queries';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 const FIELDS: TaskField[] = ['status', 'priority', 'due'];
 
@@ -84,15 +85,16 @@ export function TaskBulkBar({
         Delete
       </button>
       <span className="mx-1 h-5 w-px shrink-0 bg-text-white-0/15" aria-hidden="true" />
-      <button
-        type="button"
-        onClick={onClear}
-        aria-label="Clear selection"
-        title="Clear selection (Esc)"
-        className={cn(barButton, 'w-8 shrink-0 justify-center px-0')}
-      >
-        <IconX className="size-4" aria-hidden="true" />
-      </button>
+      <Hint shortcut="nav.clear" label="Clear selection">
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label="Clear selection"
+          className={cn(barButton, 'w-8 shrink-0 justify-center px-0')}
+        >
+          <IconX className="size-4" aria-hidden="true" />
+        </button>
+      </Hint>
     </div>
   );
 }

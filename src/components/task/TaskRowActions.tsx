@@ -1,12 +1,13 @@
 'use client';
 
-import { IconArrowUpRight, IconDots, IconLink, IconTrash } from '@tabler/icons-react';
+import { IconArrowBarToUp, IconArrowUpRight, IconDots, IconLink, IconSubtask, IconTrash } from '@tabler/icons-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { FIELD_LABEL, TaskFieldItems, type TaskField, type TaskPatch } from '@/components/task/TaskFieldItems';
 import * as Dropdown from '@/components/ui/dropdown';
 import type { StatusRow } from '@/server/projects/queries';
 import type { TaskRow } from '@/server/tasks/queries';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 const FIELDS: TaskField[] = ['status', 'priority', 'due'];
 
@@ -19,6 +20,8 @@ export function TaskRowActions({
   onOpen,
   onPatch,
   onDelete,
+  onMakeSubtask,
+  onPromote,
 }: {
   task: TaskRow;
   statuses: StatusRow[];
@@ -27,6 +30,8 @@ export function TaskRowActions({
   onOpen: () => void;
   onPatch: (patch: TaskPatch) => void;
   onDelete: () => void;
+  onMakeSubtask?: () => void;
+  onPromote?: () => void;
 }) {
   // Controlled so a pick from the due-date calendar (not a menu item) closes it too.
   const [open, setOpen] = useState(false);
@@ -43,14 +48,19 @@ export function TaskRowActions({
 
   return (
     <Dropdown.Root open={open} onOpenChange={setOpen}>
-      <Dropdown.Trigger
-        disabled={disabled}
-        aria-label={`Actions for ${task.title}`}
-        // The row itself opens the task; the menu must not.
-        onClick={(e) => e.stopPropagation()}
-        className="flex size-7 items-center justify-center rounded-md text-text-soft-400 opacity-0 transition duration-150 hover:bg-bg-soft-200 hover:text-text-strong-950 focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:bg-bg-soft-200 data-[state=open]:text-text-strong-950 data-[state=open]:opacity-100"
-      >
-        <IconDots className="size-4" aria-hidden="true" />
+      <Dropdown.Trigger asChild>
+        <Hint label="Actions">
+          <button
+            type="button"
+            disabled={disabled}
+            aria-label={`Actions for ${task.title}`}
+            // The row itself opens the task; the menu must not.
+            onClick={(e) => e.stopPropagation()}
+            className="flex size-7 items-center justify-center rounded-md text-text-soft-400 opacity-0 transition duration-150 hover:bg-bg-soft-200 hover:text-text-strong-950 focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:bg-bg-soft-200 data-[state=open]:text-text-strong-950 data-[state=open]:opacity-100"
+          >
+            <IconDots className="size-4" aria-hidden="true" />
+          </button>
+        </Hint>
       </Dropdown.Trigger>
       <Dropdown.Content align="end" className="w-56" onClick={(e) => e.stopPropagation()}>
         <Dropdown.Item onSelect={onOpen}>
@@ -84,6 +94,19 @@ export function TaskRowActions({
             </Dropdown.Portal>
           </Dropdown.MenuSub>
         ))}
+        {(onMakeSubtask || onPromote) && <Dropdown.Separator className="my-1 h-px bg-stroke-soft-200" />}
+        {onMakeSubtask && (
+          <Dropdown.Item disabled={task.subtaskCount > 0} onSelect={onMakeSubtask}>
+            <Dropdown.ItemIcon as={IconSubtask} />
+            <MakeSubtaskLabel blocked={task.subtaskCount > 0} />
+          </Dropdown.Item>
+        )}
+        {onPromote && (
+          <Dropdown.Item onSelect={onPromote}>
+            <Dropdown.ItemIcon as={IconArrowBarToUp} />
+            Promote to task
+          </Dropdown.Item>
+        )}
         <Dropdown.Separator className="my-1 h-px bg-stroke-soft-200" />
         <Dropdown.Item onSelect={onDelete} className="text-error-base">
           <Dropdown.ItemIcon as={IconTrash} className="text-error-base" />
@@ -91,5 +114,15 @@ export function TaskRowActions({
         </Dropdown.Item>
       </Dropdown.Content>
     </Dropdown.Root>
+  );
+}
+
+/** "Make subtask of…", saying why when the task can't be one. */
+export function MakeSubtaskLabel({ blocked }: { blocked: boolean }) {
+  return (
+    <span className="flex flex-col">
+      Make subtask of…
+      {blocked && <span className="text-paragraph-xs text-text-soft-400">It has subtasks of its own</span>}
+    </span>
   );
 }

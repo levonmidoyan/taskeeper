@@ -23,8 +23,14 @@ export function normalizeContentType(type: string): string {
   return essence.length <= 255 && MIME.test(essence) ? essence : 'application/octet-stream';
 }
 
+const VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
+const AUDIO_TYPES = [
+  'audio/mpeg', 'audio/mp4', 'audio/aac', 'audio/ogg', 'audio/wav', 'audio/x-wav', 'audio/webm', 'audio/flac',
+];
+
 const INLINE_TYPES = new Set([
   'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'application/pdf',
+  ...VIDEO_TYPES, ...AUDIO_TYPES,
 ]);
 
 /**
@@ -33,6 +39,50 @@ const INLINE_TYPES = new Set([
  */
 export function isInlineType(contentType: string): boolean {
   return INLINE_TYPES.has(contentType);
+}
+
+/** Text shown as plain prose: no highlighting helps it. */
+const PLAIN_EXTENSIONS = new Set(['txt', 'log', 'csv', 'tsv']);
+
+/** Source shown in the code view. */
+export const CODE_EXTENSIONS = new Set([
+  'md', 'markdown', 'json', 'xml', 'yml', 'yaml', 'toml', 'ini', 'env',
+  'html', 'htm', 'css', 'scss', 'svg', 'sql', 'sh', 'bash',
+  'js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx', 'py', 'rb', 'php', 'go', 'rs', 'java', 'kt', 'swift',
+  'c', 'h', 'cpp', 'hpp', 'cs',
+]);
+
+const CODE_TYPES = new Set([
+  'application/json', 'application/xml', 'application/javascript', 'application/x-javascript',
+  'application/yaml', 'application/x-yaml', 'application/toml', 'application/sql',
+  'application/x-sh', 'application/x-httpd-php', 'image/svg+xml',
+  'text/html', 'text/css', 'text/javascript', 'text/markdown', 'text/xml', 'text/x-python',
+]);
+
+export type PreviewKind = 'image' | 'pdf' | 'video' | 'audio' | 'text' | 'code';
+
+/** Lowercased extension without the dot, or '' when there is none. */
+export function fileExtension(fileName: string): string {
+  const dot = fileName.lastIndexOf('.');
+  return dot >= 0 ? fileName.slice(dot + 1).toLowerCase() : '';
+}
+
+/**
+ * How the preview modal shows a file, or null when it cannot. Text and code
+ * are always shown as characters, never rendered, so SVG and HTML are safe.
+ * A known source extension wins over the type: browsers label .ts as video.
+ */
+export function previewKind(fileName: string, contentType: string): PreviewKind | null {
+  const ext = fileExtension(fileName);
+  if (CODE_EXTENSIONS.has(ext)) return 'code';
+  if (PLAIN_EXTENSIONS.has(ext)) return 'text';
+  if (contentType === 'application/pdf') return 'pdf';
+  if (VIDEO_TYPES.includes(contentType)) return 'video';
+  if (AUDIO_TYPES.includes(contentType)) return 'audio';
+  if (contentType.startsWith('image/') && isInlineType(contentType)) return 'image';
+  if (CODE_TYPES.has(contentType)) return 'code';
+  if (contentType.startsWith('text/')) return 'text';
+  return null;
 }
 
 /** RFC 6266: an ASCII fallback for old clients plus the exact UTF-8 name. */

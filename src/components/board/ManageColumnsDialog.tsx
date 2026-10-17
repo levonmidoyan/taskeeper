@@ -26,6 +26,7 @@ import {
   createStatusAction, deleteStatusAction, moveStatusAction, updateStatusAction,
 } from '@/server/statuses/actions';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 /**
  * Column management for a project: rename, reorder, add, delete, and mark which
@@ -265,17 +266,19 @@ function ColumnRow({
       )}
     >
       <div className="flex items-center gap-1.5">
-        <button
-          type="button"
-          ref={setActivatorNodeRef}
-          aria-label={`Reorder ${status.name}`}
-          disabled={pending}
-          className="flex size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-text-soft-400 hover:text-text-sub-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50"
-          {...attributes}
-          {...listeners}
-        >
-          <IconGripVertical className="size-[18px]" aria-hidden="true" />
-        </button>
+        <Hint label="Drag to reorder">
+          <button
+            type="button"
+            ref={setActivatorNodeRef}
+            aria-label={`Reorder ${status.name}`}
+            disabled={pending}
+            className="flex size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-text-soft-400 hover:text-text-sub-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50"
+            {...attributes}
+            {...listeners}
+          >
+            <IconGripVertical className="size-[18px]" aria-hidden="true" />
+          </button>
+        </Hint>
 
         <StatusIconPicker workspaceSlug={workspaceSlug} status={status} disabled={pending} />
 
@@ -312,16 +315,18 @@ function ColumnRow({
           </span>
         </span>
 
-        <CompactButton.Root
-          variant="ghost"
-          size="medium"
-          aria-label={`Delete ${status.name}`}
-          className="hover:text-error-base"
-          disabled={pending || others.length === 0}
-          onClick={onToggleConfirm}
-        >
-          <CompactButton.Icon as={IconTrash} />
-        </CompactButton.Root>
+        <Hint label="Delete column">
+          <CompactButton.Root
+            variant="ghost"
+            size="medium"
+            aria-label={`Delete ${status.name}`}
+            className="hover:text-error-base"
+            disabled={pending || others.length === 0}
+            onClick={onToggleConfirm}
+          >
+            <CompactButton.Icon as={IconTrash} />
+          </CompactButton.Root>
+        </Hint>
       </div>
 
       {confirming && others.length > 0 && (

@@ -14,6 +14,7 @@ import * as CompactButton from '@/components/ui/compact-button';
 import { settle } from '@/lib/settle';
 import type { StatusRow } from '@/server/projects/queries';
 import { updateStatusAction } from '@/server/statuses/actions';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 export function BoardColumn({
   status,
@@ -25,6 +26,8 @@ export function BoardColumn({
   canEdit,
   openTaskId,
   onOpen,
+  expandedIds,
+  onToggleSubtasks,
 }: {
   status: StatusRow;
   /** Every column, for a card's Move to… menu. */
@@ -37,6 +40,9 @@ export function BoardColumn({
   /** ?task=, so that card gives its morph name to the modal. */
   openTaskId: string | null;
   onOpen: (id: string) => void;
+  /** Cards whose subtask checklist is open; kept by the board so a refresh keeps it. */
+  expandedIds: ReadonlySet<string>;
+  onToggleSubtasks: (id: string) => void;
 }) {
   const id = columnId(status.id);
 
@@ -73,6 +79,9 @@ export function BoardColumn({
             onOpen={onOpen}
             statuses={statuses}
             onMoveTo={onMoveTo}
+            workspaceSlug={workspaceSlug}
+            expanded={expandedIds.has(item.id)}
+            onToggleSubtasks={onToggleSubtasks}
           />
         )}
       </KanbanCards>
@@ -134,16 +143,18 @@ function ColumnName({
     <>
       <h2 className="min-w-0 truncate text-label-sm text-text-strong-950">{status.name}</h2>
       {canEdit && (
-        <CompactButton.Root
-          variant="ghost"
-          size="medium"
-          aria-label={`Rename ${status.name}`}
-          disabled={pending}
-          onClick={() => setEditing(true)}
-          className="order-last ml-auto opacity-0 transition-opacity group-hover/header:opacity-100 focus-visible:opacity-100"
-        >
-          <CompactButton.Icon as={IconPencil} />
-        </CompactButton.Root>
+        <Hint label="Rename column">
+          <CompactButton.Root
+            variant="ghost"
+            size="medium"
+            aria-label={`Rename ${status.name}`}
+            disabled={pending}
+            onClick={() => setEditing(true)}
+            className="order-last ml-auto opacity-0 transition-opacity group-hover/header:opacity-100 focus-visible:opacity-100"
+          >
+            <CompactButton.Icon as={IconPencil} />
+          </CompactButton.Root>
+        </Hint>
       )}
     </>
   );

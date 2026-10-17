@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { comment, db, label, project, task, taskActivity, taskLabel, taskStatus, user } from '@/db';
 import { isOverdue } from '@/lib/dates';
@@ -30,9 +30,11 @@ export type TaskRow = {
   labels: LabelRow[];
   subtaskCount: number;
   subtaskDoneCount: number;
+  /** The task's subtasks in order; only on lists that asked for them. */
+  subtasks?: TaskRow[];
 };
 
-type BaseRow = Omit<TaskRow, 'labels' | 'subtaskCount' | 'subtaskDoneCount'>;
+type BaseRow = Omit<TaskRow, 'labels' | 'subtaskCount' | 'subtaskDoneCount' | 'subtasks'>;
 
 const baseColumns = {
   id: task.id,
@@ -83,11 +85,12 @@ async function attachLabels(rows: BaseRow[]): Promise<TaskRow[]> {
   }));
 }
 
-/** Top-level tasks of one project, board order. Subtasks are loaded with their parent. */
+/** Top-level tasks of one project, board order; with `withSubtasks`, each carries its subtasks. */
 export async function listProjectTasks(
   ctx: WorkspaceContext,
   projectId: string,
   filter: TaskFilter = {},
+  opts: { withSubtasks?: boolean } = {},
 ): Promise<TaskRow[]> {
   const filters = await taskFilterSql(ctx, filter, 'project');
   const rows = await db
@@ -105,7 +108,24 @@ export async function listProjectTasks(
     )
     .orderBy(byKey(task.position), byId(task.id));
 
-  return attachLabels(rows);
+  const tasks = await attachLabels(rows);
+  if (!opts.withSubtasks || tasks.length === 0) return tasks;
+
+  // Unfiltered: a parent the filter kept shows all its steps.
+  const subRows = await db
+    .select({ ...baseColumns, parentId: task.parentTaskId })
+    .from(task)
+    .leftJoin(user, eq(user.id, task.assigneeId))
+    .where(and(
+      inArray(task.parentTaskId, tasks.map((t) => t.id)),
+      eq(task.workspaceId, ctx.workspaceId),
+      isNull(task.archivedAt),
+    ))
+    .orderBy(byKey(task.subtaskPosition), byId(task.id));
+  const subs = await attachLabels(subRows);
+  const byParent = new Map(tasks.map((t) => [t.id, [] as TaskRow[]]));
+  subRows.forEach((r, i) => byParent.get(r.parentId!)?.push(subs[i]));
+  return tasks.map((t) => ({ ...t, subtasks: byParent.get(t.id) ?? [] }));
 }
 
 export const WORKSPACE_TASK_LIMIT = 500;
@@ -223,6 +243,8 @@ export type TaskDetail = TaskRow & {
   parentId: string | null;
   parentTitle: string | null;
   subtasks: TaskRow[];
+  /** The parent's subtasks in order, this one included; empty for a top-level task. */
+  siblings: { id: string; title: string }[];
 };
 
 /**
@@ -263,7 +285,16 @@ export async function getTaskDetail(
         isNull(task.archivedAt),
       ),
     )
-    .orderBy(byKey(task.position), byId(task.id));
+    .orderBy(byKey(task.subtaskPosition), byId(task.id));
+
+  const parentId = rows[0].parentId;
+  const siblings = parentId
+    ? await db
+        .select({ id: task.id, title: task.title })
+        .from(task)
+        .where(and(eq(task.parentTaskId, parentId), eq(task.workspaceId, ctx.workspaceId), isNull(task.archivedAt)))
+        .orderBy(byKey(task.subtaskPosition), byId(task.id))
+    : [];
 
   return {
     ...withLabels,
@@ -271,6 +302,7 @@ export async function getTaskDetail(
     parentId: rows[0].parentId,
     parentTitle: rows[0].parentTitle,
     subtasks: await attachLabels(subtaskRows),
+    siblings,
   };
 }
 
@@ -461,4 +493,36 @@ export async function listRecentTasks(ctx: WorkspaceContext, limit = 30): Promis
     // A raw aggregate comes back from pg as a string, not through the column's mapper.
     touchedAt: new Date(touchedAt),
   }));
+}
+
+/**
+ * What "Make subtask of…" offers: top-level, unarchived tasks in the same
+ * project as `taskId`, never the task itself, title matching `term` (all when
+ * empty). Board order, capped at 20.
+ */
+export async function listParentCandidates(
+  ctx: WorkspaceContext,
+  taskId: string,
+  term: string,
+): Promise<{ id: string; title: string }[]> {
+  const [self] = await db
+    .select({ projectId: task.projectId })
+    .from(task)
+    .where(and(eq(task.id, taskId), eq(task.workspaceId, ctx.workspaceId)))
+    .limit(1);
+  if (!self) return [];
+  const trimmed = term.trim().slice(0, 100);
+  return db
+    .select({ id: task.id, title: task.title })
+    .from(task)
+    .where(and(
+      eq(task.projectId, self.projectId),
+      eq(task.workspaceId, ctx.workspaceId),
+      isNull(task.parentTaskId),
+      isNull(task.archivedAt),
+      ne(task.id, taskId),
+      trimmed ? ilike(task.title, likePattern(trimmed)) : undefined,
+    ))
+    .orderBy(byKey(task.position), byId(task.id))
+    .limit(20);
 }

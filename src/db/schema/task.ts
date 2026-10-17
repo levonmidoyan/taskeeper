@@ -54,6 +54,10 @@ export const task = pgTable(
     dueDate: date('due_date'),
     position: text('position').notNull(),
     parentTaskId: text('parent_task_id').references((): AnyPgColumn => task.id, { onDelete: 'cascade' }),
+    // Order inside the parent, independent of the board column key above: a
+    // subtask changing status must not move in its parent's list. Null on
+    // top-level tasks.
+    subtaskPosition: text('subtask_position'),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     // Null once the creator deletes their account.
@@ -69,7 +73,7 @@ export const task = pgTable(
   (t) => [
     index('task_board_idx').on(t.projectId, t.statusId, t.position),
     index('task_assignee_idx').on(t.workspaceId, t.assigneeId, t.archivedAt),
-    index('task_parent_idx').on(t.parentTaskId),
+    index('task_parent_idx').on(t.parentTaskId, t.subtaskPosition),
     index('task_search_idx').using('gin', t.search),
   ],
 );

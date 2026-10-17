@@ -20,6 +20,7 @@ import type { ProjectSummary } from '@/server/projects/queries';
 import type { SavedView } from '@/server/views/queries';
 import type { WorkspaceSummary } from '@/server/workspaces/queries';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 type Props = {
   workspaceSlug: string;
@@ -170,7 +171,7 @@ function RailBody({ workspaceSlug, workspaces, projects, canManageProjects, view
                   >
                     <Icon className={cn('size-4 shrink-0', active ? 'text-primary-base' : 'text-text-soft-400')} aria-hidden="true" />
                     <span className="truncate">{view.name}</span>
-                    {!view.shared && <IconLock className="size-3.5 shrink-0 text-text-soft-400" aria-label="Private" />}
+                    {!view.shared && <Hint label="Private view, only you see it"><IconLock className="size-3.5 shrink-0 text-text-soft-400" aria-label="Private" /></Hint>}
                   </Link>
                   <ViewMenu
                     workspaceSlug={workspaceSlug}
@@ -238,14 +239,16 @@ export function MobileNav({ open, onOpenChange, ...props }: Props & { open: bool
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange}>
       <Drawer.Trigger asChild>
-        <CompactButton.Root
-          variant="ghost"
-          size="large"
-          aria-label="Open navigation"
-          className="size-10 shrink-0 lg:hidden"
-        >
-          <CompactButton.Icon as={IconMenu2} />
-        </CompactButton.Root>
+        <Hint label="Open navigation">
+          <CompactButton.Root
+            variant="ghost"
+            size="large"
+            aria-label="Open navigation"
+            className="size-10 shrink-0 lg:hidden"
+          >
+            <CompactButton.Icon as={IconMenu2} />
+          </CompactButton.Root>
+        </Hint>
       </Drawer.Trigger>
       <Drawer.Content side="left" aria-describedby={undefined} className="max-w-64">
         <Drawer.Title className="sr-only">Workspace navigation</Drawer.Title>
