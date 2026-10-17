@@ -2,6 +2,7 @@ import { IconArrowLeft } from '@tabler/icons-react';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { UserButton } from '@/components/auth/user/user-button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/auth/ui/card';
 import { AuthShell } from '@/components/brand/AuthShell';
 import { WorkspaceShell } from '@/components/shell/WorkspaceShell';
@@ -15,10 +16,12 @@ export default async function NewWorkspacePage() {
 
   const ctx = await resolveShellWorkspace(session.user.id);
 
-  // A first workspace is onboarding: there is no app to sit inside yet.
+  // A first workspace is onboarding: there is no app to sit inside yet. The
+  // account menu is the only way out, e.g. to sign out or switch accounts
+  // after deleting or leaving the last workspace.
   if (!ctx) {
     return (
-      <AuthShell>
+      <AuthShell headerEnd={<UserButton size="icon" align="end" />}>
         <Card>
           <CardHeader>
             <CardTitle>Create a workspace</CardTitle>

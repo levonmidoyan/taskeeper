@@ -1,7 +1,10 @@
-import { eq } from 'drizzle-orm';
-import { db, member, organization, workspaceSettings } from '@/db';
+import { and, eq } from 'drizzle-orm';
+import { db, member, organization, task, workspaceSettings } from '@/db';
 import { newId } from '@/lib/ids';
+import { err, ok, type Result } from '@/lib/result';
+import { requireRole, type WorkspaceContext } from '@/lib/session';
 import { slugify } from '@/lib/slug';
+import { purgeWorkspaceObjects } from '@/server/attachments/cleanup';
 
 // Every top-level segment that exists under src/app today. A workspace slug
 // that matched one of these would be created successfully but never be
@@ -54,4 +57,43 @@ export async function createWorkspaceForUser(userId: string, name: string) {
   });
 
   return { id, slug };
+}
+
+/**
+ * Deletes the workspace for everyone: projects, tasks, comments, files and
+ * memberships. Owners only, and only once they have typed the workspace's
+ * name, so a stray click on the wrong workspace cannot do it.
+ */
+export async function deleteWorkspace(
+  ctx: WorkspaceContext,
+  input: { confirmName: string },
+): Promise<Result<null>> {
+  requireRole(ctx, 'owner');
+
+  const result = await db.transaction(async (tx) => {
+    // Locked so a rename or an owner change cannot slip in between the name
+    // check and the delete.
+    const [ws] = await tx
+      .select({ name: organization.name })
+      .from(organization)
+      .where(eq(organization.id, ctx.workspaceId))
+      .for('update');
+    if (!ws) return err('Workspace not found.', 'not_found');
+    const [me] = await tx
+      .select({ role: member.role })
+      .from(member)
+      .where(and(eq(member.organizationId, ctx.workspaceId), eq(member.userId, ctx.userId)))
+      .limit(1);
+    if (me?.role !== 'owner') return err('Only an owner can delete the workspace.', 'forbidden');
+    if (input.confirmName.trim() !== ws.name) return err('Type the workspace name exactly to confirm.');
+
+    // Tasks first: task.status_id is RESTRICT, so cascading from the workspace
+    // would leave the task / task_status delete order undefined (spec §3.2).
+    await tx.delete(task).where(eq(task.workspaceId, ctx.workspaceId));
+    await tx.delete(organization).where(eq(organization.id, ctx.workspaceId));
+    return ok(null);
+  });
+  // After commit, so a rolled-back delete keeps its files.
+  if (result.ok) await purgeWorkspaceObjects([ctx.workspaceId]);
+  return result;
 }

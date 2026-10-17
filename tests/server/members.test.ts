@@ -3,7 +3,8 @@ import { eq } from 'drizzle-orm';
 import { closeDb, db, resetDb } from '../setup/db';
 import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
 import {
-  acceptInvitation, changeMemberRole, declineInvitation, getInvitationPreview, inviteMember, removeMember,
+  acceptInvitation, changeMemberRole, declineInvitation, getInvitationPreview, inviteMember, leaveWorkspace,
+  removeMember,
 } from '@/server/members/service';
 import { updateWorkspaceSettings } from '@/server/settings/service';
 import { listWorkspaceMembers } from '@/server/labels/queries';
@@ -109,6 +110,56 @@ describe('removeMember', () => {
 
     const asMember = { ...ctx, role: 'member' as const };
     expect((await removeMember(asMember, { userId: bob.id })).ok).toBe(false);
+  });
+});
+
+describe('leaveWorkspace', () => {
+  it('lets a plain member leave', async () => {
+    const { ctx, ws } = await setup('owner-l1@example.com', 'leave1');
+    const bob = await createUser('bob-l1@example.com');
+    await joinWorkspace(bob.id, ws.id, 'member');
+    const asBob = { ...ctx, userId: bob.id, role: 'member' as const };
+
+    const result = await leaveWorkspace(asBob);
+
+    expect(result.ok).toBe(true);
+    const rows = await listWorkspaceMembers(ctx);
+    expect(rows.map((r) => r.userId)).toEqual([ctx.userId]);
+  });
+
+  it('lets an owner leave when another owner remains', async () => {
+    const { ctx, ws } = await setup('owner-l2@example.com', 'leave2');
+    const bob = await createUser('bob-l2@example.com');
+    await joinWorkspace(bob.id, ws.id, 'owner');
+
+    expect((await leaveWorkspace(ctx)).ok).toBe(true);
+    const rows = await listWorkspaceMembers(ctx);
+    expect(rows.map((r) => r.userId)).toEqual([bob.id]);
+  });
+
+  // Same rule as removeMember: nobody would be left to manage or delete it.
+  it('refuses the only owner, even with other members', async () => {
+    const { ctx, ws } = await setup('owner-l3@example.com', 'leave3');
+    const bob = await createUser('bob-l3@example.com');
+    await joinWorkspace(bob.id, ws.id, 'admin');
+
+    const result = await leaveWorkspace(ctx);
+
+    expect(result.ok).toBe(false);
+    expect(await listWorkspaceMembers(ctx)).toHaveLength(2);
+  });
+
+  it('only ever removes the caller', async () => {
+    const { ctx, ws } = await setup('owner-l4@example.com', 'leave4');
+    const bob = await createUser('bob-l4@example.com');
+    const cy = await createUser('cy-l4@example.com');
+    await joinWorkspace(bob.id, ws.id, 'member');
+    await joinWorkspace(cy.id, ws.id, 'member');
+
+    await leaveWorkspace({ ...ctx, userId: bob.id, role: 'member' });
+
+    const rows = await listWorkspaceMembers(ctx);
+    expect(rows.map((r) => r.userId).sort()).toEqual([ctx.userId, cy.id].sort());
   });
 });
 
