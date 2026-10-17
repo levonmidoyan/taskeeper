@@ -3,10 +3,11 @@
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
-import { err, withAction, type Result } from '@/lib/result';
+import { err, ok, withAction, type Result } from '@/lib/result';
 import { requireWorkspace } from '@/lib/session';
+import { listMyWorkspaces } from '@/server/workspaces/queries';
 import {
-  acceptInvitation, changeMemberRole, declineInvitation, inviteMember, removeMember,
+  acceptInvitation, changeMemberRole, declineInvitation, inviteMember, leaveWorkspace, removeMember,
 } from './service';
 
 /**
@@ -55,6 +56,20 @@ export async function removeMemberAction(
     const result = await removeMember(await requireWorkspace(workspaceSlug), input);
     if (result.ok) revalidatePath(`/${workspaceSlug}`, 'layout');
     return result;
+  });
+}
+
+/** Leaves the workspace, then says where to go: the user's next workspace, or making a new one. */
+export async function leaveWorkspaceAction(workspaceSlug: string): Promise<Result<{ next: string }>> {
+  return withAction(async () => {
+    const ctx = await requireWorkspace(workspaceSlug);
+    const result = await leaveWorkspace(ctx);
+    if (!result.ok) return result;
+
+    // The leaver's switcher listed this workspace in every layout.
+    revalidatePath('/', 'layout');
+    const [next] = await listMyWorkspaces(ctx.userId);
+    return ok({ next: next ? `/${next.slug}` : '/new-workspace' });
   });
 }
 

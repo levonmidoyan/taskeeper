@@ -126,6 +126,37 @@ export async function removeMember(
   });
 }
 
+/**
+ * The caller removes themselves. Any role may, except the only owner: they
+ * hand ownership on or delete the workspace instead, same rule as removeMember.
+ */
+export async function leaveWorkspace(ctx: WorkspaceContext): Promise<Result<null>> {
+  return withAction(async () => {
+    return db.transaction(async (tx) => {
+      await lockWorkspace(tx, ctx.workspaceId);
+
+      // Re-read under the lock: ctx.role may predate a promotion or demotion.
+      const [me] = await tx
+        .select({ role: member.role })
+        .from(member)
+        .where(and(eq(member.organizationId, ctx.workspaceId), eq(member.userId, ctx.userId)))
+        .limit(1);
+      if (!me) return err('You are not in this workspace.');
+
+      if (me.role === 'owner' && (await ownerCount(tx, ctx.workspaceId)) <= 1) {
+        return err('You are the only owner. Make someone else an owner first, or delete the workspace.');
+      }
+
+      await tx
+        .delete(member)
+        .where(and(eq(member.organizationId, ctx.workspaceId), eq(member.userId, ctx.userId)));
+      await emitChange(ctx, {}, tx);
+
+      return ok(null);
+    });
+  });
+}
+
 export async function changeMemberRole(
   ctx: WorkspaceContext,
   input: { userId: string; role: 'owner' | 'admin' | 'member' },
