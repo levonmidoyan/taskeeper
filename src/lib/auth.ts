@@ -1,4 +1,4 @@
-import { dash } from '@better-auth/infra';
+import { dash, sentinel } from '@better-auth/infra';
 import { betterAuth, type BetterAuthPlugin } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
@@ -18,6 +18,7 @@ import {
   deviceClientIds,
   googleCredentials,
   requireEmailVerification,
+  sentinelEnabled,
 } from '@/lib/auth-config';
 import {
   DELETE_ACCOUNT_LINK_EXPIRY_HOURS,
@@ -202,6 +203,33 @@ export const auth = betterAuth({
       const apiKey = dashApiKey();
       return apiKey ? [dash({ apiKey, activityTracking: { enabled: true } })] : [];
     })(),
+    // Sentinel: abuse protection backed by the same infrastructure key. Suspect
+    // requests get a proof-of-work challenge (solved by sentinelClient) before
+    // any hard block, so a false positive costs a real user a short delay.
+    ...(sentinelEnabled()
+      ? [
+          sentinel({
+            apiKey: dashApiKey()!,
+            security: {
+              credentialStuffing: {
+                enabled: true,
+                thresholds: { challenge: 3, block: 5 },
+                windowSeconds: 3600,
+                cooldownSeconds: 900,
+              },
+              compromisedPassword: { enabled: true, action: 'block' },
+              botBlocking: { action: 'challenge' },
+              suspiciousIpBlocking: { action: 'challenge' },
+              // Log only: VPNs and mobile carriers trip this for real users.
+              impossibleTravel: { enabled: true, action: 'log' },
+              emailValidation: { enabled: true, strictness: 'low', action: 'block' },
+              // On by default; off so a stored "a.b+tag@gmail.com" still
+              // matches at sign-in instead of being rewritten to "ab@gmail.com".
+              emailNormalization: { enabled: false },
+            },
+          }),
+        ]
+      : []),
     // nextCookies must be last: it wraps the response so Server Actions can set
     // cookies. Any plugin after it would not have its cookies applied.
     nextCookies(),
