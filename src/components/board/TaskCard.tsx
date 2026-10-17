@@ -78,6 +78,7 @@ export function TaskCard({
           statuses={statuses}
           workspaceSlug={workspaceSlug}
           expanded={expanded}
+          openTaskId={openTaskId}
           onToggle={() => onToggleSubtasks(task.id)}
           onOpen={onOpen}
         />

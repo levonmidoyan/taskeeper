@@ -560,7 +560,7 @@ export function TaskTable({
                   return (
                     <li
                       key={sub.id}
-                      className={cn('ml-8 flex items-center gap-3 rounded-xl px-3 py-1 ring-1 ring-inset ring-stroke-soft-200', subSelected && 'bg-primary-lighter')}
+                      className={cn('ml-8 flex animate-subtask-in items-center gap-3 rounded-xl px-3 py-1 ring-1 ring-inset ring-stroke-soft-200', subSelected && 'bg-primary-lighter')}
                     >
                       <SelectBox label={`Select ${sub.title}`} checked={subSelected} onClick={() => toggleRow(sub.id, false)} />
                       <button
@@ -753,7 +753,7 @@ export function TaskTable({
                     const subSelected = selection.has(sub.id);
                     const subBg = subSelected ? 'bg-primary-lighter' : 'bg-bg-white-0 group-hover:bg-bg-weak-50';
                     return (
-                      <tr key={sub.id} onClick={() => openTask(sub.id)} aria-selected={subSelected} className="group cursor-pointer">
+                      <tr key={sub.id} onClick={() => openTask(sub.id)} aria-selected={subSelected} className="group animate-subtask-in cursor-pointer">
                         <td
                           className={cn(cellBase, subBg, 'sticky left-0 z-10 w-10 min-w-10 rounded-l-xl pl-3 pr-0')}
                           onClick={(e) => { e.stopPropagation(); toggleRow(sub.id, false); }}
@@ -777,7 +777,16 @@ export function TaskTable({
                                   data-task-nav={sub.id}
                                   className="flex min-w-0 flex-1 text-left"
                                 >
-                                  {renderTaskCell('title', sub, { statusById, timezone })}
+                                  {(() => {
+                                    const morph = taskMorphName(sub.id, openTaskId);
+                                    return (
+                                      <ViewTransition key={morph ?? 'open'} name={morph} share={TASK_MORPH_SHARE} default="none">
+                                        <span className="flex min-w-0 flex-1">
+                                          {renderTaskCell('title', sub, { statusById, timezone })}
+                                        </span>
+                                      </ViewTransition>
+                                    );
+                                  })()}
                                 </button>
                               </span>
                             ) : renderTaskCell(cell.column.id, sub, { statusById, timezone })}

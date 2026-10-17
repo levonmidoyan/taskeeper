@@ -6,18 +6,19 @@ import {
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { IconPlus } from '@tabler/icons-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useEffect, useMemo, useRef, useState, ViewTransition } from 'react';
 import { toast } from 'sonner';
 import { CollapsibleSection } from '@/components/task/CollapsibleSection';
 import { SubtaskRow } from '@/components/task/SubtaskRow';
 import { useSetParent } from '@/components/task/use-set-parent';
 import { LOCAL_ESCAPE_EVENT } from '@/lib/local-escape';
+import { startTypedTransition, SUBTASK_CHANGE, SUBTASK_CHANGE_CLASSES, subtaskTransitionName } from '@/lib/motion';
 import { settle } from '@/lib/settle';
 import { MAX_SUBTASK_BATCH, progressPercent, splitPastedLines, stepTarget } from '@/lib/subtasks';
 import { dropTarget } from '@/lib/todo-list';
 import type { MemberRow } from '@/server/labels/queries';
 import type { StatusRow } from '@/server/projects/queries';
-import { createSubtasksAction, createTaskAction, reorderSubtaskAction } from '@/server/tasks/actions';
+import { createSubtasksAction, createTaskAction, deleteTaskAction, reorderSubtaskAction } from '@/server/tasks/actions';
 import type { TaskRow } from '@/server/tasks/queries';
 import { cn } from '@/utils/cn';
 
@@ -47,7 +48,18 @@ export function SubtaskSection({
     setOrder(serverIds);
   }
   const byId = useMemo(() => new Map(subtasks.map((s) => [s.id, s])), [subtasks]);
-  const rows = order.map((id) => byId.get(id)).filter((s): s is TaskRow => s !== undefined);
+  // Deleted here and waiting on the server: gone at once, so the row can animate out.
+  const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set());
+  const rows = order.map((id) => byId.get(id)).filter((s): s is TaskRow => s !== undefined && !removed.has(s.id));
+
+  // Rows this section has shown. One it has not (an add, mine or a teammate's) grows
+  // in by a keyframe, not a <ViewTransition> enter: a boundary that can enter starts a
+  // view transition on every add, and React holds commits (the next subtask being
+  // typed) until its snapshot is taken.
+  const [seen] = useState(() => new Set(serverIds));
+  useEffect(() => {
+    for (const id of serverIds) seen.add(id);
+  }, [serverIds, seen]);
 
   const doneCount = subtasks.filter((s) => s.completedAt !== null).length;
   const percent = progressPercent(doneCount, subtasks.length);
@@ -58,16 +70,38 @@ export function SubtaskSection({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  function reorder(id: string, target: { toIndex: number; beforeId: string | null; afterId: string | null }) {
+  /** `animate`: slide the rows to their new places (a drop already has, by dnd-kit). */
+  function reorder(id: string, target: { toIndex: number; beforeId: string | null; afterId: string | null }, animate = false) {
     const previous = order;
-    setOrder(arrayMove(order, order.indexOf(id), target.toIndex));
-    void settle(reorderSubtaskAction(workspaceSlug, { taskId: id, beforeId: target.beforeId, afterId: target.afterId }))
-      .then((result) => {
+    const next = arrayMove(order, order.indexOf(id), target.toIndex);
+    if (animate) startTypedTransition(SUBTASK_CHANGE, () => setOrder(next));
+    else setOrder(next);
+    // Next task: transitions started in one tick share a lane, so the move would
+    // wait for the server action's round-trip.
+    setTimeout(() => {
+      void settle(reorderSubtaskAction(workspaceSlug, { taskId: id, beforeId: target.beforeId, afterId: target.afterId }))
+        .then((result) => {
+          if (result.ok) return;
+          toast.error(result.error);
+          startTransition(() => setOrder(previous));
+          router.refresh();
+        });
+    });
+  }
+
+  function remove(id: string) {
+    startTypedTransition(SUBTASK_CHANGE, () => setRemoved((prev) => new Set(prev).add(id)));
+    setTimeout(() => {
+      void settle(deleteTaskAction(workspaceSlug, { taskId: id })).then((result) => {
         if (result.ok) return;
         toast.error(result.error);
-        setOrder(previous);
-        router.refresh();
+        startTransition(() => setRemoved((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        }));
       });
+    });
   }
 
   function onDragEnd({ active, over }: DragEndEvent) {
@@ -79,7 +113,7 @@ export function SubtaskSection({
   function onStep(id: string, delta: -1 | 1) {
     const target = stepTarget(order, id, delta);
     if (!target) return;
-    reorder(id, target);
+    reorder(id, target, true);
     // Keep the moved row focused for the next Alt+arrow.
     requestAnimationFrame(() =>
       document.querySelector<HTMLElement>(`[data-subtask-id="${id}"] button[aria-label^="Rename"]`)?.focus());
@@ -217,8 +251,8 @@ export function SubtaskSection({
             <SortableContext items={order} strategy={verticalListSortingStrategy}>
               <ul aria-label="Subtasks" className="border-b border-stroke-soft-200">
                 {rows.map((subtask, i) => (
+                  <ViewTransition key={subtask.id} name={subtaskTransitionName(subtask.id)} {...SUBTASK_CHANGE_CLASSES}>
                   <SubtaskRow
-                    key={subtask.id}
                     subtask={subtask}
                     statuses={statuses}
                     members={members}
@@ -229,7 +263,10 @@ export function SubtaskSection({
                     onOpen={() => open(subtask.id)}
                     onStep={(delta) => onStep(subtask.id, delta)}
                     onPromote={() => setParent(subtask.id, null, parent.id, `“${subtask.title}” is now a task`)}
+                    isNew={!seen.has(subtask.id)}
+                    onDelete={() => remove(subtask.id)}
                   />
+                  </ViewTransition>
                 ))}
               </ul>
             </SortableContext>

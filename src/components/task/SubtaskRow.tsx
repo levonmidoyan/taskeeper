@@ -22,7 +22,7 @@ import { settle } from '@/lib/settle';
 import { doneToggleTarget } from '@/lib/task-done';
 import type { MemberRow } from '@/server/labels/queries';
 import type { StatusRow } from '@/server/projects/queries';
-import { deleteTaskAction, updateTaskAction } from '@/server/tasks/actions';
+import { updateTaskAction } from '@/server/tasks/actions';
 import type { TaskRow } from '@/server/tasks/queries';
 import { cn } from '@/utils/cn';
 
@@ -30,7 +30,7 @@ import { cn } from '@/utils/cn';
 const REVEAL = 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100 data-[state=open]:opacity-100';
 
 export function SubtaskRow({
-  subtask, statuses, members, timezone, workspaceSlug, isFirst, isLast, onOpen, onStep, onPromote,
+  subtask, statuses, members, timezone, workspaceSlug, isFirst, isLast, onOpen, onStep, onPromote, onDelete, isNew,
 }: {
   subtask: TaskRow;
   statuses: StatusRow[];
@@ -42,6 +42,10 @@ export function SubtaskRow({
   onOpen: () => void;
   onStep: (delta: -1 | 1) => void;
   onPromote: () => void;
+  /** Deletes the subtask, once confirmed. */
+  onDelete: () => void;
+  /** Not shown before (just added): grows in. */
+  isNew: boolean;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -131,13 +135,12 @@ export function SubtaskRow({
     return () => form.removeEventListener(LOCAL_ESCAPE_EVENT, cancel);
   });
 
-  async function onDelete() {
+  // Fixed at mount: the class must outlive the render that marks the row seen.
+  const [grow] = useState(isNew);
+
+  async function confirmDelete() {
     if (!(await confirm({ title: `Delete "${subtask.title}"?`, description: 'This can’t be undone.' }))) return;
-    startTransition(async () => {
-      const result = await settle(deleteTaskAction(workspaceSlug, { taskId: subtask.id }));
-      if (!result.ok) toast.error(result.error);
-      else router.refresh();
-    });
+    onDelete();
   }
 
   return (
@@ -154,6 +157,7 @@ export function SubtaskRow({
       className={cn(
         'group flex flex-wrap items-center gap-x-1 gap-y-0 border-b border-stroke-soft-200 bg-bg-white-0 pr-2 last:border-b-0 lg:flex-nowrap',
         isDragging && 'relative z-10 shadow-regular-md',
+        grow && 'animate-subtask-in',
       )}
     >
       <Hint label="Drag to reorder (or Alt+↑/↓)">
@@ -290,7 +294,7 @@ export function SubtaskRow({
             <Dropdown.Item disabled={isLast} onSelect={() => onStep(1)}><Dropdown.ItemIcon as={IconArrowDown} />Move down</Dropdown.Item>
             <Dropdown.Item onSelect={onPromote}><Dropdown.ItemIcon as={IconArrowBarToUp} />Promote to task</Dropdown.Item>
             <Dropdown.Separator className="my-1 h-px bg-stroke-soft-200" />
-            <Dropdown.Item onSelect={onDelete} className="text-error-base">
+            <Dropdown.Item onSelect={confirmDelete} className="text-error-base">
               <Dropdown.ItemIcon as={IconTrash} className="text-error-base" />Delete
             </Dropdown.Item>
           </Dropdown.Content>

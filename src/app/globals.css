@@ -90,6 +90,8 @@
   --animate-kanban-settle: kanban-settle 280ms var(--ease-spring) both;
   --animate-todo-lift: todo-lift 180ms var(--ease-spring) both;
   --animate-badge-pop: badge-pop 280ms var(--ease-spring) both;
+  /* Subtask rows: shown by expanding a parent (list, board card), or just added. */
+  --animate-subtask-in: subtask-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
 
   @keyframes kanban-lift {
     from { transform: none; }
@@ -98,6 +100,9 @@
   @keyframes kanban-settle {
     from { transform: scale(1.03) rotate(2deg); }
     to { transform: none; }
+  }
+  @keyframes subtask-in {
+    from { opacity: 0; transform: translateY(-4px); }
   }
   @keyframes todo-lift {
     from { scale: 1; }
@@ -171,6 +176,13 @@
 ::view-transition-old(.todo-exit) { animation: var(--duration-base) var(--ease-out-soft) both vt-fade-out; }
 ::view-transition-group(.todo-move),
 ::view-transition-group(.todo-shift) {
+  animation-duration: var(--duration-base);
+  animation-timing-function: var(--ease-out-soft);
+}
+
+/* Subtasks in the task modal: deleted, or moved with Alt+arrows or the menu. */
+::view-transition-old(.subtask-exit) { animation: var(--duration-base) var(--ease-out-soft) both vt-fade-out; }
+::view-transition-group(.subtask-shift) {
   animation-duration: var(--duration-base);
   animation-timing-function: var(--ease-out-soft);
 }

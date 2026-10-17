@@ -18,6 +18,8 @@ export const VIEW_FORWARD = 'view-forward';
 export const VIEW_BACK = 'view-back';
 /** A to-do added, edited, moved, checked or deleted. */
 export const TODO_CHANGE = 'todo-change';
+/** A subtask deleted or moved in the task modal. */
+export const SUBTASK_CHANGE = 'subtask-change';
 /** A notification cleared from the bell. */
 export const BELL_CHANGE = 'bell-change';
 
@@ -36,6 +38,7 @@ export const taskTransitionName = (taskId: string) => `task-${taskId}`;
 export const cardTransitionName = (id: string) => `card-${id}`;
 export const rowTransitionName = (id: string) => `row-${id}`;
 export const todoTransitionName = (id: string) => `todo-${id}`;
+export const subtaskTransitionName = (id: string) => `subtask-${id}`;
 export const bellTransitionName = (id: string) => `bell-${id}`;
 
 /**
@@ -72,6 +75,16 @@ export const TODO_CHANGE_CLASSES = {
   default: 'none',
 } as const;
 
+/**
+ * Subtask rows in the task modal: my own deletes and moves, and a teammate's. No
+ * enter: an added row grows in by a keyframe (SubtaskSection says why).
+ */
+export const SUBTASK_CHANGE_CLASSES = {
+  exit: { [SUBTASK_CHANGE]: 'subtask-exit', [REMOTE_REFRESH]: 'subtask-exit', default: 'none' },
+  update: { [SUBTASK_CHANGE]: 'subtask-shift', [REMOTE_REFRESH]: 'subtask-shift', default: 'none' },
+  default: 'none',
+} as const;
+
 export const BELL_CHANGE_CLASSES = {
   exit: onlyOn(BELL_CHANGE, 'bell-exit'),
   update: onlyOn(BELL_CHANGE, 'bell-shift'),
@@ -103,7 +116,7 @@ export function viewSwitchType(from: number, to: number): string {
 /** Every class above: globals.css must style each (tests/unit/motion-css.test.ts). */
 export const MOTION_CLASSES: readonly string[] = [
   'task-morph', 'task-pop', 'card-move', 'card-enter', 'card-exit',
-  'todo-enter', 'todo-exit', 'todo-move', 'todo-shift', 'bell-exit', 'bell-shift', 'vt-fade-in', 'view-slide-forward', 'view-slide-back', 'view-anchor',
+  'todo-enter', 'todo-exit', 'todo-move', 'todo-shift', 'subtask-exit', 'subtask-shift', 'bell-exit', 'bell-shift', 'vt-fade-in', 'view-slide-forward', 'view-slide-back', 'view-anchor',
 ];
 
 /** The view-switch key: a new route or saved view, never a filter or ?task change. */
