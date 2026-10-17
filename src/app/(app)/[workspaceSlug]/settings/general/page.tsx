@@ -1,3 +1,4 @@
+import { DeleteWorkspaceCard } from '@/components/settings/DeleteWorkspaceCard';
 import { TimezoneForm } from '@/components/settings/TimezoneForm';
 import { WorkspaceLogoForm } from '@/components/settings/WorkspaceLogoForm';
 import { requireWorkspace } from '@/lib/session';
@@ -29,6 +30,8 @@ export default async function GeneralSettingsPage({
       />
 
       <TimezoneForm workspaceSlug={workspaceSlug} current={ctx.workspaceTimezone} canEdit={canEdit} />
+
+      {ctx.role === 'owner' && workspace && <DeleteWorkspaceCard workspaceSlug={workspaceSlug} name={workspace.name} />}
     </div>
   );
 }
