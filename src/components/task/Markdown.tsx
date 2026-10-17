@@ -2,6 +2,7 @@ import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markd
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import type { MentionMember } from '@/components/kibo-ui/editor/mention';
+import { isAttachmentSrc } from '@/lib/inline-attachment';
 import { MENTION_SCHEME, mentionTarget, nodeText } from '@/lib/mentions';
 import { cn } from '@/utils/cn';
 
@@ -46,9 +47,18 @@ function buildComponents(members?: MentionMember[], currentUserId?: string): Com
       );
     },
     // A remote image would load in every viewer's browser, telling its host who read the
-    // task and when. The editor cannot make images, so show them as links.
+    // task and when, so it shows as a link. Only the task's own attachments, pasted into the
+    // field and served by the app after a session check, show as images.
     img: ({ src, alt }) => {
       const href = typeof src === 'string' ? src : undefined;
+      if (isAttachmentSrc(href)) {
+        return (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="inline-attachment-link">
+            {/* eslint-disable-next-line @next/next/no-img-element -- a session-checked redirect, not an optimisable asset */}
+            <img src={href} alt={alt ?? ''} loading="lazy" className="inline-attachment" />
+          </a>
+        );
+      }
       return (
         <a href={href} target="_blank" rel="noopener noreferrer">
           {alt || href}

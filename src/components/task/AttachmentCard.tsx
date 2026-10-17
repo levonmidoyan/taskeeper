@@ -10,6 +10,7 @@ import { fileFormat, formatBytes, isInlineType } from '@/lib/attachments';
 import { formatDueDate, formatInZone, todayInZone } from '@/lib/dates';
 import type { UploadItem } from '@/lib/upload-queue';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 function FileGlyph({ fileName, contentType, thumbnail }: { fileName: string; contentType: string; thumbnail?: string }) {
   if (thumbnail && isInlineType(contentType) && contentType.startsWith('image/')) {
@@ -24,21 +25,29 @@ function FileGlyph({ fileName, contentType, thumbnail }: { fileName: string; con
 
 /** A saved attachment (File Upload 01, "completed"). The upload day reads relative, the exact time on hover. */
 export function ReadyAttachmentCard({
-  id, fileName, contentType, size, uploaderName, createdAt, timezone, canDelete, onDelete,
+  id, fileName, contentType, size, uploaderName, createdAt, timezone, canDelete, onDelete, onPreview,
 }: {
   id: string; fileName: string; contentType: string; size: number;
   uploaderName: string; createdAt: Date; timezone: string;
   canDelete: boolean; onDelete: () => void;
+  /** Given for files the preview modal can show; the card then opens it instead of a new tab. */
+  onPreview?: () => void;
 }) {
   const href = `/api/attachments/${id}`;
   return (
     <li className="group relative flex items-center gap-3 rounded-2xl bg-bg-white-0 p-4 ring-1 ring-inset ring-stroke-soft-200 transition-colors duration-150 hover:bg-bg-weak-50">
       <FileGlyph fileName={fileName} contentType={contentType} thumbnail={href} />
       <div className="min-w-0 flex-1">
-        {/* The stretched link makes the whole card open the file. */}
-        <a href={href} target="_blank" rel="noopener" className="block truncate text-label-sm text-text-strong-950 after:absolute after:inset-0">
-          {fileName}
-        </a>
+        {/* The stretched link or button makes the whole card open the file. */}
+        {onPreview ? (
+          <button type="button" onClick={onPreview} className="block w-full truncate text-left text-label-sm text-text-strong-950 after:absolute after:inset-0">
+            {fileName}
+          </button>
+        ) : (
+          <a href={href} target="_blank" rel="noopener" className="block truncate text-label-sm text-text-strong-950 after:absolute after:inset-0">
+            {fileName}
+          </a>
+        )}
         <p className="truncate text-paragraph-xs text-text-sub-600">
           {formatBytes(size)} · {uploaderName} ·{' '}
           <time dateTime={createdAt.toISOString()} title={formatInZone(createdAt, timezone)}>
@@ -47,15 +56,19 @@ export function ReadyAttachmentCard({
         </p>
       </div>
       <div className="relative flex shrink-0 items-center gap-1">
-        <CompactButton.Root variant="ghost" size="large" asChild>
-          <a href={`${href}?download=1`} aria-label={`Download ${fileName}`}>
-            <CompactButton.Icon as={IconDownload} aria-hidden="true" />
-          </a>
-        </CompactButton.Root>
-        {canDelete && (
-          <CompactButton.Root variant="ghost" size="large" onClick={onDelete} aria-label={`Delete ${fileName}`}>
-            <CompactButton.Icon as={IconTrash} aria-hidden="true" />
+        <Hint label="Download">
+          <CompactButton.Root variant="ghost" size="large" asChild>
+            <a href={`${href}?download=1`} aria-label={`Download ${fileName}`}>
+              <CompactButton.Icon as={IconDownload} aria-hidden="true" />
+            </a>
           </CompactButton.Root>
+        </Hint>
+        {canDelete && (
+          <Hint label="Delete">
+            <CompactButton.Root variant="ghost" size="large" onClick={onDelete} aria-label={`Delete ${fileName}`}>
+              <CompactButton.Icon as={IconTrash} aria-hidden="true" />
+            </CompactButton.Root>
+          </Hint>
         )}
       </div>
     </li>
@@ -102,17 +115,23 @@ export function UploadCard({
           )}
         </div>
         {state === 'done' ? (
-          <CompactButton.Root variant="ghost" size="large" onClick={onRemove} aria-label={`Delete ${file.name}`}>
-            <CompactButton.Icon as={IconTrash} aria-hidden="true" />
-          </CompactButton.Root>
+          <Hint label="Delete">
+            <CompactButton.Root variant="ghost" size="large" onClick={onRemove} aria-label={`Delete ${file.name}`}>
+              <CompactButton.Icon as={IconTrash} aria-hidden="true" />
+            </CompactButton.Root>
+          </Hint>
         ) : failed ? (
-          <CompactButton.Root variant="ghost" size="large" onClick={onCancel} aria-label={`Dismiss ${file.name}`}>
-            <CompactButton.Icon as={IconTrash} className="text-error-base" aria-hidden="true" />
-          </CompactButton.Root>
+          <Hint label="Dismiss">
+            <CompactButton.Root variant="ghost" size="large" onClick={onCancel} aria-label={`Dismiss ${file.name}`}>
+              <CompactButton.Icon as={IconTrash} className="text-error-base" aria-hidden="true" />
+            </CompactButton.Root>
+          </Hint>
         ) : item.confirming ? null : (
-          <CompactButton.Root variant="ghost" size="large" onClick={onCancel} aria-label={`Cancel ${file.name}`}>
-            <CompactButton.Icon as={IconX} aria-hidden="true" />
-          </CompactButton.Root>
+          <Hint label="Cancel upload">
+            <CompactButton.Root variant="ghost" size="large" onClick={onCancel} aria-label={`Cancel ${file.name}`}>
+              <CompactButton.Icon as={IconX} aria-hidden="true" />
+            </CompactButton.Root>
+          </Hint>
         )}
       </div>
       {state === 'uploading' && (

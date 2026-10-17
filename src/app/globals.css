@@ -90,6 +90,8 @@
   --animate-kanban-settle: kanban-settle 280ms var(--ease-spring) both;
   --animate-todo-lift: todo-lift 180ms var(--ease-spring) both;
   --animate-badge-pop: badge-pop 280ms var(--ease-spring) both;
+  /* Subtask rows: shown by expanding a parent (list, board card), or just added. */
+  --animate-subtask-in: subtask-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
 
   @keyframes kanban-lift {
     from { transform: none; }
@@ -98,6 +100,9 @@
   @keyframes kanban-settle {
     from { transform: scale(1.03) rotate(2deg); }
     to { transform: none; }
+  }
+  @keyframes subtask-in {
+    from { opacity: 0; transform: translateY(-4px); }
   }
   @keyframes todo-lift {
     from { scale: 1; }
@@ -128,6 +133,10 @@
  * pass through to the live page while an animation runs.
  */
 ::view-transition { pointer-events: none; }
+
+/* A modal dialog sets pointer-events: none on <body>; toasts (an Undo, say) stay
+   clickable over it. TaskDetailDialog ignores those clicks as "outside". */
+[data-sonner-toaster] { pointer-events: auto; }
 ::view-transition-old(root) { display: none; }
 ::view-transition-group(root) { animation: none; }
 ::view-transition-new(root) { animation: none; }
@@ -167,6 +176,13 @@
 ::view-transition-old(.todo-exit) { animation: var(--duration-base) var(--ease-out-soft) both vt-fade-out; }
 ::view-transition-group(.todo-move),
 ::view-transition-group(.todo-shift) {
+  animation-duration: var(--duration-base);
+  animation-timing-function: var(--ease-out-soft);
+}
+
+/* Subtasks in the task modal: deleted, or moved with Alt+arrows or the menu. */
+::view-transition-old(.subtask-exit) { animation: var(--duration-base) var(--ease-out-soft) both vt-fade-out; }
+::view-transition-group(.subtask-shift) {
   animation-duration: var(--duration-base);
   animation-timing-function: var(--ease-out-soft);
 }
@@ -378,6 +394,16 @@
   .md-content :where(pre code) { @apply bg-transparent p-0; }
   .md-content :where(a) { @apply text-primary-base underline underline-offset-2; }
   .md-content :where(hr) { @apply border-stroke-soft-200; }
+  /* Files pasted into a field (kibo-ui/editor/file-paste.ts): images in place, and the
+     widget shown while one uploads. */
+  .md-content :where(img.inline-attachment) {
+    @apply my-1 inline-block max-h-96 max-w-full rounded-10 ring-1 ring-inset ring-stroke-soft-200;
+  }
+  .md-content :where(img.inline-attachment.ProseMirror-selectednode) { @apply ring-2 ring-primary-base; }
+  .md-content :where(a.inline-attachment-link) { @apply no-underline; }
+  .md-content :where(.inline-upload) {
+    @apply mx-0.5 animate-pulse rounded-md bg-bg-weak-50 px-1.5 py-0.5 text-paragraph-xs text-text-sub-600;
+  }
   /* @mentions (kibo-ui/editor/mention.tsx); data-self marks the reader's own. */
   .mention {
     @apply rounded-md bg-primary-alpha-10 px-1 py-px text-label-sm text-primary-base whitespace-nowrap;

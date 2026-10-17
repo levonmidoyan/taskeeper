@@ -2,9 +2,11 @@
 
 import { IconPencil } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { CollapsibleSection } from '@/components/task/CollapsibleSection';
 import { Markdown } from '@/components/task/Markdown';
 import { RichTextField } from '@/components/task/RichTextField';
+import { useAttachmentUploads } from '@/components/task/use-attachment-uploads';
 import * as Button from '@/components/ui/button';
 import { useServerValue } from '@/hooks/use-server-value';
 import { LOCAL_ESCAPE_EVENT } from '@/lib/local-escape';
@@ -15,11 +17,18 @@ import type { MemberRow } from '@/server/labels/queries';
  * editor with Save and Cancel. Escape cancels, Ctrl/⌘+Enter saves.
  */
 export function DescriptionField({
+  taskId,
+  workspaceSlug,
+  canAttach,
   value: server,
   members,
   currentUserId,
   onSave,
 }: {
+  taskId: string;
+  workspaceSlug: string;
+  /** Storage is set up, so pasted or dropped files become attachments. */
+  canAttach: boolean;
   value: string;
   /** Offered by the @ menu, and the names mention chips show. */
   members: MemberRow[];
@@ -37,6 +46,8 @@ export function DescriptionField({
   const editorRef = useRef<HTMLDivElement>(null);
   const editButtonRef = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef(false);
+  const uploads = useAttachmentUploads(workspaceSlug, taskId);
+  const [uploading, setUploading] = useState(0);
 
   function startEdit() {
     draft.current = null;
@@ -44,11 +55,17 @@ export function DescriptionField({
   }
 
   function finish() {
+    setUploading(0);
     returnFocus.current = true;
     setEditing(false);
   }
 
   function save() {
+    // Saving now would keep the text without the file it is waiting for.
+    if (uploading > 0) {
+      toast.message('Wait for uploads to finish.');
+      return;
+    }
     const next = draft.current;
     finish();
     if (next === null || next === value) return;
@@ -121,9 +138,12 @@ export function DescriptionField({
             placeholder="Add details… Type / for headings, lists and more."
             autoFocus
             onChange={(markdown) => { draft.current = markdown; }}
+            onUploadFiles={canAttach ? uploads.upload : undefined}
+            onUploadingChange={setUploading}
+            className="[&_.md-content]:min-h-[100px]"
           />
           <div className="flex gap-2">
-            <Button.Root type="button" size="xxsmall" onClick={save}>Save</Button.Root>
+            <Button.Root type="button" size="xxsmall" onClick={save} disabled={uploading > 0}>Save</Button.Root>
             <Button.Root type="button" variant="neutral" mode="stroke" size="xxsmall" onClick={finish}>
               Cancel
             </Button.Root>
@@ -134,7 +154,7 @@ export function DescriptionField({
           ref={editButtonRef}
           type="button"
           onClick={startEdit}
-          className="rounded-10 px-3 py-2 text-left text-paragraph-sm text-text-soft-400 ring-1 ring-inset ring-stroke-soft-200 transition-colors duration-150 hover:bg-bg-weak-50"
+          className="flex min-h-[116px] items-start rounded-10 px-3 py-2 text-left text-paragraph-sm text-text-soft-400 ring-1 ring-inset ring-stroke-soft-200 transition-colors duration-150 hover:bg-bg-weak-50"
         >
           Add a description…
         </button>
@@ -148,7 +168,7 @@ export function DescriptionField({
             if (window.getSelection()?.toString()) return;
             startEdit();
           }}
-          className="-mx-3 cursor-text rounded-10 px-3 py-2 transition-colors duration-150 hover:bg-bg-weak-50"
+          className="-mx-3 min-h-[116px] cursor-text rounded-10 px-3 py-2 transition-colors duration-150 hover:bg-bg-weak-50"
         >
           <Markdown members={members} currentUserId={currentUserId}>{value}</Markdown>
         </div>

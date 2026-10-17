@@ -1,249 +1,308 @@
 'use client';
 
-import { IconPlus, IconTrash } from '@tabler/icons-react';
+import {
+  closestCenter, DndContext, type DragEndEvent, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors,
+} from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { IconPlus } from '@tabler/icons-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { startTransition, useEffect, useMemo, useRef, useState, ViewTransition } from 'react';
 import { toast } from 'sonner';
 import { CollapsibleSection } from '@/components/task/CollapsibleSection';
-import { DoneIcon, StrikeText } from '@/components/task/DoneMark';
-import * as Button from '@/components/ui/button';
+import { SubtaskRow } from '@/components/task/SubtaskRow';
+import { useSetParent } from '@/components/task/use-set-parent';
 import { LOCAL_ESCAPE_EVENT } from '@/lib/local-escape';
+import { startTypedTransition, SUBTASK_CHANGE, SUBTASK_CHANGE_CLASSES, subtaskTransitionName } from '@/lib/motion';
 import { settle } from '@/lib/settle';
-import { doneToggleTarget } from '@/lib/task-done';
+import { MAX_SUBTASK_BATCH, progressPercent, splitPastedLines, stepTarget } from '@/lib/subtasks';
+import { dropTarget } from '@/lib/todo-list';
+import type { MemberRow } from '@/server/labels/queries';
 import type { StatusRow } from '@/server/projects/queries';
-import { createTaskAction, deleteTaskAction, updateTaskAction } from '@/server/tasks/actions';
+import { createSubtasksAction, createTaskAction, deleteTaskAction, reorderSubtaskAction } from '@/server/tasks/actions';
 import type { TaskRow } from '@/server/tasks/queries';
 import { cn } from '@/utils/cn';
 
 export function SubtaskSection({
-  parent,
-  subtasks,
-  statuses,
-  projectId,
-  workspaceSlug,
-  pageBase,
+  parent, subtasks, statuses, members, timezone, projectId, workspaceSlug, pageBase,
 }: {
   parent: TaskRow;
   subtasks: TaskRow[];
   statuses: StatusRow[];
+  members: MemberRow[];
+  timezone: string;
   projectId: string;
   workspaceSlug: string;
   /** Set on a task's own page: subtasks open as pages under it, not via ?task=. */
   pageBase?: string;
 }) {
   const router = useRouter();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-  const addButtonRef = useRef<HTMLButtonElement>(null);
-  const [pending, setPending] = useState(false);
-  // The input only shows once asked for, Jira-style, and stays for the next one.
-  const [adding, setAdding] = useState(false);
-  const returnFocus = useRef(false);
+  const searchParams = useSearchParams();
+  const setParent = useSetParent(workspaceSlug);
 
-  function stopAdding() {
-    returnFocus.current = true;
-    setAdding(false);
+  // Local order for optimistic drags; the server's order wins on every refresh.
+  const serverIds = useMemo(() => subtasks.map((s) => s.id), [subtasks]);
+  const [order, setOrder] = useState(serverIds);
+  const [syncedIds, setSyncedIds] = useState(serverIds);
+  if (serverIds !== syncedIds) {
+    setSyncedIds(serverIds);
+    setOrder(serverIds);
   }
+  const byId = useMemo(() => new Map(subtasks.map((s) => [s.id, s])), [subtasks]);
+  // Deleted here and waiting on the server: gone at once, so the row can animate out.
+  const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set());
+  const rows = order.map((id) => byId.get(id)).filter((s): s is TaskRow => s !== undefined && !removed.has(s.id));
 
-  // Inside a dialog, Escape reaches the dialog first; it hands it over by this event.
+  // Rows this section has shown. One it has not (an add, mine or a teammate's) grows
+  // in by a keyframe, not a <ViewTransition> enter: a boundary that can enter starts a
+  // view transition on every add, and React holds commits (the next subtask being
+  // typed) until its snapshot is taken.
+  const [seen] = useState(() => new Set(serverIds));
   useEffect(() => {
-    const form = formRef.current;
-    if (!adding || !form) return;
-    const close = () => stopAdding();
-    form.addEventListener(LOCAL_ESCAPE_EVENT, close);
-    return () => form.removeEventListener(LOCAL_ESCAPE_EVENT, close);
-  }, [adding]);
-
-  useEffect(() => {
-    if (adding || !returnFocus.current) return;
-    returnFocus.current = false;
-    addButtonRef.current?.focus();
-  }, [adding]);
+    for (const id of serverIds) seen.add(id);
+  }, [serverIds, seen]);
 
   const doneCount = subtasks.filter((s) => s.completedAt !== null).length;
+  const percent = progressPercent(doneCount, subtasks.length);
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const title = inputRef.current?.value.trim();
-    if (!title || pending) return;
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
-    // Cleared up front so the field is ready for the next subtask. Never
-    // disabled either: that blurs it, and re-enabling does not restore focus.
-    if (inputRef.current) inputRef.current.value = '';
+  /** `animate`: slide the rows to their new places (a drop already has, by dnd-kit). */
+  function reorder(id: string, target: { toIndex: number; beforeId: string | null; afterId: string | null }, animate = false) {
+    const previous = order;
+    const next = arrayMove(order, order.indexOf(id), target.toIndex);
+    if (animate) startTypedTransition(SUBTASK_CHANGE, () => setOrder(next));
+    else setOrder(next);
+    // Next task: transitions started in one tick share a lane, so the move would
+    // wait for the server action's round-trip.
+    setTimeout(() => {
+      void settle(reorderSubtaskAction(workspaceSlug, { taskId: id, beforeId: target.beforeId, afterId: target.afterId }))
+        .then((result) => {
+          if (result.ok) return;
+          toast.error(result.error);
+          startTransition(() => setOrder(previous));
+          router.refresh();
+        });
+    });
+  }
 
+  function remove(id: string) {
+    startTypedTransition(SUBTASK_CHANGE, () => setRemoved((prev) => new Set(prev).add(id)));
+    setTimeout(() => {
+      void settle(deleteTaskAction(workspaceSlug, { taskId: id })).then((result) => {
+        if (result.ok) return;
+        toast.error(result.error);
+        startTransition(() => setRemoved((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        }));
+      });
+    });
+  }
+
+  function onDragEnd({ active, over }: DragEndEvent) {
+    if (!over) return;
+    const target = dropTarget(order, String(active.id), String(over.id));
+    if (target) reorder(String(active.id), target);
+  }
+
+  function onStep(id: string, delta: -1 | 1) {
+    const target = stepTarget(order, id, delta);
+    if (!target) return;
+    reorder(id, target, true);
+    // Keep the moved row focused for the next Alt+arrow.
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>(`[data-subtask-id="${id}"] button[aria-label^="Rename"]`)?.focus());
+  }
+
+  function open(id: string) {
+    if (pageBase) {
+      router.push(`${pageBase}/${id}`);
+      return;
+    }
+    const next = new URLSearchParams(searchParams);
+    next.set('task', id);
+    router.push(`?${next.toString()}`, { scroll: false });
+  }
+
+  // Add row.
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pending, setPending] = useState(false);
+  const [pasted, setPasted] = useState<string[] | null>(null);
+
+  async function addOne(title: string) {
     setPending(true);
     const result = await settle(createTaskAction(workspaceSlug, {
-      projectId,
-      title,
-      // Subtasks land in the parent's column, not the leftmost one: they are
-      // part of work already in flight.
+      projectId, title,
+      // Subtasks land in the parent's column: they are part of work already in flight.
       statusId: parent.statusId,
       parentTaskId: parent.id,
     }));
     setPending(false);
-
     if (!result.ok) {
       toast.error(result.error);
       if (inputRef.current && inputRef.current.value === '') inputRef.current.value = title;
       return;
     }
-
     router.refresh();
   }
+
+  async function addMany(titles: string[]) {
+    setPasted(null);
+    setPending(true);
+    const result = await settle(createSubtasksAction(workspaceSlug, { parentTaskId: parent.id, titles }));
+    setPending(false);
+    if (!result.ok) toast.error(result.error);
+    else router.refresh();
+  }
+
+  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pasted) {
+      void addMany(pasted);
+      return;
+    }
+    const title = inputRef.current?.value.trim();
+    if (!title || pending) return;
+    // Cleared up front so the field is ready for the next one; never disabled, which would blur it.
+    if (inputRef.current) inputRef.current.value = '';
+    void addOne(title);
+  }
+
+  // Where the paste would have gone, for Esc to put it there as one line.
+  const pasteRange = useRef<[number, number]>([0, 0]);
+
+  /** Typed-in text at the selection, kept within the field's 200 characters. */
+  function insertAt(input: HTMLInputElement, text: string, start: number, end: number) {
+    const room = Math.max(0, 200 - (input.value.length - (end - start)));
+    input.setRangeText(text.slice(0, room), start, end, 'end');
+  }
+
+  function onPaste(event: React.ClipboardEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const text = event.clipboardData.getData('text/plain');
+    const lines = splitPastedLines(text);
+    if (lines.length < 2) {
+      // One line: as typed, less any list marker ("- Buy milk" → "Buy milk").
+      if (lines.length === 1 && lines[0] !== text.trim()) {
+        event.preventDefault();
+        insertAt(input, lines[0], input.selectionStart ?? input.value.length, input.selectionEnd ?? input.value.length);
+      }
+      return;
+    }
+    event.preventDefault();
+    if (lines.length > MAX_SUBTASK_BATCH) {
+      toast.error('Up to 50 at a time.');
+      return;
+    }
+    pasteRange.current = [input.selectionStart ?? input.value.length, input.selectionEnd ?? input.value.length];
+    setPasted(lines);
+  }
+
+  function pasteAsOneLine() {
+    if (!pasted || !inputRef.current) return;
+    const [start, end] = pasteRange.current;
+    insertAt(inputRef.current, pasted.join(' '), start, end);
+    setPasted(null);
+  }
+
+  // Inside the dialog, Escape reaches the dialog first; while a paste waits for
+  // its confirm the form claims it (data-local-escape) and hears of it by this
+  // event. Otherwise Escape closes the dialog as usual.
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    const form = formRef.current;
+    if (!pasted || !form) return;
+    const cancel = () => pasteAsOneLine();
+    form.addEventListener(LOCAL_ESCAPE_EVENT, cancel);
+    return () => form.removeEventListener(LOCAL_ESCAPE_EVENT, cancel);
+  });
 
   return (
     <CollapsibleSection
       sectionId="subtasks"
       title="Subtasks"
       meta={`${doneCount}/${subtasks.length}`}
-      actions={!adding && (
-        <Button.Root
-          ref={addButtonRef}
-          type="button"
-          variant="neutral"
-          mode="ghost"
-          size="xxsmall"
-          onClick={() => setAdding(true)}
-        >
-          <Button.Icon as={IconPlus} />
-          Add subtask
-        </Button.Root>
-      )}
     >
       {subtasks.length > 0 && (
-        <ul className="overflow-hidden rounded-10 ring-1 ring-inset ring-stroke-soft-200">
-          {subtasks.map((subtask) => (
-            <SubtaskRow
-              key={subtask.id}
-              subtask={subtask}
-              statuses={statuses}
-              workspaceSlug={workspaceSlug}
-              pageBase={pageBase}
-            />
-          ))}
-        </ul>
+        <div
+          role="progressbar"
+          aria-label="Subtasks done"
+          aria-valuenow={percent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          className="h-1 overflow-hidden rounded-full bg-bg-soft-200"
+        >
+          <div
+            className={cn('h-full rounded-full transition-[width] duration-220', percent === 100 ? 'bg-success-base' : 'bg-primary-base')}
+            style={{ width: `${percent}%` }}
+          />
+        </div>
       )}
 
-      {adding && (
-        <form
-          ref={formRef}
-          onSubmit={onSubmit}
-          data-local-escape=""
-          className="relative flex items-center gap-2 rounded-10 px-3 ring-1 ring-inset ring-stroke-strong-950"
-        >
+      <div className="overflow-hidden rounded-10 ring-1 ring-inset ring-stroke-soft-200">
+        {rows.length > 0 && (
+          // An explicit id: dnd-kit's generated ids differ between server and browser render.
+          <DndContext id={`subtasks-${parent.id}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+            <SortableContext items={order} strategy={verticalListSortingStrategy}>
+              <ul aria-label="Subtasks" className="border-b border-stroke-soft-200">
+                {rows.map((subtask, i) => (
+                  <ViewTransition key={subtask.id} name={subtaskTransitionName(subtask.id)} {...SUBTASK_CHANGE_CLASSES}>
+                  <SubtaskRow
+                    subtask={subtask}
+                    statuses={statuses}
+                    members={members}
+                    timezone={timezone}
+                    workspaceSlug={workspaceSlug}
+                    isFirst={i === 0}
+                    isLast={i === rows.length - 1}
+                    onOpen={() => open(subtask.id)}
+                    onStep={(delta) => onStep(subtask.id, delta)}
+                    onPromote={() => setParent(subtask.id, null, parent.id, `“${subtask.title}” is now a task`)}
+                    isNew={!seen.has(subtask.id)}
+                    onDelete={() => remove(subtask.id)}
+                  />
+                  </ViewTransition>
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
+        )}
+
+        <form ref={formRef} onSubmit={onSubmit} data-local-escape={pasted ? '' : undefined} className="flex items-center gap-2 px-3">
           <IconPlus className="size-4 shrink-0 text-text-soft-400" aria-hidden="true" />
-          <label htmlFor={`add-subtask-${parent.id}`} className="sr-only">
-            Add a subtask
-          </label>
+          <label htmlFor={`add-subtask-${parent.id}`} className="sr-only">Add a subtask</label>
           <input
             id={`add-subtask-${parent.id}`}
             ref={inputRef}
             name="title"
             maxLength={200}
             aria-busy={pending}
-            autoFocus
-            placeholder="Add a subtask…"
-            onKeyDown={(event) => {
-              if (event.key === 'Escape' && !event.defaultPrevented) {
-                event.preventDefault();
-                stopAdding();
+            placeholder="Add subtask…"
+            onPaste={onPaste}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && pasted && !e.defaultPrevented) {
+                e.preventDefault();
+                pasteAsOneLine();
               }
             }}
-            // Clicking away from an empty field puts the button back; a typed
-            // title stays until submitted or escaped.
-            onBlur={(event) => { if (!event.currentTarget.value.trim()) setAdding(false); }}
-            className="h-11 w-full bg-transparent text-paragraph-md text-text-strong-950 placeholder:text-text-soft-400 lg:text-paragraph-sm"
+            className="h-11 w-full bg-transparent text-paragraph-md text-text-strong-950 placeholder:text-text-soft-400 lg:h-10 lg:text-paragraph-sm"
           />
         </form>
+        {pasted && (
+          <p role="status" className="border-t border-stroke-soft-200 px-3 py-2 text-paragraph-xs text-text-sub-600">
+            <span className="text-text-strong-950">Create {pasted.length} subtasks?</span> Enter to confirm · Esc to paste as one line
+          </p>
+        )}
+      </div>
+
+      {subtasks.length === 0 && (
+        <p className="text-paragraph-xs text-text-soft-400">Break this task into steps.</p>
       )}
     </CollapsibleSection>
-  );
-}
-
-function SubtaskRow({
-  subtask,
-  statuses,
-  workspaceSlug,
-  pageBase,
-}: {
-  subtask: TaskRow;
-  statuses: StatusRow[];
-  workspaceSlug: string;
-  pageBase?: string;
-}) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [pending, startTransition] = useTransition();
-
-  const done = subtask.completedAt !== null;
-
-  function toggleDone() {
-    const target = doneToggleTarget(statuses, done);
-    if (!target) {
-      toast.error('This project has no done column.');
-      return;
-    }
-    startTransition(async () => {
-      const result = await settle(updateTaskAction(workspaceSlug, { taskId: subtask.id, statusId: target.id }));
-      if (!result.ok) toast.error(result.error);
-      else router.refresh();
-    });
-  }
-
-  function open() {
-    if (pageBase) {
-      router.push(`${pageBase}/${subtask.id}`);
-      return;
-    }
-    const next = new URLSearchParams(searchParams);
-    next.set('task', subtask.id);
-    // Same ?task= contract as the board, so a subtask is deep-linkable too.
-    router.push(`?${next.toString()}`, { scroll: false });
-  }
-
-  function onDelete() {
-    startTransition(async () => {
-      const result = await settle(deleteTaskAction(workspaceSlug, { taskId: subtask.id }));
-      if (!result.ok) toast.error(result.error);
-      else router.refresh();
-    });
-  }
-
-  return (
-    <li className="group flex items-center gap-2 border-b border-stroke-soft-200 pr-2 last:border-b-0">
-      <button
-        type="button"
-        onClick={toggleDone}
-        disabled={pending}
-        aria-pressed={done}
-        aria-label={done ? `Mark "${subtask.title}" as not done` : `Mark "${subtask.title}" as done`}
-        className="inline-flex size-11 shrink-0 items-center justify-center text-text-soft-400 transition-colors duration-150 hover:text-text-strong-950 disabled:opacity-50"
-      >
-        <DoneIcon done={done} className="size-4" />
-      </button>
-
-      <button
-        type="button"
-        onClick={open}
-        className={cn(
-          'min-w-0 flex-1 truncate py-3 text-left text-paragraph-sm transition-colors duration-220',
-          done ? 'text-text-soft-400' : 'text-text-strong-950',
-        )}
-      >
-        <StrikeText done={done}>{subtask.title}</StrikeText>
-      </button>
-
-      <button
-        type="button"
-        onClick={onDelete}
-        disabled={pending}
-        aria-label={`Delete "${subtask.title}"`}
-        // Always reachable by keyboard and on touch; only the hover styling is
-        // conditional, so the row stays quiet until pointed at.
-        className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-text-soft-400 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 hover:text-error-base disabled:opacity-50"
-      >
-        <IconTrash className="size-4" aria-hidden="true" />
-      </button>
-    </li>
   );
 }

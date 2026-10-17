@@ -13,6 +13,7 @@ import * as Dropdown from '@/components/ui/dropdown';
 import { DURATION, EASE_OUT_SOFT } from '@/lib/motion';
 import type { TodoRow } from '@/server/todos/queries';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 export type TodoItemHandlers = {
   onToggle: (item: TodoRow) => void;
@@ -70,15 +71,17 @@ export function TodoItem({
       {handle}
 
       {/* A toggle button, not a checkbox — same markup and names as the old TaskRow. */}
-      <button
-        type="button"
-        onClick={() => onToggle(item)}
-        aria-pressed={done}
-        aria-label={done ? `Mark "${item.title}" as not done` : `Mark "${item.title}" as done`}
-        className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-text-soft-400 transition-colors duration-150 hover:text-text-strong-950"
-      >
-        <DoneIcon done={done} className="size-5" />
-      </button>
+      <Hint label={done ? 'Mark as not done' : 'Mark as done'}>
+        <button
+          type="button"
+          onClick={() => onToggle(item)}
+          aria-pressed={done}
+          aria-label={done ? `Mark "${item.title}" as not done` : `Mark "${item.title}" as done`}
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-text-soft-400 transition-colors duration-150 hover:text-text-strong-950"
+        >
+          <DoneIcon done={done} className="size-5" />
+        </button>
+      </Hint>
 
       {editing ? (
         <input
@@ -121,15 +124,17 @@ export function TodoItem({
 
       <Dropdown.Root>
         <Dropdown.Trigger asChild>
-          <CompactButton.Root
-            variant="ghost"
-            size="large"
-            aria-label={`More actions for "${item.title}"`}
-            // Always visible on touch screens, hover-revealed on desktop.
-            className="shrink-0 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100 lg:data-[state=open]:opacity-100"
-          >
-            <CompactButton.Icon as={IconDots} />
-          </CompactButton.Root>
+          <Hint label="More actions">
+            <CompactButton.Root
+              variant="ghost"
+              size="large"
+              aria-label={`More actions for "${item.title}"`}
+              // Always visible on touch screens, hover-revealed on desktop.
+              className="shrink-0 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100 lg:data-[state=open]:opacity-100"
+            >
+              <CompactButton.Icon as={IconDots} />
+            </CompactButton.Root>
+          </Hint>
         </Dropdown.Trigger>
         <Dropdown.Content align="end" className="w-40">
           <Dropdown.Item onSelect={() => onDelete(item)} className="text-error-base">
@@ -155,17 +160,19 @@ export function SortableTodoItem(props: TodoItemHandlers & { item: TodoRow; time
       style={{ transform: CSS.Transform.toString(transform), transition }}
       dragging={isDragging}
       handle={
-        <button
-          type="button"
-          ref={setActivatorNodeRef}
-          {...attributes}
-          {...listeners}
-          aria-label={`Reorder "${props.item.title}"`}
-          // touch-none: without it a touch on the handle scrolls instead of dragging.
-          className="inline-flex size-9 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-text-soft-400 hover:text-text-strong-950 active:cursor-grabbing"
-        >
-          <IconGripVertical className="size-4" aria-hidden="true" />
-        </button>
+        <Hint label="Drag to reorder">
+          <button
+            type="button"
+            ref={setActivatorNodeRef}
+            {...attributes}
+            {...listeners}
+            aria-label={`Reorder "${props.item.title}"`}
+            // touch-none: without it a touch on the handle scrolls instead of dragging.
+            className="inline-flex size-9 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-text-soft-400 hover:text-text-strong-950 active:cursor-grabbing"
+          >
+            <IconGripVertical className="size-4" aria-hidden="true" />
+          </button>
+        </Hint>
       }
     />
   );

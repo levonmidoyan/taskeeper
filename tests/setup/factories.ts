@@ -17,7 +17,7 @@ export async function createWorkspace(ownerId: string, name: string, slug: strin
   return { id, name, slug };
 }
 
-export async function joinWorkspace(userId: string, workspaceId: string, role: 'admin' | 'member') {
+export async function joinWorkspace(userId: string, workspaceId: string, role: 'owner' | 'admin' | 'member') {
   const id = newId();
   await db.insert(member).values({ id, organizationId: workspaceId, userId, role });
   return {

@@ -2,13 +2,14 @@
 
 import { IconTrash } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { ShortcutKeys } from '@/components/shell/ShortcutHint';
 import { CollapsibleSection } from '@/components/task/CollapsibleSection';
 import { CommentReactions } from '@/components/task/CommentReactions';
 import { Markdown } from '@/components/task/Markdown';
 import { RichTextField } from '@/components/task/RichTextField';
+import { useAttachmentUploads } from '@/components/task/use-attachment-uploads';
 import { UserAvatar } from '@/components/auth/user/user-avatar';
 import * as Button from '@/components/ui/button';
 import * as CompactButton from '@/components/ui/compact-button';
@@ -17,6 +18,7 @@ import * as SegmentedControl from '@/components/ui/segmented-control';
 import { useTaskSectionOpen } from '@/hooks/use-task-sections';
 import { describeActivity } from '@/lib/activity-text';
 import { formatInZone } from '@/lib/dates';
+import { LOCAL_ESCAPE_EVENT } from '@/lib/local-escape';
 import { settle } from '@/lib/settle';
 import { useShortcut } from '@/lib/shortcuts/provider';
 import { cn } from '@/utils/cn';
@@ -25,6 +27,7 @@ import type { MemberRow } from '@/server/labels/queries';
 import {
   createCommentAction, deleteCommentAction, updateCommentAction,
 } from '@/server/comments/actions';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 type ActivityTab = 'all' | 'comments' | 'history';
 
@@ -38,6 +41,7 @@ const QUICK_REPLIES = ['Looks good!', 'Need help?', 'This is blocked…', 'Can y
 
 export function ActivityFeed({
   taskId,
+  canAttach,
   feed,
   members,
   workspaceSlug,
@@ -46,6 +50,8 @@ export function ActivityFeed({
   timezone,
 }: {
   taskId: string;
+  /** Storage is set up, so pasted or dropped files become attachments. */
+  canAttach: boolean;
   feed: FeedEntry[];
   /** Offered by the @ menu, and the names mention chips show. */
   members: MemberRow[];
@@ -65,8 +71,16 @@ export function ActivityFeed({
   const [focused, setFocused] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
+  const uploads = useAttachmentUploads(workspaceSlug, taskId);
+  const uploadFiles = canAttach ? uploads.upload : undefined;
+  // Running uploads in the composer and in the comment being edited.
+  const [composerUploads, setComposerUploads] = useState(0);
+  const [editUploads, setEditUploads] = useState(0);
   const [tab, setTab] = useState<ActivityTab>('comments');
   const composerRef = useRef<HTMLFormElement>(null);
+  const editFormRef = useRef<HTMLFormElement>(null);
+  // The comment whose Edit button gets focus back once its edit ends.
+  const returnFocusTo = useRef<string | null>(null);
   const [, setSectionOpen] = useTaskSectionOpen('activity');
   // m: open the section if collapsed, leave History, and put the caret in the composer.
   useShortcut('detail.comment', () => {
@@ -88,6 +102,7 @@ export function ActivityFeed({
   const expanded = focused || draft.trim() !== '';
 
   function resetComposer() {
+    setComposerUploads(0);
     setDraft('');
     setSeed('');
     setFocused(false);
@@ -95,6 +110,7 @@ export function ActivityFeed({
   }
 
   function startWith(text: string) {
+    setComposerUploads(0);
     setSeed(text);
     setDraft(text);
     setComposerKey((k) => k + 1);
@@ -104,6 +120,11 @@ export function ActivityFeed({
     event.preventDefault();
     const body = draft;
     if (!body.trim() || pending) return;
+    // Posting now would keep the text without the file it is waiting for.
+    if (composerUploads > 0) {
+      toast.message('Wait for uploads to finish.');
+      return;
+    }
 
     startTransition(async () => {
       const result = await settle(createCommentAction(workspaceSlug, { taskId, body }));
@@ -118,17 +139,51 @@ export function ActivityFeed({
 
   function startEdit(entry: { id: string; body: string }) {
     setEditDraft(entry.body);
+    setEditUploads(0);
     setEditingId(entry.id);
   }
 
+  function finishEdit() {
+    returnFocusTo.current = editingId;
+    setEditingId(null);
+  }
+
+  // Inside a dialog, Escape reaches the dialog first; it hands it over by this event.
+  // The composer only claims it while open (see data-local-escape below).
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.addEventListener(LOCAL_ESCAPE_EVENT, resetComposer);
+    return () => el.removeEventListener(LOCAL_ESCAPE_EVENT, resetComposer);
+  }, []);
+
+  useEffect(() => {
+    const el = editFormRef.current;
+    if (!editingId || !el) return;
+    el.addEventListener(LOCAL_ESCAPE_EVENT, finishEdit);
+    return () => el.removeEventListener(LOCAL_ESCAPE_EVENT, finishEdit);
+  });
+
+  // Back to where the edit started, so the keyboard is not dropped on the body.
+  useEffect(() => {
+    if (editingId || !returnFocusTo.current) return;
+    const id = returnFocusTo.current;
+    returnFocusTo.current = null;
+    document.querySelector<HTMLElement>(`[data-edit-comment="${id}"]`)?.focus();
+  }, [editingId]);
+
   function onEdit(commentId: string) {
+    if (editUploads > 0) {
+      toast.message('Wait for uploads to finish.');
+      return;
+    }
     startTransition(async () => {
       const result = await settle(updateCommentAction(workspaceSlug, { commentId, body: editDraft }));
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
-      setEditingId(null);
+      finishEdit();
       router.refresh();
     });
   }
@@ -169,6 +224,7 @@ export function ActivityFeed({
         ref={composerRef}
         onSubmit={onSubmit}
         hidden={tab === 'history'}
+        data-local-escape={expanded ? '' : undefined}
         onFocus={(event) => {
           // Only the editor opens it: a focused quick reply would swap itself out
           // for Save and Cancel on mousedown, before its click lands.
@@ -186,6 +242,13 @@ export function ActivityFeed({
             event.currentTarget.requestSubmit();
           }
         }}
+        onKeyDown={(event) => {
+          // Already handled when the slash menu or link field took it.
+          if (event.key === 'Escape' && expanded && !event.defaultPrevented) {
+            event.preventDefault();
+            resetComposer();
+          }
+        }}
         className="sticky -top-5 z-10 -mt-2 flex gap-3 bg-bg-white-0 pt-5 pb-3"
       >
         <UserAvatar aria-hidden="true" className="size-8 shrink-0" />
@@ -201,13 +264,15 @@ export function ActivityFeed({
               placeholder="Add a comment… Markdown and / commands work."
               autoFocus={seed !== ''}
               onChange={setDraft}
-              // A one-line box until it is used; room to write once it is.
-              className={cn(!expanded && 'cursor-text hover:bg-bg-weak-50 [&_.md-content]:min-h-5')}
+              onUploadFiles={uploadFiles}
+              onUploadingChange={setComposerUploads}
+              // The same roomy box whether empty or in use, so it does not jump on first keystroke.
+              className={cn('[&_.md-content]:min-h-[100px]', !expanded && 'cursor-text hover:bg-bg-weak-50')}
             />
           </div>
           {expanded ? (
             <div className="flex items-center gap-2">
-              <Button.Root type="submit" size="xxsmall" disabled={pending || !draft.trim()}>
+              <Button.Root type="submit" size="xxsmall" disabled={pending || !draft.trim() || composerUploads > 0}>
                 Save
               </Button.Root>
               <Button.Root type="button" variant="neutral" mode="ghost" size="xxsmall" onClick={resetComposer}>
@@ -269,41 +334,75 @@ export function ActivityFeed({
                   </span>
                   <span className="ml-auto flex items-center gap-1">
                     {entry.authorId === currentUserId && editingId !== entry.id && (
-                      <Button.Root type="button" variant="neutral" mode="ghost" size="xxsmall" onClick={() => startEdit(entry)}>
+                      <Button.Root
+                        type="button"
+                        variant="neutral"
+                        mode="ghost"
+                        size="xxsmall"
+                        data-edit-comment={entry.id}
+                        onClick={() => startEdit(entry)}
+                      >
                         Edit
                       </Button.Root>
                     )}
                     {(entry.authorId === currentUserId || canModerate) && (
-                      <CompactButton.Root
-                        type="button"
-                        variant="ghost"
-                        size="medium"
-                        aria-label={`Delete comment by ${entry.authorName}`}
-                        onClick={() => onDelete(entry.id)}
-                        className="hover:text-error-base"
-                      >
-                        <CompactButton.Icon as={IconTrash} />
-                      </CompactButton.Root>
+                      <Hint label="Delete comment">
+                        <CompactButton.Root
+                          type="button"
+                          variant="ghost"
+                          size="medium"
+                          aria-label={`Delete comment by ${entry.authorName}`}
+                          onClick={() => onDelete(entry.id)}
+                          className="hover:text-error-base"
+                        >
+                          <CompactButton.Icon as={IconTrash} />
+                        </CompactButton.Root>
+                      </Hint>
                     )}
                   </span>
                 </div>
 
                 {editingId === entry.id ? (
                   <form
+                    ref={editFormRef}
+                    data-local-escape=""
                     onSubmit={(event) => { event.preventDefault(); onEdit(entry.id); }}
+                    onKeyDownCapture={(event) => {
+                      // Ahead of the editor, whose own Mod-Enter would add a line break first.
+                      if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        event.currentTarget.requestSubmit();
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      // Already handled when the slash menu or link field took it.
+                      if (event.key === 'Escape' && !event.defaultPrevented) {
+                        event.preventDefault();
+                        finishEdit();
+                      }
+                    }}
                     className="mt-2 flex flex-col gap-2"
                   >
-                    <RichTextField value={entry.body} label="Edit comment" members={members} onChange={setEditDraft} />
+                    <RichTextField
+                      value={entry.body}
+                      label="Edit comment"
+                      members={members}
+                      autoFocus
+                      onChange={setEditDraft}
+                      onUploadFiles={uploadFiles}
+                      onUploadingChange={setEditUploads}
+                    />
                     <div className="flex gap-2">
-                      <Button.Root type="submit" size="xxsmall" disabled={pending}>Save</Button.Root>
-                      <Button.Root type="button" variant="neutral" mode="stroke" size="xxsmall" onClick={() => setEditingId(null)}>
+                      <Button.Root type="submit" size="xxsmall" disabled={pending || editUploads > 0}>Save</Button.Root>
+                      <Button.Root type="button" variant="neutral" mode="stroke" size="xxsmall" onClick={finishEdit}>
                         Cancel
                       </Button.Root>
                     </div>
                   </form>
                 ) : (
                   <>
-                    <Markdown className="mt-1" members={members} currentUserId={currentUserId}>{entry.body}</Markdown>
+                    <Markdown className="mt-1 min-h-10" members={members} currentUserId={currentUserId}>{entry.body}</Markdown>
                     <CommentReactions
                       workspaceSlug={workspaceSlug}
                       commentId={entry.id}

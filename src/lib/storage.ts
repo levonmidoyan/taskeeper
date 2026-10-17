@@ -83,6 +83,14 @@ export async function presignGet(input: { key: string; contentType: string; disp
   );
 }
 
+/** The first `bytes` bytes of an object, read server-side. */
+export async function readObjectHead(key: string, bytes: number): Promise<Uint8Array> {
+  const object = await storageClient().send(new GetObjectCommand({
+    Bucket: bucketName(), Key: key, Range: `bytes=0-${bytes - 1}`,
+  }));
+  return object.Body ? object.Body.transformToByteArray() : new Uint8Array();
+}
+
 export async function headObject(key: string): Promise<{ size: number; contentType: string | null } | null> {
   try {
     const head = await storageClient().send(new HeadObjectCommand({ Bucket: bucketName(), Key: key }));

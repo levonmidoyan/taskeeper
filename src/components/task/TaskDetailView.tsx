@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  IconArrowUpRight, IconChevronLeft, IconDots, IconLink, IconTrash, IconX,
+  IconArrowBarToUp, IconArrowUpRight, IconDots, IconLink, IconSubtask, IconTrash, IconX,
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { TextField } from '@/components/forms/TextField';
 import { ActivityFeed } from '@/components/task/ActivityFeed';
 import { AssigneePicker } from '@/components/task/AssigneePicker';
+import { AttachmentPreviewModal } from '@/components/task/AttachmentPreviewModal';
 import { AttachmentSection } from '@/components/task/AttachmentSection';
 import { DescriptionField } from '@/components/task/DescriptionField';
 import { DueDateField } from '@/components/task/DueDateField';
@@ -20,7 +21,11 @@ import { StatusIcon } from '@/components/task/StatusIcon';
 import { homeCrumb } from '@/components/shell/crumbs';
 import { ShortcutTooltip } from '@/components/shell/ShortcutHint';
 import { PageBreadcrumb } from '@/components/shell/PageBreadcrumb';
+import { ParentPickerDialog } from '@/components/task/ParentPickerDialog';
+import { SubtaskBanner } from '@/components/task/SubtaskBanner';
 import { SubtaskSection } from '@/components/task/SubtaskSection';
+import { MakeSubtaskLabel } from '@/components/task/TaskRowActions';
+import { useSetParent } from '@/components/task/use-set-parent';
 import * as CompactButton from '@/components/ui/compact-button';
 import * as Dropdown from '@/components/ui/dropdown';
 import * as Label from '@/components/ui/label';
@@ -28,7 +33,9 @@ import * as Modal from '@/components/ui/modal';
 import * as Select from '@/components/ui/select';
 import { useServerValue } from '@/hooks/use-server-value';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { previewKind } from '@/lib/attachments';
 import { formatInZone } from '@/lib/dates';
+import { ATTACHMENT_PATH } from '@/lib/inline-attachment';
 import { settle } from '@/lib/settle';
 import { DETAIL_SELECTOR } from '@/lib/shortcuts/guards';
 import { useShortcut } from '@/lib/shortcuts/provider';
@@ -40,6 +47,7 @@ import type { StatusRow } from '@/server/projects/queries';
 import { deleteTaskAction, updateTaskAction } from '@/server/tasks/actions';
 import type { LabelRow, Priority, TaskDetail } from '@/server/tasks/queries';
 import type { ReminderOffset } from '@/lib/reminders';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
 
@@ -123,7 +131,29 @@ export function TaskDetailView({
   const [dueDate, setDueDate] = useServerValue(task.dueDate);
   // Controlled so s / p can open them from the keyboard.
   const [statusOpen, setStatusOpen] = useState(false);
+  // One preview for the Attachments cards and for files linked inline in the description
+  // and comments. Tracked by id so a refresh that adds or removes files keeps it open.
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const previewable = (attachments ?? []).filter((a) => previewKind(a.fileName, a.contentType) !== null);
+  const previewIndex = previewable.findIndex((a) => a.id === previewId);
+
+  // A plain click on an inline attachment link previews it when the modal can show it;
+  // anything else (another task's file, a zip, a modified click) stays a normal link.
+  function onInlineAttachmentClick(event: React.MouseEvent) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const link = (event.target as Element).closest('a');
+    // Links inside the editor do not navigate; a click there only places the caret.
+    if (!link || link.closest('[contenteditable="true"]')) return;
+    const href = link.getAttribute('href') ?? '';
+    if (!href.startsWith(ATTACHMENT_PATH)) return;
+    const id = href.slice(ATTACHMENT_PATH.length);
+    if (!previewable.some((a) => a.id === id)) return;
+    event.preventDefault();
+    setPreviewId(id);
+  }
   const [priorityOpen, setPriorityOpen] = useState(false);
+  const setParent = useSetParent(workspaceSlug);
+  const [pickParent, setPickParent] = useState(false);
   // Set when s / p opened the list. Radix hands focus back to the trigger on
   // close, where the next shortcut letter would pick an option by typeahead
   // (d → Done); the task itself takes focus instead.
@@ -139,11 +169,25 @@ export function TaskDetailView({
   const projectHref = `/${workspaceSlug}/projects/${projectId}`;
   const pageHref = `${tasksBase}/${task.id}`;
 
-  function openParent() {
+  function goTo(id: string) {
+    if (mode === 'page') {
+      router.push(`${tasksBase}/${id}`);
+      return;
+    }
     const next = new URLSearchParams(searchParams);
-    next.set('task', task.parentId!);
+    next.set('task', id);
     router.push(`?${next.toString()}`, { scroll: false });
   }
+  const openParent = () => goTo(task.parentId!);
+
+  const siblingIndex = task.siblings.findIndex((s) => s.id === task.id);
+  useShortcut('detail.prevSibling', () => {
+    if (siblingIndex > 0) goTo(task.siblings[siblingIndex - 1].id);
+  }, task.parentId !== null);
+  useShortcut('detail.nextSibling', () => {
+    if (siblingIndex >= 0 && siblingIndex < task.siblings.length - 1) goTo(task.siblings[siblingIndex + 1].id);
+  }, task.parentId !== null);
+  useShortcut('detail.parent', openParent, task.parentId !== null);
 
   function close() {
     const next = new URLSearchParams(searchParams);
@@ -225,11 +269,28 @@ export function TaskDetailView({
   const moreMenu = (
     <Dropdown.Root>
       <Dropdown.Trigger asChild>
-        <CompactButton.Root variant="ghost" size="large" aria-label="More actions">
-          <CompactButton.Icon as={IconDots} aria-hidden="true" />
-        </CompactButton.Root>
+        <Hint label="More actions">
+          <CompactButton.Root variant="ghost" size="large" aria-label="More actions">
+            <CompactButton.Icon as={IconDots} aria-hidden="true" />
+          </CompactButton.Root>
+        </Hint>
       </Dropdown.Trigger>
       <Dropdown.Content align="end" className="w-48">
+        {task.parentId ? (
+          <Dropdown.Item onSelect={() => setParent(task.id, null, task.parentId, `“${task.title}” is now a task`)}>
+            <Dropdown.ItemIcon as={IconArrowBarToUp} />
+            Promote to task
+          </Dropdown.Item>
+        ) : (
+          <Dropdown.Item
+            disabled={task.subtasks.length > 0}
+            onSelect={() => setPickParent(true)}
+          >
+            <Dropdown.ItemIcon as={IconSubtask} />
+            <MakeSubtaskLabel blocked={task.subtasks.length > 0} />
+          </Dropdown.Item>
+        )}
+        <Dropdown.Separator className="my-1 h-px bg-stroke-soft-200" />
         <Dropdown.Item onSelect={onDelete} className="text-error-base">
           <Dropdown.ItemIcon as={IconTrash} className="text-error-base" />
           Delete
@@ -240,34 +301,29 @@ export function TaskDetailView({
 
   const header = mode === 'modal' ? (
     <header className="flex shrink-0 items-center justify-between gap-3 border-b border-stroke-soft-200 px-5 py-3">
-      {task.parentId ? (
-        <button
-          type="button"
-          onClick={openParent}
-          className="-ml-1 inline-flex min-w-0 items-center gap-1 rounded-lg px-1 py-1 text-paragraph-xs text-text-sub-600 transition-colors duration-150 hover:text-text-strong-950"
-        >
-          <IconChevronLeft className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="truncate">{task.parentTitle}</span>
-        </button>
-      ) : (
-        <span className="text-paragraph-xs text-text-sub-600">Task</span>
-      )}
+      <span className="text-paragraph-xs text-text-sub-600">{task.parentId ? 'Subtask' : 'Task'}</span>
 
       <div className="flex shrink-0 items-center gap-1">
-        <CompactButton.Root variant="ghost" size="large" onClick={copyLink} aria-label="Copy link">
-          <CompactButton.Icon as={IconLink} aria-hidden="true" />
-        </CompactButton.Root>
-        <CompactButton.Root variant="ghost" size="large" asChild>
-          <Link href={pageHref} aria-label="Open full page">
-            <CompactButton.Icon as={IconArrowUpRight} aria-hidden="true" />
-          </Link>
-        </CompactButton.Root>
+        <Hint label="Copy link">
+          <CompactButton.Root variant="ghost" size="large" onClick={copyLink} aria-label="Copy link">
+            <CompactButton.Icon as={IconLink} aria-hidden="true" />
+          </CompactButton.Root>
+        </Hint>
+        <Hint label="Open full page">
+          <CompactButton.Root variant="ghost" size="large" asChild>
+            <Link href={pageHref} aria-label="Open full page">
+              <CompactButton.Icon as={IconArrowUpRight} aria-hidden="true" />
+            </Link>
+          </CompactButton.Root>
+        </Hint>
         {moreMenu}
         <Modal.Close asChild>
-          <CompactButton.Root variant="ghost" size="large">
-            <CompactButton.Icon as={IconX} aria-hidden="true" />
-            <span className="sr-only">Close</span>
-          </CompactButton.Root>
+          <Hint label="Close">
+            <CompactButton.Root variant="ghost" size="large">
+              <CompactButton.Icon as={IconX} aria-hidden="true" />
+              <span className="sr-only">Close</span>
+            </CompactButton.Root>
+          </Hint>
         </Modal.Close>
       </div>
     </header>
@@ -283,9 +339,11 @@ export function TaskDetailView({
       />
 
       <div className="flex shrink-0 items-center gap-1">
-        <CompactButton.Root variant="ghost" size="large" onClick={copyLink} aria-label="Copy link">
-          <CompactButton.Icon as={IconLink} aria-hidden="true" />
-        </CompactButton.Root>
+        <Hint label="Copy link">
+          <CompactButton.Root variant="ghost" size="large" onClick={copyLink} aria-label="Copy link">
+            <CompactButton.Icon as={IconLink} aria-hidden="true" />
+          </CompactButton.Root>
+        </Hint>
         {moreMenu}
       </div>
     </header>
@@ -294,6 +352,15 @@ export function TaskDetailView({
   return (
     <>
       {header}
+      {task.parentId && (
+        <SubtaskBanner
+          parentTitle={task.parentTitle ?? 'Parent task'}
+          siblings={task.siblings}
+          currentId={task.id}
+          onGo={goTo}
+          onParent={openParent}
+        />
+      )}
 
       {/* One scrolling column on small screens (title, fields, content);
           from lg the content and the fields sidebar scroll independently. */}
@@ -431,8 +498,14 @@ export function TaskDetailView({
           </dl>
         </aside>
 
-        <div className="flex flex-col gap-5 p-5 lg:col-start-1 lg:row-start-2 lg:overflow-y-auto">
+        <div
+          onClick={onInlineAttachmentClick}
+          className="flex flex-col gap-5 p-5 lg:col-start-1 lg:row-start-2 lg:overflow-y-auto"
+        >
           <DescriptionField
+            taskId={task.id}
+            workspaceSlug={workspaceSlug}
+            canAttach={attachments !== null}
             value={task.description}
             members={members}
             currentUserId={currentUserId}
@@ -446,6 +519,8 @@ export function TaskDetailView({
               parent={task}
               subtasks={task.subtasks}
               statuses={statuses}
+              members={members}
+              timezone={timezone}
               projectId={projectId}
               workspaceSlug={workspaceSlug}
               pageBase={mode === 'page' ? tasksBase : undefined}
@@ -460,11 +535,13 @@ export function TaskDetailView({
               currentUserId={currentUserId}
               canModerate={canModerate}
               timezone={timezone}
+              onPreview={setPreviewId}
             />
           )}
 
           <ActivityFeed
             taskId={task.id}
+            canAttach={attachments !== null}
             feed={feed}
             members={members}
             workspaceSlug={workspaceSlug}
@@ -474,6 +551,21 @@ export function TaskDetailView({
           />
         </div>
       </div>
+
+      <ParentPickerDialog
+        open={pickParent}
+        onOpenChange={setPickParent}
+        taskId={task.id}
+        workspaceSlug={workspaceSlug}
+        onPick={(p) => setParent(task.id, p.id, null, `“${task.title}” is now a subtask of “${p.title}”`)}
+      />
+
+      <AttachmentPreviewModal
+        attachments={previewable}
+        index={previewIndex === -1 ? null : previewIndex}
+        onIndexChange={(i) => setPreviewId(previewable[i].id)}
+        onClose={() => setPreviewId(null)}
+      />
     </>
   );
 }

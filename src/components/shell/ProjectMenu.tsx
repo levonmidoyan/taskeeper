@@ -15,6 +15,7 @@ import { cn } from '@/utils/cn';
 import {
   archiveProjectAction, deleteProjectAction, renameProjectAction, unarchiveProjectAction,
 } from '@/server/projects/actions';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 /**
  * Rename, archive and delete for one project, beside its title and on its rail
@@ -126,17 +127,19 @@ export function ProjectMenu({
     <>
       <Dropdown.Root onOpenChange={(open) => open && setShown(true)}>
         <Dropdown.Trigger asChild>
-          <CompactButton.Root
-            ref={trigger}
-            variant="ghost"
-            size={placement === 'rail' ? 'medium' : 'large'}
-            aria-label={placement === 'rail' ? `Actions for ${name}` : 'Project actions'}
-            disabled={pending}
-            data-shown={shown || undefined}
-            className={cn(placement === 'rail' && 'size-6', className)}
-          >
-            <CompactButton.Icon as={IconDotsVertical} />
-          </CompactButton.Root>
+          <Hint label="Project actions">
+            <CompactButton.Root
+              ref={trigger}
+              variant="ghost"
+              size={placement === 'rail' ? 'medium' : 'large'}
+              aria-label={placement === 'rail' ? `Actions for ${name}` : 'Project actions'}
+              disabled={pending}
+              data-shown={shown || undefined}
+              className={cn(placement === 'rail' && 'size-6', className)}
+            >
+              <CompactButton.Icon as={IconDotsVertical} />
+            </CompactButton.Root>
+          </Hint>
         </Dropdown.Trigger>
         <Dropdown.Content
           align="start"

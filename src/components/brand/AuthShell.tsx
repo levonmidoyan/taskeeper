@@ -16,17 +16,19 @@ import { cn } from '@/utils/cn';
  */
 const InsideAuthShell = createContext(false);
 
-export function AuthShell({ children }: { children: React.ReactNode }) {
+/** `headerEnd` sits opposite the logo: signed-in onboarding puts the account menu there. */
+export function AuthShell({ children, headerEnd }: { children: React.ReactNode; headerEnd?: React.ReactNode }) {
   if (useContext(InsideAuthShell)) return children;
 
   return (
     <InsideAuthShell value={true}>
       <div className="grid min-h-dvh bg-bg-white-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <div className="aurora aurora-soft relative flex min-w-0 flex-col px-4 py-6 sm:px-10 lg:before:hidden">
-          <header>
+          <header className="flex items-center justify-between gap-3">
             <Link href="/" className="inline-flex rounded-lg text-text-strong-950" aria-label="Taskeeper home">
               <Logo />
             </Link>
+            {headerEnd}
           </header>
 
           <main className="flex flex-1 items-center justify-center py-10">

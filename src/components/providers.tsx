@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { AddAccountDialog } from '@/components/auth/multi-session/add-account-dialog';
 import { ConfirmProvider } from '@/components/ui/confirm-dialog';
+import * as Tooltip from '@/components/ui/tooltip';
 import { authClient } from '@/lib/auth-client';
 import { adminPlugin } from '@/lib/auth-ui/admin-plugin';
 import { deleteUserPlugin } from '@/lib/auth-ui/delete-user-plugin';
@@ -57,7 +58,10 @@ export function Providers({
         }}
         Link={Link}
       >
-        <ConfirmProvider>{children}</ConfirmProvider>
+        {/* One provider for every Hint, so moving between neighbouring icons skips the delay. */}
+        <Tooltip.Provider delayDuration={500} skipDelayDuration={300} disableHoverableContent>
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </Tooltip.Provider>
         <AddAccountDialog />
       </AuthProvider>
     </QueryClientProvider>

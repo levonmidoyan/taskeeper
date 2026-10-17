@@ -10,13 +10,14 @@ import { AttachmentUploadModal } from '@/components/task/AttachmentUploadModal';
 import { useAttachmentUploads } from '@/components/task/use-attachment-uploads';
 import * as Button from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { previewKind } from '@/lib/attachments';
 import { settle } from '@/lib/settle';
 import type { AttachmentView } from '@/server/attachments/queries';
 import { deleteAttachmentAction } from '@/server/attachments/actions';
 import { cn } from '@/utils/cn';
 
 export function AttachmentSection({
-  taskId, attachments, workspaceSlug, currentUserId, canModerate, timezone,
+  taskId, attachments, workspaceSlug, currentUserId, canModerate, timezone, onPreview,
 }: {
   taskId: string;
   attachments: AttachmentView[];
@@ -24,6 +25,8 @@ export function AttachmentSection({
   currentUserId: string;
   canModerate: boolean;
   timezone: string;
+  /** Opens the task's preview modal (owned by the detail view, which inline links share). */
+  onPreview: (attachmentId: string) => void;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -111,6 +114,7 @@ export function AttachmentSection({
               timezone={timezone}
               canDelete={a.uploaderId === currentUserId || canModerate}
               onDelete={() => void onDelete(a)}
+              onPreview={previewKind(a.fileName, a.contentType) ? () => onPreview(a.id) : undefined}
             />
           ))}
         </ul>

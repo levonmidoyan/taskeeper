@@ -48,6 +48,15 @@ export function Board({
   const openTaskId = searchParams.get('task');
   const [, startTransition] = useTransition();
   const [announcement, setAnnouncement] = useState('');
+  // Cards showing their subtask checklist. Client memory, collapsed by default.
+  const [expandedSubtasks, setExpandedSubtasks] = useState<ReadonlySet<string>>(() => new Set());
+  function toggleSubtasks(id: string) {
+    setExpandedSubtasks((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   // The card lands the instant it is dropped; the server call follows.
   const [optimisticTasks, applyMove] = useOptimistic(tasks, (current: TaskRow[], move: Move) => {
@@ -251,6 +260,8 @@ export function Board({
             canEdit={canEditColumns}
             openTaskId={openTaskId}
             onOpen={openTask}
+            expandedIds={expandedSubtasks}
+            onToggleSubtasks={toggleSubtasks}
           />
         )}
       </KanbanProvider>

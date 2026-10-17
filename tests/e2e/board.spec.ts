@@ -147,28 +147,22 @@ test('a subtask can be added from the task dialog and opened in place', async ({
 
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText('0/0')).toBeVisible();
+  await dialog.getByPlaceholder('Add subtask…').fill('Write the copy');
+  await dialog.getByPlaceholder('Add subtask…').press('Enter');
 
-  // The input only appears once asked for.
-  await expect(dialog.getByPlaceholder('Add a subtask…')).toBeHidden();
-  await dialog.getByRole('button', { name: 'Add subtask' }).click();
-  await dialog.getByPlaceholder('Add a subtask…').fill('Write the copy');
-  await dialog.getByPlaceholder('Add a subtask…').press('Enter');
-
-  // exact, because the row carries three buttons whose names contain the title:
-  // the checkbox, the title itself, and delete.
-  await expect(dialog.getByRole('button', { name: 'Write the copy', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Rename “Write the copy”' })).toBeVisible();
   await expect(dialog.getByText('0/1')).toBeVisible();
 
-  // Clicking the subtask swaps the dialog to it, with a way back to the parent.
-  await dialog.getByRole('button', { name: 'Write the copy', exact: true }).click();
+  // Opening is explicit; the opened subtask names its parent.
+  await dialog.getByRole('button', { name: 'Open “Write the copy”' }).click();
   await expect(page.getByLabel('Title')).toHaveValue('Write the copy');
   await expect(dialog.getByRole('button', { name: 'Drag me', exact: true })).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Add subtask' })).toBeHidden();
+  await expect(dialog.getByPlaceholder('Add subtask…')).toBeHidden();
 
   await dialog.getByRole('button', { name: 'Drag me', exact: true }).click();
   await expect(page.getByLabel('Title')).toHaveValue('Drag me');
 
   // The checkbox completes the subtask, which the counter reflects.
-  await dialog.getByRole('button', { name: 'Mark "Write the copy" as done' }).click();
+  await dialog.getByRole('button', { name: 'Mark “Write the copy” as done' }).click();
   await expect(dialog.getByText('1/1')).toBeVisible();
 });

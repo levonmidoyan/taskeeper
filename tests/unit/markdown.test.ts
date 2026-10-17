@@ -43,6 +43,15 @@ describe('Markdown', () => {
     expect(render('![](https://x.com/b.png)')).toContain('>https://x.com/b.png</a>');
   });
 
+  it('shows a pasted attachment image in place', () => {
+    const image = render('see ![shot.png](/api/attachments/abc123) here');
+    expect(image).toContain('<img src="/api/attachments/abc123" alt="shot.png"');
+    expect(image).toContain('href="/api/attachments/abc123"');
+    // Anything that only looks like the route stays a link.
+    expect(render('![x](/api/attachments/abc/../../evil)')).not.toContain('<img');
+    expect(render('![x](https://x.com/api/attachments/abc)')).not.toContain('<img');
+  });
+
   it('wraps output in the shared md-content class', () => {
     expect(render('hi')).toMatch(/^<div class="md-content/);
   });

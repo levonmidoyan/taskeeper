@@ -1,6 +1,6 @@
 'use client';
 
-import { dashClient } from '@better-auth/infra/client';
+import { dashClient, sentinelClient } from '@better-auth/infra/client';
 import {
   adminClient,
   deviceAuthorizationClient,
@@ -23,6 +23,10 @@ export const authClient = createAuthClient({
     multiSessionClient(),
     // Audit log reads for the signed-in user; needs the server dash plugin.
     dashClient(),
+    // Browser fingerprint + proof-of-work solver for the server sentinel
+    // plugin. Same public flag as sentinelEnabled(), so dev and CI make no
+    // calls to kv.better-auth.com.
+    ...(process.env.NEXT_PUBLIC_BETTER_AUTH_SENTINEL === 'true' ? [sentinelClient()] : []),
   ],
 });
 

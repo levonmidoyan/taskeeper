@@ -9,6 +9,7 @@ import { viewSwitchType } from '@/lib/motion';
 import { MAX_VIEW_TABS, viewHref, type ViewLayout } from '@/lib/views';
 import type { SavedView } from '@/server/views/queries';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 const LAYOUT_ICON: Record<ViewLayout, typeof IconList> = { board: IconLayoutKanban, list: IconList, calendar: IconCalendar };
 
@@ -159,7 +160,7 @@ export function ViewTabs({
           >
             <Icon className="size-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{view.name}</span>
-            {!view.shared && <IconLock className="size-3.5 shrink-0 text-text-soft-400" aria-label="Private" />}
+            {!view.shared && <Hint label="Private view, only you see it"><IconLock className="size-3.5 shrink-0 text-text-soft-400" aria-label="Private" /></Hint>}
           </Link>
         );
       })}

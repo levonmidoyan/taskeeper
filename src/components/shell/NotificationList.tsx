@@ -7,6 +7,7 @@ import { BELL_CHANGE_CLASSES, BELL_EMPTY_CLASSES, bellTransitionName } from '@/l
 import { bellHref, bellText } from '@/lib/notifications';
 import type { NotificationItem } from '@/server/notifications/queries';
 import { cn } from '@/utils/cn';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 /** The bell's rows, shared by its popover and the Inbox page. */
 export function NotificationList({ workspaceSlug, items, onOpen, onClear, className }: {
@@ -46,14 +47,16 @@ export function NotificationList({ workspaceSlug, items, onOpen, onClear, classN
                 </span>
                 {!item.readAt && <span className="sr-only">Unread</span>}
               </Link>
-              <button
-                type="button"
-                onClick={() => onClear(item)}
-                aria-label={`Clear notification: ${title}`}
-                className="absolute right-1.5 top-2 flex size-5 items-center justify-center rounded-md text-text-soft-400 opacity-0 hover:bg-bg-soft-200 hover:text-text-strong-950 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
-              >
-                <IconX className="size-3.5" aria-hidden="true" />
-              </button>
+              <Hint label="Clear">
+                <button
+                  type="button"
+                  onClick={() => onClear(item)}
+                  aria-label={`Clear notification: ${title}`}
+                  className="absolute right-1.5 top-2 flex size-5 items-center justify-center rounded-md text-text-soft-400 opacity-0 hover:bg-bg-soft-200 hover:text-text-strong-950 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                >
+                  <IconX className="size-3.5" aria-hidden="true" />
+                </button>
+              </Hint>
             </li>
           </ViewTransition>
         );

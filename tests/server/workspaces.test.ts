@@ -2,12 +2,16 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { closeDb, db, resetDb } from '../setup/db';
-import { createUser, createWorkspace } from '../setup/factories';
+import { createUser, createWorkspace, joinWorkspace } from '../setup/factories';
+import { ForbiddenError } from '@/lib/result';
 import { listMyWorkspaces } from '@/server/workspaces/queries';
-import { createWorkspaceForUser, RESERVED_SLUGS } from '@/server/workspaces/service';
+import { createWorkspaceForUser, deleteWorkspace, RESERVED_SLUGS } from '@/server/workspaces/service';
 import { slugify } from '@/lib/slug';
-import { member, organization, workspaceSettings } from '@/db';
+import { member, organization, project, task, workspaceSettings } from '@/db';
 import { eq } from 'drizzle-orm';
+import type { WorkspaceContext } from '@/lib/session';
+import { createProject } from '@/server/projects/service';
+import { createTask } from '@/server/tasks/service';
 
 beforeEach(resetDb);
 afterAll(closeDb);
@@ -117,5 +121,70 @@ describe('RESERVED_SLUGS', () => {
         .filter((e) => e.isDirectory() && !e.name.startsWith('[') && e.name !== 'fonts')
         .flatMap((e) => (e.name.startsWith('(') ? segments(join(dir, e.name)) : [e.name]));
     for (const segment of segments(app)) expect(RESERVED_SLUGS).toContain(segment);
+  });
+});
+
+describe('deleteWorkspace', () => {
+  function ctxFor(userId: string, workspaceId: string, slug: string, role: WorkspaceContext['role'] = 'owner'): WorkspaceContext {
+    return { userId, workspaceId, slug, role, timezone: 'Asia/Yerevan', workspaceTimezone: 'Asia/Yerevan' };
+  }
+
+  it('deletes the workspace with its content and every membership', async () => {
+    const owner = await createUser('wd1@example.com');
+    const other = await createUser('wd2@example.com');
+    const ws = await createWorkspace(owner.id, 'Acme', 'ws-wd1');
+    await joinWorkspace(other.id, ws.id, 'member');
+    const ctx = ctxFor(owner.id, ws.id, 'ws-wd1');
+    const created = await createProject(ctx, { name: 'Website' });
+    if (!created.ok) throw new Error('setup failed');
+    await createTask(ctx, { projectId: created.data.id, title: 'Ship v1' });
+
+    expect(await deleteWorkspace(ctx, { confirmName: 'Acme' })).toEqual({ ok: true, data: null });
+
+    expect(await db.select().from(organization).where(eq(organization.id, ws.id))).toHaveLength(0);
+    expect(await db.select().from(project).where(eq(project.workspaceId, ws.id))).toHaveLength(0);
+    expect(await db.select().from(task).where(eq(task.workspaceId, ws.id))).toHaveLength(0);
+    expect(await db.select().from(member).where(eq(member.organizationId, ws.id))).toHaveLength(0);
+  });
+
+  it('leaves the owner\'s other workspaces alone', async () => {
+    const owner = await createUser('wd3@example.com');
+    const doomed = await createWorkspace(owner.id, 'Doomed', 'ws-wd3a');
+    const kept = await createWorkspace(owner.id, 'Kept', 'ws-wd3b');
+
+    await deleteWorkspace(ctxFor(owner.id, doomed.id, 'ws-wd3a'), { confirmName: 'Doomed' });
+
+    expect((await listMyWorkspaces(owner.id)).map((w) => w.id)).toEqual([kept.id]);
+  });
+
+  it('refuses when the typed name does not match', async () => {
+    const owner = await createUser('wd4@example.com');
+    const ws = await createWorkspace(owner.id, 'Acme', 'ws-wd4');
+
+    const result = await deleteWorkspace(ctxFor(owner.id, ws.id, 'ws-wd4'), { confirmName: 'acme' });
+
+    expect(result.ok).toBe(false);
+    expect(await db.select().from(organization).where(eq(organization.id, ws.id))).toHaveLength(1);
+  });
+
+  it('accepts the name with surrounding spaces', async () => {
+    const owner = await createUser('wd5@example.com');
+    const ws = await createWorkspace(owner.id, 'Acme', 'ws-wd5');
+
+    const result = await deleteWorkspace(ctxFor(owner.id, ws.id, 'ws-wd5'), { confirmName: '  Acme ' });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('is for owners only', async () => {
+    const owner = await createUser('wd6@example.com');
+    const admin = await createUser('wd7@example.com');
+    const ws = await createWorkspace(owner.id, 'Acme', 'ws-wd6');
+    await joinWorkspace(admin.id, ws.id, 'admin');
+
+    await expect(
+      deleteWorkspace(ctxFor(admin.id, ws.id, 'ws-wd6', 'admin'), { confirmName: 'Acme' }),
+    ).rejects.toThrow(ForbiddenError);
+    expect(await db.select().from(organization).where(eq(organization.id, ws.id))).toHaveLength(1);
   });
 });

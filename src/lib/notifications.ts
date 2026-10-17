@@ -9,7 +9,7 @@ import {
 
 export const TASK_CHANGE_KINDS = [
   'title', 'description', 'status', 'priority', 'assignee', 'due_date',
-  'labels', 'attachment', 'comment', 'reaction',
+  'labels', 'attachment', 'comment', 'reaction', 'parent',
 ] as const;
 export type TaskChangeKind = (typeof TASK_CHANGE_KINDS)[number];
 
@@ -66,7 +66,7 @@ type FieldChangeKind = Exclude<TaskChangeKind, 'comment' | 'reaction'>;
 
 const FIELD_LABELS: Record<FieldChangeKind, string> = {
   title: 'title', description: 'description', status: 'status', priority: 'priority', assignee: 'assignee',
-  due_date: 'due date', labels: 'labels', attachment: 'attachments',
+  due_date: 'due date', labels: 'labels', attachment: 'attachments', parent: 'parent task',
 };
 
 const isField = (k: TaskChangeKind): k is FieldChangeKind => k !== 'comment' && k !== 'reaction';

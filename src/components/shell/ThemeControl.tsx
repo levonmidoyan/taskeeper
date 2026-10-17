@@ -4,6 +4,7 @@ import { IconDeviceDesktop, IconMoon, IconSun, type TablerIcon } from '@tabler/i
 import { useTheme } from 'next-themes';
 import { useSyncExternalStore } from 'react';
 import * as SegmentedControl from '@/components/ui/segmented-control';
+import { Hint } from '@/components/shell/ShortcutHint';
 
 type Theme = 'system' | 'light' | 'dark';
 
@@ -29,7 +30,11 @@ export function ThemeControl() {
       <SegmentedControl.List aria-label="Theme" className="w-auto">
         {themes.map(({ key, icon: Icon, label }) => (
           <SegmentedControl.Trigger key={key} value={key} aria-label={label} className="w-7">
-            <Icon aria-hidden="true" className="size-4" />
+            <Hint label={label}>
+              <span className="flex size-full items-center justify-center">
+                <Icon aria-hidden="true" className="size-4" />
+              </span>
+            </Hint>
           </SegmentedControl.Trigger>
         ))}
       </SegmentedControl.List>

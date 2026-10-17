@@ -98,7 +98,7 @@ export const createTaskEndpoint = defineEndpoint({
   path: '/workspaces/{slug}/tasks',
   group: 'Tasks',
   summary: 'Create a task',
-  description: 'Lands in the project’s first column unless statusId says otherwise. Set parentTaskId for a subtask of a task in the same project.',
+  description: 'Lands in the project’s first column unless statusId says otherwise. Set parentTaskId for a subtask of a task in the same project. The parent must be a top-level task: subtasks go one level deep, so a subtask cannot have subtasks of its own.',
   workspace: true,
   params: z.object({ slug: slugParam }),
   body: createSchema.strict(),

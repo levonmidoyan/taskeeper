@@ -21,6 +21,8 @@ type Store = {
   xhrs: Map<string, XMLHttpRequest>;
   /** Whether the modal is open; failures toast only when it is not. */
   modalOpen: boolean;
+  /** Files pasted into a field, waiting to learn their attachment id (null: no file). */
+  waiters: Map<string, (attachmentId: string | null) => void>;
 };
 
 const stores = new Map<string, Store>();
@@ -29,7 +31,7 @@ const EMPTY: UploadItem[] = [];
 export function storeFor(taskId: string): Store {
   let store = stores.get(taskId);
   if (!store) {
-    store = { items: [], listeners: new Set(), xhrs: new Map(), modalOpen: false };
+    store = { items: [], listeners: new Set(), xhrs: new Map(), modalOpen: false, waiters: new Map() };
     stores.set(taskId, store);
   }
   return store;
@@ -38,6 +40,18 @@ export function storeFor(taskId: string): Store {
 function update(store: Store, next: UploadItem[]) {
   store.items = next;
   for (const listener of store.listeners) listener();
+}
+
+/**
+ * Tells a pasted file's field how it ended. Its first failure ends it too: the
+ * field drops its placeholder, and a later retry from the section still attaches
+ * the file to the task.
+ */
+function settleWaiter(store: Store, localId: string, attachmentId: string | null) {
+  const resolve = store.waiters.get(localId);
+  if (!resolve) return;
+  store.waiters.delete(localId);
+  resolve(attachmentId);
 }
 
 export function setUploadModalOpen(taskId: string, open: boolean) {
@@ -72,9 +86,14 @@ export function pumpStore(store: Store, router: ReturnType<typeof useRouter>, wo
     }));
     // ✕ removes the item at once, even while an await below is pending; each
     // step checks, so a cancelled upload never goes on to confirm.
-    const gone = () => !store.items.some((i) => i.localId === item.localId);
+    const gone = () => {
+      const missing = !store.items.some((i) => i.localId === item.localId);
+      if (missing) settleWaiter(store, item.localId, null);
+      return missing;
+    };
     const fail = (error: string, retryable: boolean) => {
       update(store, patchItem(store.items, item.localId, { state: 'failed', error, retryable }));
+      settleWaiter(store, item.localId, null);
       if (!store.modalOpen) toast.error(`${item.file.name}: ${error}`);
     };
 
@@ -131,6 +150,7 @@ export function pumpStore(store: Store, router: ReturnType<typeof useRouter>, wo
         fail(done.error, true);
       } else {
         update(store, patchItem(store.items, item.localId, { state: 'done', loaded: item.file.size }));
+        settleWaiter(store, item.localId, attachmentId);
         router.refresh();
       }
     } catch {
@@ -209,8 +229,28 @@ export function useAttachmentUploads(workspaceSlug: string, taskId: string) {
     }
     store.xhrs.get(localId)?.abort();
     update(store, removeItem(store.items, localId));
+    settleWaiter(store, localId, null);
     pump();
   }, [pump, router, store, workspaceSlug]);
+
+  /** For files pasted into a field: one promise per file, resolved with its attachment id. */
+  const upload = useCallback((files: File[]): Promise<string | null>[] => {
+    if (!files.length) return [];
+    const before = store.items.length;
+    const next = enqueue(store.items, files, () => crypto.randomUUID());
+    const added = next.slice(before);
+    const promises = added.map((item) => {
+      // Over the limit: failed at once, never run, so nothing else would settle it.
+      if (item.state === 'failed') {
+        toast.error(`${item.file.name}: ${item.error}`);
+        return Promise.resolve(null);
+      }
+      return new Promise<string | null>((resolve) => store.waiters.set(item.localId, resolve));
+    });
+    update(store, next);
+    pump();
+    return promises;
+  }, [pump, store]);
 
   const retry = useCallback((localId: string) => {
     update(store, retryItem(store.items, localId));
@@ -236,5 +276,5 @@ export function useAttachmentUploads(workspaceSlug: string, taskId: string) {
     update(store, removeItem(store.items, localId));
   }, [router, store, workspaceSlug]);
 
-  return { items, add, cancel, retry, remove };
+  return { items, add, upload, cancel, retry, remove };
 }

@@ -51,3 +51,13 @@ export function googleCredentials(): { clientId: string; clientSecret: string } 
 export function dashApiKey(): string | null {
   return process.env.BETTER_AUTH_API_KEY?.trim() || null;
 }
+
+/**
+ * Whether the sentinel plugin (abuse protection) runs. Needs the dash key and
+ * NEXT_PUBLIC_BETTER_AUTH_SENTINEL=true: the flag is public because the client
+ * half (sentinelClient) must be on exactly when the server half is — it
+ * fingerprints the browser and solves proof-of-work challenges.
+ */
+export function sentinelEnabled(): boolean {
+  return dashApiKey() !== null && process.env.NEXT_PUBLIC_BETTER_AUTH_SENTINEL === 'true';
+}
